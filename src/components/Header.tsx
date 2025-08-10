@@ -1,16 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { AcademicCapIcon, MagnifyingGlassIcon, UserCircleIcon } from "@heroicons/react/24/outline";
+import { useRouter } from "next/navigation"; // ✅ hinzugefügt
 import { useState } from "react";
+import { AcademicCapIcon, MagnifyingGlassIcon, UserCircleIcon } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 
 export default function Header() {
- 
   const router = useRouter();
   const [q, setQ] = useState("");
 
-  function onSearch(e: React.FormEvent) {
+  function onSearch(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const query = q.trim();
     router.push(query ? `/search?q=${encodeURIComponent(query)}` : "/search");
