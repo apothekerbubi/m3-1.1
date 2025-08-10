@@ -14,26 +14,31 @@ import {
 type Item = {
   href: string;
   label: string;
-  icon: (props: React.SVGProps<SVGSVGElement>) => React.ReactNode;
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
 };
 
 const NAV: Item[] = [
-  { href: "/subjects", label: "Übersicht", icon: HomeIcon },
-  { href: "/cases", label: "Examenssimulation", icon: AcademicCapIcon },
-  { href: "/account", label: "Account", icon: UserCircleIcon },            // Platzhalter
-  { href: "/info", label: "Kontakt & Info", icon: InformationCircleIcon },  // Platzhalter
-  { href: "/shop", label: "Shop", icon: ShoppingBagIcon },                  // Platzhalter
+  { href: "/subjects", label: "Übersicht",          icon: HomeIcon },
+  { href: "/cases",    label: "Examenssimulation",  icon: AcademicCapIcon },
+  { href: "/account",  label: "Account",            icon: UserCircleIcon },
+  { href: "/info",     label: "Kontakt & Info",     icon: InformationCircleIcon },
+  { href: "/shop",     label: "Shop",               icon: ShoppingBagIcon },
 ];
 
 export default function SideNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() || "/";
 
   return (
-    <aside className="hidden md:block">
-      <div className="md:sticky md:top-20 w-[220px] rounded-xl bg-white/80 border border-black/10 shadow-sm p-2">
+    <aside className="w-full md:w-[var(--nav-w)]">
+      {/* nur sticky, KEIN fixed/absolute -> keine Überlappung */}
+      <div className="md:sticky md:top-20 rounded-xl bg-white/80 border border-black/10 shadow-sm p-2">
         <nav className="flex flex-col gap-1">
           {NAV.map(({ href, label, icon: Icon }) => {
-            const active = pathname?.startsWith(href);
+            const active =
+              pathname === href ||
+              pathname.startsWith(href + "/") ||
+              (href === "/subjects" && pathname === "/"); // Logo/Home-Fall
+
             return (
               <Link
                 key={href}
@@ -51,8 +56,13 @@ export default function SideNav() {
                     active ? "opacity-100 bg-brand-600" : "opacity-0 group-hover:opacity-50 bg-gray-300"
                   )}
                 />
-                <Icon className={clsx("h-5 w-5", active ? "text-brand-700" : "text-gray-500")} />
-                <span>{label}</span>
+                <Icon
+                  className={clsx(
+                    "h-5 w-5 shrink-0",
+                    active ? "text-brand-700" : "text-gray-500"
+                  )}
+                />
+                <span className="truncate">{label}</span>
               </Link>
             );
           })}

@@ -27,8 +27,8 @@ function SubjectsPageInner() {
     const casesMap = new Map<string, Case[]>();
 
     for (const c of CASES) {
-      const subj = (c.subject ?? "Sonstiges").trim();
-      const cat = (c.category ?? "Allgemein").trim();
+      const subj = (c.subject ?? c.specialty ?? "Sonstiges").trim();
+const cat  = (c.category ?? c.subspecialty ?? "Allgemein").trim();
 
       if (!catsMap.has(subj)) catsMap.set(subj, new Set());
       catsMap.get(subj)!.add(cat);
