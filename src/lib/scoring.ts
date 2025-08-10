@@ -1,44 +1,61 @@
 // src/lib/scoring.ts
-import type {
-  Rubric,
-  RubricSection,
-  RubricSectionDetailed,
-  ScoreResult,
-} from "@/lib/types";
+import type { Rubric, ScoreResult } from "@/lib/types";
 
-// Type Guard für detaillierte Sections
-function isDetailedSection(
-  sec: RubricSection | RubricSectionDetailed
-): sec is RubricSectionDetailed {
-  return (sec as RubricSectionDetailed).items !== undefined;
+/** Lokale Typen für beide Rubrik-Varianten */
+type SimpleSection = {
+  name: string;
+  points: number;           // max Punkte in diesem Abschnitt
+  keywords: string[];       // Schlüsselwörter, 1 Hit = 1 Punkt (bis max points)
+};
+type DetailedItem = {
+  text: string;
+  points: number;
+  keywords: string[];
+};
+type DetailedSection = {
+  id?: string;
+  name: string;
+  maxPoints: number;        // max Punkte in diesem Abschnitt
+  items: DetailedItem[];    // jede Item-Teilanforderung gibt Punkte
+};
+type RubricSimple = { sections: SimpleSection[] };
+type RubricDetailed = { sections: DetailedSection[] };
+
+/** Type Guards */
+function isDetailedRubric(r: RubricSimple | RubricDetailed): r is RubricDetailed {
+  const first = (r as RubricDetailed)?.sections?.[0] as DetailedSection | undefined;
+  return !!first && Array.isArray(first.items);
+}
+function isDetailedSection(sec: SimpleSection | DetailedSection): sec is DetailedSection {
+  return (sec as DetailedSection).items !== undefined;
 }
 
 /**
  * Scort eine freie Textantwort gegen eine Rubrik.
  * Unterstützt:
- * - einfache Rubrik: { sections: [{ name, points, keywords[] }] }
- * - detaillierte Rubrik: { sections: [{ name, maxPoints, items: [{ points, keywords[] }] }] }
- * - sowie direkt Arrays dieser Sections.
+ * - einfache Rubrik:  { sections: [{ name, points, keywords[] }] }
+ * - detaillierte:     { sections: [{ name, maxPoints, items: [{ points, keywords[] }] }] }
+ * - sowie direkt Arrays dieser Sections (simple oder detailed).
  */
 export function scoreAnswer(
   answer: string,
-  rubric: Rubric | RubricSection[] | RubricSectionDetailed[]
+  rubric: Rubric | SimpleSection[] | DetailedSection[]
 ): ScoreResult {
   const text = (answer || "").toLowerCase();
 
-  const sectionsArray =
-    Array.isArray(rubric) ? rubric : rubric.sections;
-
-  const sections = sectionsArray as Array<
-    RubricSection | RubricSectionDetailed
-  >;
+  // Normiere Eingabe auf ein Array von Sections
+  const sectionsArray: Array<SimpleSection | DetailedSection> = Array.isArray(rubric)
+    ? (rubric as Array<SimpleSection | DetailedSection>)
+    : isDetailedRubric(rubric as RubricSimple | RubricDetailed)
+      ? (rubric as RubricDetailed).sections
+      : (rubric as RubricSimple).sections;
 
   let total = 0;
 
-  const scoredSections = sections.map((sec) => {
+  const scoredSections = sectionsArray.map((sec) => {
+    // Detaillierte Section
     if (isDetailedSection(sec)) {
       const max = typeof sec.maxPoints === "number" ? sec.maxPoints : 0;
-
       let got = 0;
       const missingKeywords: string[] = [];
 
@@ -63,7 +80,7 @@ export function scoreAnswer(
       };
     }
 
-    // einfache Section
+    // Einfache Section
     const kws = (sec.keywords || []).map((k) => k.toLowerCase());
     const hits = kws.reduce((acc, kw) => acc + (text.includes(kw) ? 1 : 0), 0);
     const max = Number(sec.points) || 0;
