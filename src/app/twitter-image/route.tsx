@@ -1,10 +1,8 @@
-// src/app/twitter-image/route.ts
+// src/app/twitter-image/route.tsx
 import { ImageResponse } from "next/og";
 
-export const runtime = "edge";            // OG images run best on edge
-export const dynamic = "force-dynamic";   // don't try to pre-render/export
-export const contentType = "image/png";
-export const size = { width: 1200, height: 630 };
+export const runtime = "edge";
+export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -16,7 +14,7 @@ export async function GET(req: Request) {
         style={{
           width: "100%",
           height: "100%",
-          display: "flex",              // ✅ not "inline-flex"
+          display: "flex",
           flexDirection: "column",
           justifyContent: "center",
           alignItems: "flex-start",
@@ -53,6 +51,6 @@ export async function GET(req: Request) {
         </div>
       </div>
     ),
-    size
+    { width: 1200, height: 630 }
   );
 }
