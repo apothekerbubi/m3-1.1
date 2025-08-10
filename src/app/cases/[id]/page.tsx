@@ -6,11 +6,11 @@ import { CASES } from "@/data/cases";
 import type { Case } from "@/lib/types";
 
 type ExtendedCase = Case & {
-  // einige Fälle benutzen andere Feldnamen – optional erlauben
-  specialty?: string;
-  subject?: string;
-  subspecialty?: string;
-  category?: string;
+  // einige Fälle nutzen Legacy-Feldnamen → optional erlauben
+  specialty?: string;     // = Fach
+  subject?: string;       // (Legacy)
+  subspecialty?: string;  // = Subfach
+  category?: string;      // (Legacy)
   difficulty?: number;
 };
 
@@ -25,16 +25,16 @@ export default function CaseDetail() {
     return (
       <main className="mx-auto max-w-3xl p-6">
         <h2 className="text-xl font-semibold mb-2">Fall nicht gefunden</h2>
-        <Link href="/cases" className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50">
-          Zur Fallliste
+        <Link href="/subjects" className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50">
+          Zur Bibliothek
         </Link>
       </main>
     );
   }
 
-  // Anzeige-Werte defensiv bestimmen – ohne any
-  const subject = c.specialty ?? c.subject ?? "Allgemein";
-  const subspecialty = c.subspecialty ?? c.category ?? null;
+  // Anzeige-Werte defensiv bestimmen
+  const subject = (c.specialty ?? c.subject ?? "Allgemein").trim();
+  const subspecialty = (c.subspecialty ?? c.category ?? "").trim() || null;
   const difficulty = typeof c.difficulty === "number" ? c.difficulty : null;
   const tags = Array.isArray(c.tags) ? c.tags : [];
 
@@ -42,26 +42,29 @@ export default function CaseDetail() {
 
   return (
     <main className="mx-auto max-w-3xl p-6">
-      <div className="mb-4 flex items-center justify-between">
+      {/* Kopfzeile mit CTAs */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">{c.title}</h1>
         <div className="flex gap-2">
           <Link
             href={`/exam/${c.id}`}
-            className="rounded-md bg-brand-600 px-3 py-1.5 text-sm text-white hover:bg-brand-700"
+            className="inline-flex items-center rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
           >
-            Prüfungsmodus
+            Prüfung starten
           </Link>
           <Link
-            href="/cases"
-            className="rounded-md border px-3 py-1.5 text-sm hover:bg-black/[.04]"
+            href="/subjects"
+            className="inline-flex items-center rounded-md border border-black/10 bg-white px-4 py-2 text-sm hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
           >
             Zur Übersicht
           </Link>
         </div>
       </div>
 
-      <p className="text-sm text-gray-700 mb-4">{c.vignette}</p>
+      {/* Vignette */}
+      <p className="mb-4 text-sm text-gray-700">{c.vignette}</p>
 
+      {/* Meta-Badges */}
       <div className="mb-6 flex flex-wrap items-center gap-2">
         <span className="text-xs rounded-full border px-2 py-1">
           {subject}
@@ -79,9 +82,10 @@ export default function CaseDetail() {
         ))}
       </div>
 
+      {/* Schritte */}
       <section className="rounded-xl border border-black/10 bg-white/80 p-4">
-        <h2 className="font-medium mb-2">Prüfungs-Schritte</h2>
-        <ol className="list-decimal pl-5 space-y-1 text-sm">
+        <h2 className="mb-2 font-medium">Prüfungs‑Schritte</h2>
+        <ol className="list-decimal space-y-1 pl-5 text-sm">
           {steps.map((s) => (
             <li key={`${s.order}-${s.prompt}`}>
               <span className="font-medium">{s.prompt}</span>
@@ -90,6 +94,22 @@ export default function CaseDetail() {
           ))}
         </ol>
       </section>
+
+      {/* Zweiter, gut sichtbarer CTA unten */}
+      <div className="mt-6 flex flex-wrap gap-3">
+        <Link
+          href={`/exam/${c.id}`}
+          className="inline-flex items-center rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+        >
+          Prüfung starten
+        </Link>
+        <Link
+          href="/subjects"
+          className="inline-flex items-center rounded-md border border-black/10 bg-white px-4 py-2 text-sm hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+        >
+          Zur Übersicht
+        </Link>
+      </div>
     </main>
   );
 }
