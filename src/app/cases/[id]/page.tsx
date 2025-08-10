@@ -1,37 +1,90 @@
 "use client";
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import type { Case } from "@/lib/types";
+
 import { useParams } from "next/navigation";
+import Link from "next/link";
+import { CASES } from "@/data/cases";
 
 export default function CaseDetail() {
-  const { id: raw } = useParams<{ id: string | string[] }>();
-  const id = Array.isArray(raw) ? raw[0] : raw;
-  const [c, setC] = useState<Case | null>(null);
+  const params = useParams<{ id: string | string[] }>();
+  const rawId = params?.id;
+  const id = Array.isArray(rawId) ? rawId[0] : rawId;
 
-  useEffect(() => {
-    if (!id) return;
-    fetch(`/api/cases/${id}`).then(r => r.json()).then((d) => setC(d?.error ? null : d));
-  }, [id]);
+  const c = CASES.find((x) => x.id === id);
 
-  if (!c) return <main className="mx-auto max-w-3xl p-6">Fall nicht gefunden.</main>;
+  if (!c) {
+    return (
+      <main className="mx-auto max-w-3xl p-6">
+        <h2 className="text-xl font-semibold mb-2">Fall nicht gefunden</h2>
+        <Link href="/cases" className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50">
+          Zur Fallliste
+        </Link>
+      </main>
+    );
+  }
+
+  // Manche Datensätze haben subject/subspecialty statt specialty
+  const subject =
+    (c as any).specialty ??
+    (c as any).subject ??
+    "Allgemein";
+  const subspecialty =
+    (c as any).subspecialty ??
+    (c as any).category ??
+    null;
+  const difficulty =
+    typeof (c as any).difficulty === "number" ? (c as any).difficulty : null;
+  const tags = Array.isArray(c.tags) ? c.tags : [];
 
   return (
     <main className="mx-auto max-w-3xl p-6">
-      <h2 className="text-xl font-semibold mb-2">{c.title}</h2>
-      <p className="text-sm text-gray-600 mb-4">{c.vignette}</p>
-      <div className="mb-6">
-        <span className="text-xs rounded-full border px-2 py-1 mr-2">{c.specialty}</span>
-        <span className="text-xs rounded-full border px-2 py-1 mr-2">Schwierigkeit {c.difficulty}</span>
-        {c.tags.map((t) => (
-          <span key={t} className="text-xs rounded-full border px-2 py-1 mr-2">{t}</span>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight">{c.title}</h1>
+        <div className="flex gap-2">
+          <Link
+            href={`/exam/${c.id}`}
+            className="rounded-md bg-brand-600 px-3 py-1.5 text-sm text-white hover:bg-brand-700"
+          >
+            Prüfungsmodus
+          </Link>
+          <Link
+            href="/cases"
+            className="rounded-md border px-3 py-1.5 text-sm hover:bg-black/[.04]"
+          >
+            Zur Übersicht
+          </Link>
+        </div>
+      </div>
+
+      <p className="text-sm text-gray-700 mb-4">{c.vignette}</p>
+
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <span className="text-xs rounded-full border px-2 py-1">
+          {subject}
+          {subspecialty ? ` · ${subspecialty}` : ""}
+        </span>
+        {difficulty !== null && (
+          <span className="text-xs rounded-full border px-2 py-1">
+            Schwierigkeit {difficulty}
+          </span>
+        )}
+        {tags.map((t) => (
+          <span key={t} className="text-xs rounded-full border px-2 py-1">
+            {t}
+          </span>
         ))}
       </div>
-      <div className="flex gap-2">
-        <Link href={`/exam/${c.id}`} className="rounded-lg border px-4 py-2 hover:bg-gray-50">
-          Prüfungsmodus (KI)
-        </Link>
-      </div>
+
+      <section className="rounded-xl border border-black/10 bg-white/80 p-4">
+        <h2 className="font-medium mb-2">Prüfungs-Schritte</h2>
+        <ol className="list-decimal pl-5 space-y-1 text-sm">
+          {[...c.steps].sort((a, b) => a.order - b.order).map((s) => (
+            <li key={`${s.order}-${s.prompt}`}>
+              <span className="font-medium">{s.prompt}</span>
+              {s.hint && <span className="text-gray-600"> – {s.hint}</span>}
+            </li>
+          ))}
+        </ol>
+      </section>
     </main>
   );
 }
