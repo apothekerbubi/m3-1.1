@@ -1,20 +1,20 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { CASES } from "@/data/cases";
 import type { Case } from "@/lib/types";
 
 type ExtendedCase = Case & {
-  // einige Fälle nutzen Legacy-Feldnamen → optional erlauben
-  specialty?: string;     // = Fach
-  subject?: string;       // (Legacy)
-  subspecialty?: string;  // = Subfach
-  category?: string;      // (Legacy)
+  specialty?: string;     // Fach (legacy-kompatibel)
+  subject?: string;
+  subspecialty?: string;  // Subfach
+  category?: string;
   difficulty?: number;
 };
 
 export default function CaseDetail() {
+  const router = useRouter();
   const params = useParams<{ id: string | string[] }>();
   const rawId = params?.id;
   const id = Array.isArray(rawId) ? rawId[0] : rawId;
@@ -32,13 +32,15 @@ export default function CaseDetail() {
     );
   }
 
-  // Anzeige-Werte defensiv bestimmen
+  // Anzeige-Werte defensiv
   const subject = (c.specialty ?? c.subject ?? "Allgemein").trim();
   const subspecialty = (c.subspecialty ?? c.category ?? "").trim() || null;
   const difficulty = typeof c.difficulty === "number" ? c.difficulty : null;
   const tags = Array.isArray(c.tags) ? c.tags : [];
-
   const steps = [...c.steps].sort((a, b) => a.order - b.order);
+
+  // robuste Navigation (unabhängig von <Link>)
+  const goStart = () => router.push(`/exam/${c.id}`);
 
   return (
     <main className="mx-auto max-w-3xl p-6">
@@ -46,12 +48,13 @@ export default function CaseDetail() {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">{c.title}</h1>
         <div className="flex gap-2">
-          <Link
-            href={`/exam/${c.id}`}
+          <button
+            type="button"
+            onClick={goStart}
             className="inline-flex items-center rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
           >
             Prüfung starten
-          </Link>
+          </button>
           <Link
             href="/subjects"
             className="inline-flex items-center rounded-md border border-black/10 bg-white px-4 py-2 text-sm hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
@@ -67,18 +70,13 @@ export default function CaseDetail() {
       {/* Meta-Badges */}
       <div className="mb-6 flex flex-wrap items-center gap-2">
         <span className="text-xs rounded-full border px-2 py-1">
-          {subject}
-          {subspecialty ? ` · ${subspecialty}` : ""}
+          {subject}{subspecialty ? ` · ${subspecialty}` : ""}
         </span>
         {difficulty !== null && (
-          <span className="text-xs rounded-full border px-2 py-1">
-            Schwierigkeit {difficulty}
-          </span>
+          <span className="text-xs rounded-full border px-2 py-1">Schwierigkeit {difficulty}</span>
         )}
         {tags.map((t) => (
-          <span key={t} className="text-xs rounded-full border px-2 py-1">
-            {t}
-          </span>
+          <span key={t} className="text-xs rounded-full border px-2 py-1">{t}</span>
         ))}
       </div>
 
@@ -95,14 +93,15 @@ export default function CaseDetail() {
         </ol>
       </section>
 
-      {/* Zweiter, gut sichtbarer CTA unten */}
+      {/* Zweiter CTA unten */}
       <div className="mt-6 flex flex-wrap gap-3">
-        <Link
-          href={`/exam/${c.id}`}
+        <button
+          type="button"
+          onClick={goStart}
           className="inline-flex items-center rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
         >
           Prüfung starten
-        </Link>
+        </button>
         <Link
           href="/subjects"
           className="inline-flex items-center rounded-md border border-black/10 bg-white px-4 py-2 text-sm hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
