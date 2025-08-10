@@ -3,11 +3,7 @@
 import { Suspense, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import {
-  FolderIcon,
-  ArrowRightIcon,
-  ChevronRightIcon,
-} from "@heroicons/react/24/outline";
+import { FolderIcon, ArrowRightIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import type { Case } from "@/lib/types";
 import { CASES } from "@/data/cases";
 
@@ -18,11 +14,7 @@ function shortName(c: Case) {
   return first.length > 28 ? `${first.slice(0, 28)}…` : first;
 }
 
-const SUBJECT_ORDER: ReadonlyArray<string> = [
-  "Innere Medizin",
-  "Chirurgie",
-  "Wahlfach",
-];
+const SUBJECT_ORDER: ReadonlyArray<string> = ["Innere Medizin", "Chirurgie", "Wahlfach"];
 
 // -------- Inner: nutzt useSearchParams (muss in Suspense laufen) --------
 function SubjectsPageInner() {
@@ -49,25 +41,17 @@ function SubjectsPageInner() {
     const allSubjects = Array.from(catsMap.keys());
     const ordered = [
       ...SUBJECT_ORDER.filter((s) => allSubjects.includes(s)),
-      ...allSubjects
-        .filter((s) => !SUBJECT_ORDER.includes(s))
-        .sort((a, b) => a.localeCompare(b, "de")),
+      ...allSubjects.filter((s) => !SUBJECT_ORDER.includes(s)).sort((a, b) => a.localeCompare(b, "de")),
     ];
 
     const catsBySubjectObj: Record<string, string[]> = Object.fromEntries(
       ordered.map((s) => [
         s,
-        Array.from(catsMap.get(s) ?? new Set<string>()).sort((a, b) =>
-          a.localeCompare(b, "de")
-        ),
+        Array.from(catsMap.get(s) ?? new Set<string>()).sort((a, b) => a.localeCompare(b, "de")),
       ])
     );
 
-    return {
-      subjects: ordered,
-      catsBySubject: catsBySubjectObj,
-      casesByKey: casesMap,
-    };
+    return { subjects: ordered, catsBySubject: catsBySubjectObj, casesByKey: casesMap };
   }, []);
 
   // 2) Auswahl aus URL oder Defaults
@@ -93,9 +77,7 @@ function SubjectsPageInner() {
   const activeCases = useMemo(() => {
     const key = `${sParam}::${subParam}`;
     const list = casesByKey.get(key) || [];
-    return [...list].sort((a, b) =>
-      shortName(a).localeCompare(shortName(b), "de")
-    );
+    return [...list].sort((a, b) => shortName(a).localeCompare(shortName(b), "de"));
   }, [casesByKey, sParam, subParam]);
 
   return (
@@ -109,10 +91,7 @@ function SubjectsPageInner() {
           <ul className="divide-y divide-black/5">
             {subjects.map((s) => {
               const count =
-                catsBySubject[s]?.reduce(
-                  (acc, cat) => acc + (casesByKey.get(`${s}::${cat}`)?.length || 0),
-                  0
-                ) ?? 0;
+                catsBySubject[s]?.reduce((acc, cat) => acc + (casesByKey.get(`${s}::${cat}`)?.length || 0), 0) ?? 0;
               const active = s === sParam;
               return (
                 <li key={s}>
@@ -191,9 +170,7 @@ function SubjectsPageInner() {
                 >
                   <div className="min-w-0">
                     <div className="truncate font-medium">{shortName(c)}</div>
-                    <div className="text-xs text-gray-600">
-                      {c.tags?.slice(0, 2).join(" · ")}
-                    </div>
+                    <div className="text-xs text-gray-600">{c.tags?.slice(0, 2).join(" · ")}</div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <Link

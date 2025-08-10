@@ -5,7 +5,7 @@ import Link from "next/link";
 import { CASES } from "@/data/cases";
 import type { Case } from "@/lib/types";
 
-// 👉 Lokale Erweiterung um optionale Meta-Felder aus deinen Daten
+// Lokale Erweiterung um optionale Meta-Felder aus deinen Daten
 type CaseWithMeta = Case & Partial<{
   specialty: string;
   subspecialty: string;
@@ -26,8 +26,11 @@ function shortName(c: CaseWithMeta) {
 export default function SearchPage() {
   const [q, setQ] = useState("");
 
-  // ⬇️ HIER: einmalig als CaseWithMeta[] betrachten
-  const ALL: CaseWithMeta[] = CASES as unknown as CaseWithMeta[];
+  // Einmalig als CaseWithMeta[] „sichtbar“ machen
+  const ALL: CaseWithMeta[] = useMemo(
+    () => (CASES as unknown as CaseWithMeta[]),
+    []
+  );
 
   // Suchindex ohne any
   const index = useMemo(
