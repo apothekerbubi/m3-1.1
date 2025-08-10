@@ -79,16 +79,29 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.OPENAI_API_KEY?.trim();
-    if (!apiKey || !apiKey.startsWith("sk-")) {
+
+    // Robust: nur auf Existenz prüfen
+    if (!apiKey) {
       return NextResponse.json(
-        { error: "OPENAI_API_KEY fehlt/ungültig (.env.local oder Vercel-Env setzen)" },
+        { error: "OPENAI_API_KEY fehlt (.env.local oder Vercel-Env setzen)" },
         { status: 500 }
       );
     }
+
+    // Optionales Debug: nur Länge loggen (nicht den Key)
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[exam/turn] OPENAI_API_KEY length:", apiKey.length);
+    }
+
     const model = (process.env.OPENAI_MODEL || "gpt-4o-mini").trim();
     const client = new OpenAI({ apiKey });
 
-    const body = (await req.json()) as BodyIn;
+    let body: BodyIn;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Ungültiger JSON-Body." }, { status: 400 });
+    }
 
     const caseText = (body.caseText || "").trim();
     const transcript: TranscriptItem[] = Array.isArray(body.transcript) ? body.transcript : [];
@@ -221,13 +234,11 @@ Erzeuge NUR das JSON-Objekt.`.trim();
     } catch {
       return NextResponse.json({ error: "Antwort war kein gültiges JSON." }, { status: 502 });
     }
+
     return NextResponse.json(payload);
 
   } catch (err: unknown) {
-    const msg =
-      err instanceof Error ? err.message :
-      typeof err === "string" ? err :
-      "LLM error";
+    const msg = err instanceof Error ? err.message : typeof err === "string" ? err : "LLM error";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
