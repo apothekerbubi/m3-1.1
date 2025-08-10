@@ -72,7 +72,7 @@ export type Case = {
 
   // optionale Metadaten
   tags?: string[];
-  difficulty?: number;
+  difficulty?: string | number;
 
   // für Bibliothek/Gliederung
   specialty?: string;     // z.B. "Innere Medizin"
