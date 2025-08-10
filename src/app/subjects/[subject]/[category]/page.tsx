@@ -19,7 +19,7 @@ export default function CategoryCasesPage() {
   const { labelCategory, items } = useMemo(() => {
     if (!subject) return { labelCategory: "", items: [] as Case[] };
     const filtered = allCases.filter(
-      c => c.subject === subject && slugify(c.category) === params.category
+      c => !!c.category && c.subject === subject && slugify(c.category) === params.category
     );
     const label = filtered[0]?.category || "";
     return { labelCategory: label, items: filtered };
