@@ -21,22 +21,13 @@ type ApiReply = {
 type Asked = { index: number; text: string; status: "pending" | "correct" | "partial" | "incorrect" };
 
 export default function ExamPage() {
+  // ✅ Hooks immer oben (nie hinter einem early return)
   const params = useParams<{ id: string | string[] }>();
   const rawId = params?.id;
   const caseId = Array.isArray(rawId) ? rawId[0] : rawId;
 
-  const c = CASES.find((x) => x.id === caseId);
-  if (!c) {
-    return (
-      <main className="p-6">
-        <h2 className="text-xl font-semibold mb-2">Fall nicht gefunden</h2>
-        <Link href="/cases" className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50">
-          Zur Fallliste
-        </Link>
-      </main>
-    );
-  }
-  const caseData = c;
+  const c = CASES.find((x) => x.id === caseId) ?? null;
+  const hasCase = Boolean(c);
 
   const [transcript, setTranscript] = useState<Turn[]>([]);
   const [asked, setAsked] = useState<Asked[]>([]);
@@ -52,9 +43,10 @@ export default function ExamPage() {
 
   const listRef = useRef<HTMLDivElement | null>(null);
 
+  // ✅ Outline sicher berechnen (auch wenn c null ist)
   const outline = useMemo(
-    () => [...caseData.steps].sort((a, b) => a.order - b.order).map((s) => s.prompt),
-    [caseData.steps]
+    () => (c ? [...c.steps].sort((a, b) => a.order - b.order).map((s) => s.prompt) : []),
+    [c]
   );
   const maxPoints = outline.length * 2;
 
@@ -65,7 +57,8 @@ export default function ExamPage() {
   }, [asked.length, outline.length]);
 
   useEffect(() => {
-    if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
+    if (!listRef.current) return;
+    listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [transcript, loading]);
 
   function label(correctness: "correct" | "partially_correct" | "incorrect") {
@@ -77,21 +70,22 @@ export default function ExamPage() {
   }
 
   async function callExamAPI(current: Turn[], isRetry: boolean) {
+    if (!c) return; // Guard
     setLoading(true);
     try {
       const res = await fetch("/api/exam/turn", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          caseText: caseData.vignette,
+          caseText: c.vignette,
           transcript: current.map((t) => ({
             role: t.role === "prof" ? "examiner" : "student",
             text: t.text,
           })),
           outline,
           style,
-          objectives: caseData.objectives || [],
-          completion: caseData.completion || null,
+          objectives: (c as any).objectives || [],
+          completion: (c as any).completion || null,
         }),
       });
       if (!res.ok) {
@@ -164,7 +158,8 @@ export default function ExamPage() {
   const hasStarted = transcript.length > 0;
 
   function startExam() {
-    const intro: Turn[] = [{ role: "prof", text: `Vignette: ${caseData.vignette}` }];
+    if (!c) return;
+    const intro: Turn[] = [{ role: "prof", text: `Vignette: ${c.vignette}` }];
     setTranscript(intro);
     setAsked([]);
     setPoints(0);
@@ -175,6 +170,7 @@ export default function ExamPage() {
   }
 
   function onSend() {
+    if (!c) return;
     if (!input.trim() || loading || ended) return;
     const isRetry = allowRetryNext;
     setAllowRetryNext(false);
@@ -184,13 +180,23 @@ export default function ExamPage() {
     callExamAPI(newT, isRetry);
   }
 
+  // ✅ Erst hier das bedingte Rendern (Hooks sind bereits alle aufgerufen)
+  if (!hasCase) {
+    return (
+      <main className="p-6">
+        <h2 className="text-xl font-semibold mb-2">Fall nicht gefunden</h2>
+        <Link href="/cases" className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50">
+          Zur Fallliste
+        </Link>
+      </main>
+    );
+  }
+
   return (
     <main className="p-0">
       {/* Kopfzeile */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h2 className="text-2xl font-semibold tracking-tight flex-1">
-          Prüfung: {caseData.title}
-        </h2>
+        <h2 className="text-2xl font-semibold tracking-tight flex-1">Prüfung: {c.title}</h2>
         <ScorePill points={points} maxPoints={maxPoints} last={lastCorrectness} />
         <div className="w-56 hidden sm:block">
           <ProgressBar value={progressPct} label="Fortschritt" />
@@ -298,7 +304,7 @@ export default function ExamPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (loading || ended) return;
+                    if (!c || loading || ended) return;
                     (async () => {
                       setLoading(true);
                       try {
@@ -306,7 +312,7 @@ export default function ExamPage() {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({
-                            caseText: caseData.vignette,
+                            caseText: c.vignette,
                             transcript: transcript.map((t) => ({
                               role: t.role === "prof" ? "examiner" : "student",
                               text: t.text,
@@ -334,7 +340,7 @@ export default function ExamPage() {
                 </button>
               </>
             )}
-            <Link href={`/cases/${caseData.id}`} className="ml-auto rounded-md border px-3 py-2 text-sm hover:bg-gray-50">
+            <Link href={`/cases/${c.id}`} className="ml-auto rounded-md border px-3 py-2 text-sm hover:bg-gray-50">
               Fallinfo
             </Link>
           </form>
