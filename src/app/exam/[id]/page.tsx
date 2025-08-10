@@ -6,6 +6,7 @@ import Link from "next/link";
 import { CASES } from "@/data/cases";
 import ProgressBar from "@/components/ProgressBar";
 import ScorePill from "@/components/ScorePill";
+import type { Case } from "@/lib/types";
 
 type Turn = { role: "prof" | "student"; text: string };
 type ApiReply = {
@@ -20,13 +21,21 @@ type ApiReply = {
 };
 type Asked = { index: number; text: string; status: "pending" | "correct" | "partial" | "incorrect" };
 
+// optionale Zusatz-Typen, falls dein Case diese Felder besitzt
+type ObjMin = { id: string; label: string };
+type CompletionRules = { minObjectives: number; maxLLMTurns?: number; hardStopTurns?: number };
+type CaseWithRules = Case & {
+  objectives?: ObjMin[];
+  completion?: CompletionRules | null;
+};
+
 export default function ExamPage() {
-  // ✅ Hooks immer oben (nie hinter einem early return)
+  // ✅ Hooks immer oben
   const params = useParams<{ id: string | string[] }>();
   const rawId = params?.id;
   const caseId = Array.isArray(rawId) ? rawId[0] : rawId;
 
-  const c = CASES.find((x) => x.id === caseId) ?? null;
+  const c = (CASES.find((x) => x.id === caseId) ?? null) as CaseWithRules | null;
   const hasCase = Boolean(c);
 
   const [transcript, setTranscript] = useState<Turn[]>([]);
@@ -43,7 +52,7 @@ export default function ExamPage() {
 
   const listRef = useRef<HTMLDivElement | null>(null);
 
-  // ✅ Outline sicher berechnen (auch wenn c null ist)
+  // ✅ Outline sicher berechnen
   const outline = useMemo(
     () => (c ? [...c.steps].sort((a, b) => a.order - b.order).map((s) => s.prompt) : []),
     [c]
@@ -70,7 +79,7 @@ export default function ExamPage() {
   }
 
   async function callExamAPI(current: Turn[], isRetry: boolean) {
-    if (!c) return; // Guard
+    if (!c) return;
     setLoading(true);
     try {
       const res = await fetch("/api/exam/turn", {
@@ -84,17 +93,19 @@ export default function ExamPage() {
           })),
           outline,
           style,
-          objectives: (c as any).objectives || [],
-          completion: (c as any).completion || null,
+          objectives: c.objectives ?? [],
+          completion: c.completion ?? null,
         }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || `HTTP ${res.status}`);
+        throw new Error((err as { error?: string })?.error || `HTTP ${res.status}`);
       }
-      const data: ApiReply = await res.json();
+
+      const data: ApiReply = (await res.json()) as ApiReply;
       const nextT = [...current];
 
+      // Duplikat-Schranke
       const normalize = (s: string) =>
         s.toLowerCase().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "").trim();
       const pushProf = (text?: string | null) => {
@@ -106,6 +117,7 @@ export default function ExamPage() {
         }
       };
 
+      // Bewertung + Punkte
       if (data.evaluation) {
         const { correctness, feedback, tips } = data.evaluation;
         setLastCorrectness(correctness);
@@ -120,7 +132,12 @@ export default function ExamPage() {
           const copy = [...prev];
           copy[idx] = {
             ...copy[idx],
-            status: correctness === "correct" ? "correct" : correctness === "partially_correct" ? "partial" : "incorrect",
+            status:
+              correctness === "correct"
+                ? "correct"
+                : correctness === "partially_correct"
+                ? "partial"
+                : "incorrect",
           };
           return copy;
         });
@@ -135,8 +152,10 @@ export default function ExamPage() {
         setAllowRetryNext(false);
       }
 
+      // Folgefrage nur stellen, wenn kein Retry offen ist
       const retryIsOpenNow = allowRetryNext === true && !isRetry;
-      const shouldAskNext = Boolean(data.next_question && data.next_question.trim()) && !retryIsOpenNow;
+      const shouldAskNext =
+        Boolean(data.next_question && data.next_question.trim()) && !retryIsOpenNow;
 
       if (shouldAskNext) {
         const q = data.next_question!.trim();
@@ -148,8 +167,9 @@ export default function ExamPage() {
 
       setTranscript(nextT);
       setEnded(Boolean(data.end));
-    } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : String(e));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      alert(msg);
     } finally {
       setLoading(false);
     }
@@ -180,7 +200,7 @@ export default function ExamPage() {
     callExamAPI(newT, isRetry);
   }
 
-  // ✅ Erst hier das bedingte Rendern (Hooks sind bereits alle aufgerufen)
+  // ✅ Bedingtes Rendern erst NACH Hooks
   if (!hasCase) {
     return (
       <main className="p-6">
@@ -221,18 +241,24 @@ export default function ExamPage() {
               const a = asked[i];
               const status = a?.status ?? null;
               const dot =
-                !a ? "bg-gray-200"
-                : status === "pending" ? "bg-gray-300"
-                : status === "correct" ? "bg-green-500"
-                : status === "partial" ? "bg-yellow-400"
-                : "bg-red-500";
+                !a
+                  ? "bg-gray-200"
+                  : status === "pending"
+                  ? "bg-gray-300"
+                  : status === "correct"
+                  ? "bg-green-500"
+                  : status === "partial"
+                  ? "bg-yellow-400"
+                  : "bg-red-500";
               return (
                 <li key={i} className="flex items-start gap-2 text-sm leading-snug">
                   <span className={`mt-1 inline-block h-3 w-3 rounded-full ${dot}`} />
                   {a ? (
                     <span className="text-gray-900">{a.text}</span>
                   ) : (
-                    <span className="text-gray-400 italic select-none">{i + 1}. …</span>
+                    <span className="text-gray-400 italic select-none">
+                      {i + 1}. …
+                    </span>
                   )}
                 </li>
               );
@@ -241,8 +267,8 @@ export default function ExamPage() {
 
           {allowRetryNext && (
             <div className="mt-3 rounded-md border border-yellow-200 bg-yellow-50 p-2 text-[11px] text-yellow-800">
-              🔁 Du kannst die letzte Frage <b>nochmal beantworten</b> oder eine kurze Verständnisfrage stellen.
-              Diese nächste Antwort zählt zu <b>75%</b>.
+              🔁 Du kannst die letzte Frage <b>nochmal beantworten</b> oder eine kurze
+              Verständnisfrage stellen. Diese nächste Antwort zählt zu <b>75%</b>.
             </div>
           )}
         </aside>
@@ -262,34 +288,52 @@ export default function ExamPage() {
                   }`}
                 >
                   <span className="text-sm leading-relaxed">
-                    <b className="opacity-80">{t.role === "prof" ? "Prüfer" : "Du"}:</b> {t.text}
+                    <b className="opacity-80">{t.role === "prof" ? "Prüfer" : "Du"}:</b>{" "}
+                    {t.text}
                   </span>
                 </div>
               </div>
             ))}
             {loading && <div className="text-sm text-gray-500">Denke nach…</div>}
-            {!hasStarted && <div className="text-sm text-gray-600">Klicke auf <b>Prüfung starten</b>, um zu beginnen.</div>}
+            {!hasStarted && (
+              <div className="text-sm text-gray-600">
+                Klicke auf <b>Prüfung starten</b>, um zu beginnen.
+              </div>
+            )}
             {ended && (
               <div className="mt-2 text-sm text-green-700">
-                ✅ Fall abgeschlossen — Score {Number.isInteger(points) ? points : points.toFixed(1)}
-                /{maxPoints} ({Math.round((points / Math.max(1, maxPoints)) * 100)}%)
+                ✅ Fall abgeschlossen — Score{" "}
+                {Number.isInteger(points) ? points : points.toFixed(1)}/{maxPoints} (
+                {Math.round((points / Math.max(1, maxPoints)) * 100)}%)
               </div>
             )}
           </div>
 
           <form
-            onSubmit={(e) => { e.preventDefault(); hasStarted ? onSend() : startExam(); }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              hasStarted ? onSend() : startExam();
+            }}
             className="flex gap-2"
           >
             {!hasStarted ? (
-              <button type="submit" className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50">
+              <button
+                type="submit"
+                className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
+              >
                 Prüfung starten
               </button>
             ) : (
               <>
                 <input
                   className="flex-1 rounded-md border px-3 py-2 text-sm"
-                  placeholder={ended ? "Fall beendet" : allowRetryNext ? "Retry/Verständnisfrage…" : "Deine Antwort…"}
+                  placeholder={
+                    ended
+                      ? "Fall beendet"
+                      : allowRetryNext
+                      ? "Retry/Verständnisfrage…"
+                      : "Deine Antwort…"
+                  }
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   disabled={ended}
@@ -324,7 +368,10 @@ export default function ExamPage() {
                         });
                         const data = (await res.json()) as ApiReply;
                         if (data.say_to_student) {
-                          setTranscript((prev) => [...prev, { role: "prof", text: data.say_to_student! }]);
+                          setTranscript((prev) => [
+                            ...prev,
+                            { role: "prof", text: data.say_to_student! },
+                          ]);
                           setAllowRetryNext(true);
                         }
                       } finally {
@@ -340,7 +387,10 @@ export default function ExamPage() {
                 </button>
               </>
             )}
-            <Link href={`/cases/${c.id}`} className="ml-auto rounded-md border px-3 py-2 text-sm hover:bg-gray-50">
+            <Link
+              href={`/cases/${c.id}`}
+              className="ml-auto rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
+            >
               Fallinfo
             </Link>
           </form>

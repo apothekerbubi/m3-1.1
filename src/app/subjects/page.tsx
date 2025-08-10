@@ -3,7 +3,11 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { FolderIcon, ArrowRightIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+import {
+  FolderIcon,
+  ArrowRightIcon,
+  ChevronRightIcon,
+} from "@heroicons/react/24/outline";
 import type { Case } from "@/lib/types";
 import { CASES } from "@/data/cases";
 
@@ -12,11 +16,15 @@ function shortName(c: Case) {
   const s = c.shortTitle?.trim();
   if (s) return s;
   const first = c.title.split(/[–—-]/)[0].trim();
-  return first.length > 28 ? first.slice(0, 28) + "…" : first;
+  return first.length > 28 ? `${first.slice(0, 28)}…` : first;
 }
 
 // Fächer-Reihenfolge fest vorgeben (wird nur gezeigt, wenn im Datenbestand vorhanden)
-const SUBJECT_ORDER = ["Innere Medizin", "Chirurgie", "Wahlfach"] as const;
+const SUBJECT_ORDER: ReadonlyArray<string> = [
+  "Innere Medizin",
+  "Chirurgie",
+  "Wahlfach",
+];
 
 export default function SubjectsPage() {
   const search = useSearchParams();
@@ -24,43 +32,50 @@ export default function SubjectsPage() {
 
   // 1) aus den Fällen dynamisch Fächer/Subfächer-Gruppen bauen
   const { subjects, subsBySubject, casesByKey } = useMemo(() => {
-  const subsMap = new Map<string, Set<string>>();
-  const casesMap = new Map<string, Case[]>();
+    const subsMap = new Map<string, Set<string>>();
+    const casesMap = new Map<string, Case[]>();
 
-  for (const c of CASES) {
-    const subj = (c.specialty ?? "Sonstiges").trim();
-    const sub = (c.subspecialty ?? "Allgemein").trim();
+    for (const c of CASES) {
+      const subj = (c.specialty ?? "Sonstiges").trim();
+      const sub = (c.subspecialty ?? "Allgemein").trim();
 
-    if (!subsMap.has(subj)) subsMap.set(subj, new Set());
-    subsMap.get(subj)!.add(sub);
+      if (!subsMap.has(subj)) subsMap.set(subj, new Set());
+      subsMap.get(subj)!.add(sub);
 
-    const key = `${subj}::${sub}`;
-    if (!casesMap.has(key)) casesMap.set(key, []);
-    casesMap.get(key)!.push(c);
-  }
+      const key = `${subj}::${sub}`;
+      if (!casesMap.has(key)) casesMap.set(key, []);
+      casesMap.get(key)!.push(c);
+    }
 
-  const all = Array.from(subsMap.keys());
+    const allSubjects = Array.from(subsMap.keys());
 
-  // erst bekannte Reihenfolge, dann Rest alphabetisch
-  const ordered = [
-    ...SUBJECT_ORDER.filter((s) => all.includes(s as any)),
-    ...all.filter((s) => !SUBJECT_ORDER.includes(s as any)).sort((a, b) => a.localeCompare(b, "de")),
-  ];
+    // erst bekannte Reihenfolge, dann Rest alphabetisch
+    const ordered = [
+      ...SUBJECT_ORDER.filter((s) => allSubjects.includes(s)),
+      ...allSubjects
+        .filter((s) => !SUBJECT_ORDER.includes(s))
+        .sort((a, b) => a.localeCompare(b, "de")),
+    ];
 
-  return {
-    subjects: ordered,
-    subsBySubject: Object.fromEntries(
-      ordered.map((s) => [s, Array.from(subsMap.get(s)!).sort((a, b) => a.localeCompare(b, "de"))])
-    ) as Record<string, string[]>,
-    casesByKey: casesMap,
-  };
-}, []);
+    return {
+      subjects: ordered,
+      subsBySubject: Object.fromEntries(
+        ordered.map((s) => [
+          s,
+          Array.from(subsMap.get(s)!).sort((a, b) =>
+            a.localeCompare(b, "de")
+          ),
+        ])
+      ) as Record<string, string[]>,
+      casesByKey: casesMap,
+    };
+  }, []);
 
   // 2) Auswahl aus URL lesen (oder Defaults)
   const sParam = search.get("s") || subjects[0] || "";
   const subParam =
     search.get("sub") ||
-    (sParam && subsBySubject[sParam] ? subsBySubject[sParam][0] : "") ||
+    (sParam && subsBySubject[sParam]?.[0]) ||
     "";
 
   // 3) Helper zum Setzen der Auswahl (ohne Neuladen)
@@ -68,10 +83,14 @@ export default function SubjectsPage() {
     const firstSub = subsBySubject[s]?.[0] || "";
     const params = new URLSearchParams(search.toString());
     params.set("s", s);
-    if (firstSub) params.set("sub", firstSub);
-    else params.delete("sub");
+    if (firstSub) {
+      params.set("sub", firstSub);
+    } else {
+      params.delete("sub");
+    }
     router.replace(`/subjects?${params.toString()}`);
   }
+
   function setSub(sub: string) {
     const params = new URLSearchParams(search.toString());
     params.set("sub", sub);
@@ -82,15 +101,16 @@ export default function SubjectsPage() {
   const activeCases = useMemo(() => {
     const key = `${sParam}::${subParam}`;
     const list = casesByKey.get(key) || [];
-    // leicht deterministische Reihenfolge
-    return [...list].sort((a, b) => shortName(a).localeCompare(shortName(b), "de"));
+    return [...list].sort((a, b) =>
+      shortName(a).localeCompare(shortName(b), "de")
+    );
   }, [casesByKey, sParam, subParam]);
 
   return (
     <main className="p-0">
       <h1 className="mb-4 text-3xl font-semibold tracking-tight">Bibliothek</h1>
 
-      {/* 3-Spalten-Layout – oben bündig, auf kleineren Screens untereinander */}
+      {/* 3-Spalten-Layout */}
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3 items-start">
         {/* Spalte 1: Fächer */}
         <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
@@ -98,7 +118,11 @@ export default function SubjectsPage() {
           <ul className="divide-y divide-black/5">
             {subjects.map((s) => {
               const count =
-                subsBySubject[s]?.reduce((acc, sub) => acc + (casesByKey.get(`${s}::${sub}`)?.length || 0), 0) ?? 0;
+                subsBySubject[s]?.reduce(
+                  (acc, sub) =>
+                    acc + (casesByKey.get(`${s}::${sub}`)?.length || 0),
+                  0
+                ) ?? 0;
               const active = s === sParam;
               return (
                 <li key={s}>
@@ -125,13 +149,14 @@ export default function SubjectsPage() {
           </ul>
         </section>
 
-        {/* Spalte 2: Subfächer des gewählten Fachs */}
+        {/* Spalte 2: Subfächer */}
         <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
           <h2 className="mb-3 text-xl font-semibold">{sParam || "Subfächer"}</h2>
           {sParam && subsBySubject[sParam]?.length ? (
             <ul className="divide-y divide-black/5">
               {subsBySubject[sParam].map((sub) => {
-                const count = casesByKey.get(`${sParam}::${sub}`)?.length || 0;
+                const count =
+                  casesByKey.get(`${sParam}::${sub}`)?.length || 0;
                 const active = sub === subParam;
                 return (
                   <li key={sub}>
@@ -149,7 +174,9 @@ export default function SubjectsPage() {
                       </span>
                       <span className="inline-flex items-center gap-1 text-xs text-gray-600">
                         {count}
-                        {count > 0 && <ChevronRightIcon className="h-4 w-4" />}
+                        {count > 0 && (
+                          <ChevronRightIcon className="h-4 w-4" />
+                        )}
                       </span>
                     </button>
                   </li>
@@ -157,17 +184,23 @@ export default function SubjectsPage() {
               })}
             </ul>
           ) : (
-            <div className="text-sm text-gray-600">Keine Subfächer gefunden.</div>
+            <div className="text-sm text-gray-600">
+              Keine Subfächer gefunden.
+            </div>
           )}
         </section>
 
-        {/* Spalte 3: Fälle des gewählten Subfachs */}
+        {/* Spalte 3: Fälle */}
         <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
           <h2 className="mb-3 text-xl font-semibold">{subParam || "Fälle"}</h2>
           {!subParam ? (
-            <div className="text-sm text-gray-600">Wähle links ein Subfach.</div>
+            <div className="text-sm text-gray-600">
+              Wähle links ein Subfach.
+            </div>
           ) : activeCases.length === 0 ? (
-            <div className="text-sm text-gray-600">Keine Fälle in diesem Subfach.</div>
+            <div className="text-sm text-gray-600">
+              Keine Fälle in diesem Subfach.
+            </div>
           ) : (
             <ul className="space-y-2">
               {activeCases.map((c) => (
@@ -176,7 +209,9 @@ export default function SubjectsPage() {
                   className="group flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white/80 px-3 py-2 shadow-sm hover:shadow-md"
                 >
                   <div className="min-w-0">
-                    <div className="truncate font-medium">{shortName(c)}</div>
+                    <div className="truncate font-medium">
+                      {shortName(c)}
+                    </div>
                     <div className="text-xs text-gray-600">
                       {c.tags?.slice(0, 2).join(" · ")}
                     </div>
