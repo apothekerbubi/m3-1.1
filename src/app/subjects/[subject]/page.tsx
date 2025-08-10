@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import type { Case } from "@/lib/types"; //
 import { slugify, subjectFromSlug } from "@/lib/slug";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
