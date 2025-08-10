@@ -21,7 +21,6 @@ type ApiReply = {
 };
 type Asked = { index: number; text: string; status: "pending" | "correct" | "partial" | "incorrect" };
 
-// optionale Zusatz-Typen, falls dein Case diese Felder besitzt
 type ObjMin = { id: string; label: string };
 type CompletionRules = { minObjectives: number; maxLLMTurns?: number; hardStopTurns?: number };
 type CaseWithRules = Case & {
@@ -30,7 +29,6 @@ type CaseWithRules = Case & {
 };
 
 export default function ExamPage() {
-  // ✅ Hooks immer oben
   const params = useParams<{ id: string | string[] }>();
   const rawId = params?.id;
   const caseId = Array.isArray(rawId) ? rawId[0] : rawId;
@@ -43,7 +41,6 @@ export default function ExamPage() {
   const [loading, setLoading] = useState(false);
   const [ended, setEnded] = useState(false);
   const [style, setStyle] = useState<"strict" | "coaching">("coaching");
-
   const [points, setPoints] = useState<number>(0);
   const [lastCorrectness, setLastCorrectness] =
     useState<"correct" | "partially_correct" | "incorrect" | null>(null);
@@ -51,7 +48,6 @@ export default function ExamPage() {
 
   const listRef = useRef<HTMLDivElement | null>(null);
 
-  // ✅ Outline sicher berechnen
   const outline = useMemo(
     () => (c ? [...c.steps].sort((a, b) => a.order - b.order).map((s) => s.prompt) : []),
     [c]
@@ -65,16 +61,20 @@ export default function ExamPage() {
   }, [asked.length, outline.length]);
 
   useEffect(() => {
-    if (!listRef.current) return;
-    listRef.current.scrollTop = listRef.current.scrollHeight;
+    if (listRef.current) {
+      listRef.current.scrollTop = listRef.current.scrollHeight;
+    }
   }, [transcript, loading]);
 
   function label(correctness: "correct" | "partially_correct" | "incorrect") {
-    return correctness === "correct"
-      ? "✅ Richtig"
-      : correctness === "partially_correct"
-      ? "🟨 Teilweise richtig"
-      : "❌ Nicht korrekt";
+    switch (correctness) {
+      case "correct":
+        return "✅ Richtig";
+      case "partially_correct":
+        return "🟨 Teilweise richtig";
+      default:
+        return "❌ Nicht korrekt";
+    }
   }
 
   async function callExamAPI(current: Turn[], isRetry: boolean) {
@@ -104,7 +104,6 @@ export default function ExamPage() {
       const data: ApiReply = (await res.json()) as ApiReply;
       const nextT = [...current];
 
-      // Duplikat-Schranke
       const normalize = (s: string) =>
         s.toLowerCase().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "").trim();
       const pushProf = (text?: string | null) => {
@@ -116,7 +115,6 @@ export default function ExamPage() {
         }
       };
 
-      // Bewertung + Punkte
       if (data.evaluation) {
         const { correctness, feedback, tips } = data.evaluation;
         setLastCorrectness(correctness);
@@ -151,7 +149,6 @@ export default function ExamPage() {
         setAllowRetryNext(false);
       }
 
-      // Folgefrage nur stellen, wenn kein Retry offen ist
       const retryIsOpenNow = allowRetryNext === true && !isRetry;
       const shouldAskNext =
         Boolean(data.next_question && data.next_question.trim()) && !retryIsOpenNow;
@@ -199,7 +196,6 @@ export default function ExamPage() {
     callExamAPI(newT, isRetry);
   }
 
-  // ✅ direkt auf c prüfen, damit TS danach narrowt
   if (!c) {
     return (
       <main className="p-6">
@@ -231,7 +227,7 @@ export default function ExamPage() {
         </select>
       </div>
 
-      {/* ZWEI SPALTEN: Fragenfolge | Chat */}
+      {/* Zwei Spalten */}
       <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4">
         <aside className="rounded-xl bg-white/70 border border-black/10 p-3 md:sticky md:top-20 h-fit">
           <div className="mb-2 text-xs font-medium text-gray-700">Fragenfolge</div>
@@ -309,7 +305,11 @@ export default function ExamPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              hasStarted ? onSend() : startExam();
+              if (hasStarted) {
+                onSend();
+              } else {
+                startExam();
+              }
             }}
             className="flex gap-2"
           >

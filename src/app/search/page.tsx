@@ -2,95 +2,108 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { CASES } from "@/data/cases";
 import type { Case } from "@/lib/types";
+import { CASES } from "@/data/cases";
 
-// Hilfsfunktionen
-const norm = (s: string) => s.normalize("NFKD").toLowerCase();
-const inText = (needle: string, hay: string) => norm(hay).includes(norm(needle));
-
-// Anzeigenamen für Fach/Subfach – kompatibel zu altem (specialty) und neuem (subject/subspecialty) Schema
-function subjectOf(c: Case): string {
-  const anyC = c as unknown as { specialty?: string; subject?: string };
-  return (anyC.specialty ?? anyC.subject ?? "").trim();
-}
-function subspecialtyOf(c: Case): string {
-  const anyC = c as unknown as { subspecialty?: string; category?: string };
-  return (anyC.subspecialty ?? anyC.category ?? "").trim();
+function tokensFromCase(c: Case): string[] {
+  const base: string[] = [
+    c.title,
+    c.vignette,
+    c.specialty ?? "",
+    c.subspecialty ?? "",
+    c.category ?? "",
+    String(c.difficulty ?? ""),
+    ...(c.tags ?? []),
+  ];
+  return base
+    .join(" ")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/\p{Diacritic}/gu, "")
+    .split(/\s+/)
+    .filter(Boolean);
 }
 
 export default function SearchPage() {
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState<string>("");
 
-  const results = useMemo(() => {
-    const query = q.trim();
-    if (!query) return [];
+  // Index vornbauen (ohne any)
+  const index = useMemo(() => {
+    return CASES.map((c: Case) => ({
+      case: c,
+      text: tokensFromCase(c).join(" "),
+    }));
+  }, []);
 
-    return CASES.filter((c) => {
-      const haystackParts: string[] = [
-        c.title,
-        c.vignette,
-        subjectOf(c),
-        subspecialtyOf(c),
-        String((c as any).difficulty ?? ""),
-        ...(c.tags ?? []),
-      ].filter(Boolean);
-
-      return haystackParts.some((part) => inText(query, part));
-    });
+  // Query normieren
+  const normQ = useMemo(() => {
+    return q
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/\p{Diacritic}/gu, "")
+      .trim();
   }, [q]);
+
+  // Trefferliste (ohne any)
+  const results: Case[] = useMemo(() => {
+    if (!normQ) return [];
+    const parts = normQ.split(/\s+/);
+    return index
+      .filter((row) => parts.every((p) => row.text.includes(p)))
+      .map((row) => row.case);
+  }, [index, normQ]);
 
   return (
     <main className="mx-auto max-w-3xl p-6">
-      <h1 className="text-2xl font-semibold mb-4">Suche</h1>
+      <h1 className="text-2xl font-semibold tracking-tight mb-4">Suche</h1>
 
-      <div className="mb-4">
+      <div className="mb-4 flex gap-2">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Suche nach Titel, Fach, Subfach, Tags…"
+          placeholder="Suche nach Titel, Stichwort, Tag…"
           className="w-full rounded-md border px-3 py-2 text-sm"
         />
+        <button
+          type="button"
+          onClick={() => setQ("")}
+          className="rounded-md border px-3 py-2 text-sm hover:bg-black/[.04]"
+        >
+          Löschen
+        </button>
       </div>
 
-      {!q.trim() ? (
-        <p className="text-sm text-gray-600">Tippe, um Fälle zu durchsuchen.</p>
+      {!normQ ? (
+        <p className="text-sm text-gray-600">Gib einen Suchbegriff ein.</p>
       ) : results.length === 0 ? (
         <p className="text-sm text-gray-600">Keine Treffer.</p>
       ) : (
-        <ul className="space-y-3">
-          {results.map((c) => (
-            <li key={c.id} className="rounded-xl border border-black/10 bg-white/80 p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-medium leading-tight">{c.title}</h3>
-                  <p className="mt-1 text-xs text-gray-600">
-                    {subjectOf(c)}
-                    {subspecialtyOf(c) ? ` · ${subspecialtyOf(c)}` : ""}
-                    {typeof (c as any).difficulty !== "undefined"
-                      ? ` · Schwierigkeit ${(c as any).difficulty}`
-                      : ""}
-                  </p>
-                  <p className="mt-1 line-clamp-2 text-sm text-gray-700">{c.vignette}</p>
-                </div>
-                <div className="shrink-0 flex gap-2">
-                  <Link
-                    href={`/cases/${c.id}`}
-                    className="rounded-md border px-2.5 py-1.5 text-sm hover:bg-black/[.04]"
-                  >
-                    Details
-                  </Link>
-                  <Link
-                    href={`/exam/${c.id}`}
-                    className="rounded-md bg-brand-600 px-2.5 py-1.5 text-sm text-white hover:bg-brand-700"
-                  >
-                    Prüfen
-                  </Link>
+        <ul className="space-y-2">
+          {results.map((c: Case) => (
+            <li
+              key={c.id}
+              className="flex items-center justify-between rounded-lg border bg-white px-3 py-2 shadow-sm"
+            >
+              <div className="min-w-0">
+                <div className="truncate font-medium">{c.title}</div>
+                <div className="text-xs text-gray-600">
+                  {[c.specialty, c.subspecialty, c.category].filter(Boolean).join(" · ")}
                 </div>
               </div>
-              {c.tags?.length ? (
-                <div className="mt-3 text-[11px] text-gray-600">{c.tags.join(" · ")}</div>
-              ) : null}
+              <div className="flex gap-2">
+                <Link
+                  href={`/cases/${c.id}`}
+                  className="hidden sm:inline-block rounded-md border px-2 py-1 text-xs hover:bg-black/[.04]"
+                >
+                  Details
+                </Link>
+                <Link
+                  href={`/exam/${c.id}`}
+                  className="rounded-md bg-brand-600 px-2.5 py-1.5 text-sm text-white hover:bg-brand-700"
+                >
+                  Prüfen
+                </Link>
+              </div>
             </li>
           ))}
         </ul>
