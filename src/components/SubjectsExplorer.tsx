@@ -12,18 +12,21 @@ import Badge from "@/components/Badge";
 const uniq = (arr: string[]) => [...new Set(arr)].filter(Boolean);
 const byAlpha = (a: string, b: string) => a.localeCompare(b, "de");
 
-// Falls dein Case-Typ nur specialty/subspecialty kennt, mappen wir
-// zusätzlich subject/category, wenn die in manchen Dateien verwendet wurden.
+// Kurzname sicher ziehen (falls dein Case-Typ kein shortTitle kennt)
+function shortLabel(c: Case): string {
+  const s = (c as { shortTitle?: string }).shortTitle;
+  return (s && s.trim()) || c.title;
+}
+
+// Specialty/Subspecialty ↔ Subject/Category robust abbilden
 function getSubject(c: Case): string {
   const s1 = (c as Partial<Case>).specialty;
-  // @ts-expect-error: legacy field support
-  const s2 = (c as unknown as { subject?: string })?.subject;
+  const s2 = (c as { subject?: string }).subject;
   return (s1 || s2 || "Sonstiges").toString().trim();
 }
 function getCategory(c: Case): string {
   const s1 = (c as Partial<Case>).subspecialty;
-  // @ts-expect-error: legacy field support
-  const s2 = (c as unknown as { category?: string })?.category;
+  const s2 = (c as { category?: string }).category;
   return (s1 || s2 || "Allgemein").toString().trim();
 }
 
@@ -77,11 +80,13 @@ function Row({
 }
 
 export default function SubjectsExplorer({ cases }: { cases: Case[] }) {
-  // Alle Fächer aus Daten ableiten (robust über getSubject)
+  // Alle Fächer aus Daten ableiten
   const subjects = useMemo(() => uniq(cases.map(getSubject)).sort(byAlpha), [cases]);
 
   // schöner Default: „Innere Medizin“, sonst erstes
-  const defaultSubject = subjects.includes("Innere Medizin") ? "Innere Medizin" : (subjects[0] ?? "");
+  const defaultSubject = subjects.includes("Innere Medizin")
+    ? "Innere Medizin"
+    : subjects[0] ?? "";
 
   const [subject, setSubject] = useState<string>(defaultSubject);
 
@@ -178,22 +183,17 @@ export default function SubjectsExplorer({ cases }: { cases: Case[] }) {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-medium leading-tight">
-                      {"shortTitle" in c && c.shortTitle ? c.shortTitle : c.title}
-                    </h3>
-                    {"vignette" in c && c.vignette && (
+                    <h3 className="font-medium leading-tight">{shortLabel(c)}</h3>
+                    {c.vignette && (
                       <p className="mt-1 line-clamp-2 text-sm text-gray-600">{c.vignette}</p>
                     )}
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {"difficulty" in c && typeof (c as { difficulty?: number }).difficulty !== "undefined" && (
-                    <Badge>Schwierigkeit {(c as { difficulty?: number }).difficulty}</Badge>
-                  )}
-                  {Array.isArray(c.tags) &&
-                    c.tags.map((t) => (
-                      <Badge key={t}>{t}</Badge>
-                    ))}
+                  {typeof c.difficulty === "number" && <Badge>Schwierigkeit {c.difficulty}</Badge>}
+                  {(c.tags ?? []).map((t) => (
+                    <Badge key={t}>{t}</Badge>
+                  ))}
                 </div>
                 <div className="mt-4 flex gap-2">
                   <Link
