@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { CASES } from "@/data/cases";
+import ProgressBar from "@/components/ProgressBar";
+import ScorePill from "@/components/ScorePill";
 
 type Turn = { role: "prof" | "student"; text: string };
 type ApiReply = {
-  say_to_student: string;
+  say_to_student: string | null;
   evaluation: null | {
     correctness: "correct" | "partially_correct" | "incorrect";
     feedback: string;
@@ -16,6 +18,7 @@ type ApiReply = {
   next_question: string | null;
   end: boolean;
 };
+type Asked = { index: number; text: string; status: "pending" | "correct" | "partial" | "incorrect" };
 
 export default function ExamPage() {
   const params = useParams<{ id: string | string[] }>();
@@ -23,21 +26,9 @@ export default function ExamPage() {
   const caseId = Array.isArray(rawId) ? rawId[0] : rawId;
 
   const c = CASES.find((x) => x.id === caseId);
-
-  const [transcript, setTranscript] = useState<Turn[]>([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [ended, setEnded] = useState(false);
-  const [style, setStyle] = useState<"strict" | "coaching">("coaching");
-  const listRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
-  }, [transcript, loading]);
-
   if (!c) {
     return (
-      <main className="mx-auto max-w-3xl p-6">
+      <main className="p-6">
         <h2 className="text-xl font-semibold mb-2">Fall nicht gefunden</h2>
         <Link href="/cases" className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50">
           Zur Fallliste
@@ -45,6 +36,37 @@ export default function ExamPage() {
       </main>
     );
   }
+  const caseData = c;
+
+  const [transcript, setTranscript] = useState<Turn[]>([]);
+  const [asked, setAsked] = useState<Asked[]>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [ended, setEnded] = useState(false);
+  const [style, setStyle] = useState<"strict" | "coaching">("coaching");
+
+  const [points, setPoints] = useState<number>(0);
+  const [lastCorrectness, setLastCorrectness] =
+    useState<"correct" | "partially_correct" | "incorrect" | null>(null);
+  const [allowRetryNext, setAllowRetryNext] = useState(false);
+
+  const listRef = useRef<HTMLDivElement | null>(null);
+
+  const outline = useMemo(
+    () => [...caseData.steps].sort((a, b) => a.order - b.order).map((s) => s.prompt),
+    [caseData.steps]
+  );
+  const maxPoints = outline.length * 2;
+
+  const progressPct = useMemo(() => {
+    if (!outline.length) return 0;
+    const done = Math.min(asked.length, outline.length);
+    return Math.round((done / outline.length) * 100);
+  }, [asked.length, outline.length]);
+
+  useEffect(() => {
+    if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
+  }, [transcript, loading]);
 
   function label(correctness: "correct" | "partially_correct" | "incorrect") {
     return correctness === "correct"
@@ -54,35 +76,33 @@ export default function ExamPage() {
       : "❌ Nicht korrekt";
   }
 
-  async function callExamAPI(current: Turn[]) {
+  async function callExamAPI(current: Turn[], isRetry: boolean) {
     setLoading(true);
     try {
-      const outline = c.steps.slice().sort((a, b) => a.order - b.order).map((s) => s.prompt);
-
       const res = await fetch("/api/exam/turn", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          caseText: c.vignette,
-          transcript: current,
+          caseText: caseData.vignette,
+          transcript: current.map((t) => ({
+            role: t.role === "prof" ? "examiner" : "student",
+            text: t.text,
+          })),
           outline,
           style,
+          objectives: caseData.objectives || [],
+          completion: caseData.completion || null,
         }),
       });
-
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error || `HTTP ${res.status}`);
       }
-
       const data: ApiReply = await res.json();
-
       const nextT = [...current];
 
-      // Duplikat-Schranke
       const normalize = (s: string) =>
         s.toLowerCase().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "").trim();
-
       const pushProf = (text?: string | null) => {
         if (!text || !text.trim()) return;
         const t = text.trim();
@@ -92,30 +112,50 @@ export default function ExamPage() {
         }
       };
 
-      // 1) Bewertung + kurze Begründung, stets mit Tipp bei teilweise/falsch
       if (data.evaluation) {
         const { correctness, feedback, tips } = data.evaluation;
-        pushProf(`${label(correctness)} — ${feedback}`);
+        setLastCorrectness(correctness);
+        const base = correctness === "correct" ? 2 : correctness === "partially_correct" ? 1 : 0;
+        const gain = isRetry ? base * 0.75 : base;
+        setPoints((p) => p + gain);
 
-        const needsTip = correctness === "partially_correct" || correctness === "incorrect";
-        const tipText = tips?.trim();
-        if (needsTip) {
-          pushProf(`Tipp: ${tipText || "Ergänze gezielt, was noch fehlt (z. B. fehlende DD oder Untersuchungsschritt)."}`
-          );
-        }
+        setAsked((prev) => {
+          const i = [...prev].reverse().findIndex((a) => a.status === "pending");
+          if (i === -1) return prev;
+          const idx = prev.length - 1 - i;
+          const copy = [...prev];
+          copy[idx] = {
+            ...copy[idx],
+            status: correctness === "correct" ? "correct" : correctness === "partially_correct" ? "partial" : "incorrect",
+          };
+          return copy;
+        });
+
+        const parts = [
+          `${label(correctness)} — ${feedback}`,
+          correctness !== "correct" && tips ? `Tipp: ${tips}` : "",
+        ].filter(Boolean);
+        pushProf(parts.join(" "));
+        setAllowRetryNext(correctness !== "correct" && Boolean(tips && tips.trim()));
+      } else {
+        setAllowRetryNext(false);
       }
 
-      // 2) Genau EINE Folgefrage
-      if (data.next_question && data.next_question.trim()) {
-        pushProf(data.next_question);
-      } else {
-        pushProf(data.say_to_student); // nur ein Übergangssatz, keine Frage
+      const retryIsOpenNow = allowRetryNext === true && !isRetry;
+      const shouldAskNext = Boolean(data.next_question && data.next_question.trim()) && !retryIsOpenNow;
+
+      if (shouldAskNext) {
+        const q = data.next_question!.trim();
+        pushProf(q);
+        setAsked((prev) => [...prev, { index: prev.length, text: q, status: "pending" }]);
+      } else if (data.say_to_student && data.say_to_student.trim()) {
+        pushProf(data.say_to_student);
       }
 
       setTranscript(nextT);
       setEnded(Boolean(data.end));
-    } catch (e: any) {
-      alert(e?.message || "Unbekannter Fehler");
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
@@ -124,79 +164,181 @@ export default function ExamPage() {
   const hasStarted = transcript.length > 0;
 
   function startExam() {
-    const intro: Turn[] = [{ role: "prof", text: `Vignette: ${c.vignette}` }];
+    const intro: Turn[] = [{ role: "prof", text: `Vignette: ${caseData.vignette}` }];
     setTranscript(intro);
-    setTimeout(() => callExamAPI(intro), 0);
+    setAsked([]);
+    setPoints(0);
+    setLastCorrectness(null);
+    setEnded(false);
+    setAllowRetryNext(false);
+    setTimeout(() => callExamAPI(intro, false), 0);
   }
 
   function onSend() {
     if (!input.trim() || loading || ended) return;
+    const isRetry = allowRetryNext;
+    setAllowRetryNext(false);
     const newT: Turn[] = [...transcript, { role: "student", text: input.trim() }];
     setTranscript(newT);
     setInput("");
-    callExamAPI(newT);
+    callExamAPI(newT, isRetry);
   }
 
   return (
-    <main className="mx-auto max-w-3xl p-6">
-      <div className="mb-2 flex items-center gap-3">
-        <h2 className="text-xl font-semibold">Prüfung: {c.title}</h2>
-        <div className="ml-auto flex items-center gap-2">
-          <label className="text-xs text-gray-600">Stil</label>
-          <select
-            className="rounded-md border px-2 py-1 text-sm"
-            value={style}
-            onChange={(e) => setStyle(e.target.value as "strict" | "coaching")}
-          >
-            <option value="coaching">Coaching</option>
-            <option value="strict">Streng</option>
-          </select>
+    <main className="p-0">
+      {/* Kopfzeile */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <h2 className="text-2xl font-semibold tracking-tight flex-1">
+          Prüfung: {caseData.title}
+        </h2>
+        <ScorePill points={points} maxPoints={maxPoints} last={lastCorrectness} />
+        <div className="w-56 hidden sm:block">
+          <ProgressBar value={progressPct} label="Fortschritt" />
         </div>
+        <label className="text-xs text-gray-600">Stil</label>
+        <select
+          className="rounded-md border px-2 py-1 text-sm"
+          value={style}
+          onChange={(e) => setStyle(e.target.value as "strict" | "coaching")}
+        >
+          <option value="coaching">Coaching</option>
+          <option value="strict">Streng</option>
+        </select>
       </div>
-      <div className="text-xs text-gray-600 mb-4">Thema: {c.tags.join(", ")}</div>
 
-      <div ref={listRef} className="h-[50vh] overflow-y-auto rounded-lg border p-4 bg-white">
-        {transcript.map((t, i) => (
-          <div key={i} className={`mb-3 ${t.role === "prof" ? "" : "text-right"}`}>
-            <div className={`inline-block rounded-xl px-3 py-2 ${t.role === "prof" ? "bg-gray-100 border" : "bg-blue-50 border"}`}>
-              <span className="text-sm">
-                <b>{t.role === "prof" ? "Prüfer" : "Du"}:</b> {t.text}
-              </span>
+      {/* ZWEI SPALTEN: Fragenfolge | Chat */}
+      <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4">
+        <aside className="rounded-xl bg-white/70 border border-black/10 p-3 md:sticky md:top-20 h-fit">
+          <div className="mb-2 text-xs font-medium text-gray-700">Fragenfolge</div>
+          <ul className="space-y-2">
+            {outline.map((prompt, i) => {
+              const a = asked[i];
+              const status = a?.status ?? null;
+              const dot =
+                !a ? "bg-gray-200"
+                : status === "pending" ? "bg-gray-300"
+                : status === "correct" ? "bg-green-500"
+                : status === "partial" ? "bg-yellow-400"
+                : "bg-red-500";
+              return (
+                <li key={i} className="flex items-start gap-2 text-sm leading-snug">
+                  <span className={`mt-1 inline-block h-3 w-3 rounded-full ${dot}`} />
+                  {a ? (
+                    <span className="text-gray-900">{a.text}</span>
+                  ) : (
+                    <span className="text-gray-400 italic select-none">{i + 1}. …</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+
+          {allowRetryNext && (
+            <div className="mt-3 rounded-md border border-yellow-200 bg-yellow-50 p-2 text-[11px] text-yellow-800">
+              🔁 Du kannst die letzte Frage <b>nochmal beantworten</b> oder eine kurze Verständnisfrage stellen.
+              Diese nächste Antwort zählt zu <b>75%</b>.
             </div>
-          </div>
-        ))}
-        {loading && <div className="text-sm text-gray-500">Denke nach…</div>}
-        {!hasStarted && <div className="text-sm text-gray-600">Klicke auf <b>Prüfung starten</b>, um zu beginnen.</div>}
-        {ended && <div className="mt-2 text-sm text-green-700">✅ Fall abgeschlossen.</div>}
-      </div>
+          )}
+        </aside>
 
-      <div className="mt-3 flex gap-2">
-        {!hasStarted ? (
-          <button onClick={startExam} className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50">
-            Prüfung starten
-          </button>
-        ) : (
-          <>
-            <input
-              className="flex-1 rounded-md border px-3 py-2 text-sm"
-              placeholder={ended ? "Fall beendet" : "Deine Antwort…"}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && onSend()}
-              disabled={ended}
-            />
-            <button
-              onClick={onSend}
-              disabled={loading || !input.trim() || ended}
-              className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
-            >
-              Senden
-            </button>
-          </>
-        )}
-        <Link href={`/cases/${c.id}`} className="ml-auto rounded-md border px-3 py-1 text-sm hover:bg-gray-50">
-          Fallinfo
-        </Link>
+        <section className="flex flex-col gap-3">
+          <div
+            ref={listRef}
+            className="h-[58vh] overflow-y-auto rounded-2xl border border-black/10 bg-[var(--panel)] p-4 shadow-card"
+          >
+            {transcript.map((t, i) => (
+              <div key={i} className={`mb-3 ${t.role === "prof" ? "" : "text-right"}`}>
+                <div
+                  className={`inline-block max-w-[80%] rounded-2xl px-3 py-2 shadow-sm ${
+                    t.role === "prof"
+                      ? "bg-white/80 border border-black/10"
+                      : "bg-brand-600 text-white"
+                  }`}
+                >
+                  <span className="text-sm leading-relaxed">
+                    <b className="opacity-80">{t.role === "prof" ? "Prüfer" : "Du"}:</b> {t.text}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {loading && <div className="text-sm text-gray-500">Denke nach…</div>}
+            {!hasStarted && <div className="text-sm text-gray-600">Klicke auf <b>Prüfung starten</b>, um zu beginnen.</div>}
+            {ended && (
+              <div className="mt-2 text-sm text-green-700">
+                ✅ Fall abgeschlossen — Score {Number.isInteger(points) ? points : points.toFixed(1)}
+                /{maxPoints} ({Math.round((points / Math.max(1, maxPoints)) * 100)}%)
+              </div>
+            )}
+          </div>
+
+          <form
+            onSubmit={(e) => { e.preventDefault(); hasStarted ? onSend() : startExam(); }}
+            className="flex gap-2"
+          >
+            {!hasStarted ? (
+              <button type="submit" className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50">
+                Prüfung starten
+              </button>
+            ) : (
+              <>
+                <input
+                  className="flex-1 rounded-md border px-3 py-2 text-sm"
+                  placeholder={ended ? "Fall beendet" : allowRetryNext ? "Retry/Verständnisfrage…" : "Deine Antwort…"}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  disabled={ended}
+                />
+                <button
+                  type="submit"
+                  disabled={loading || !input.trim() || ended}
+                  className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Senden
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (loading || ended) return;
+                    (async () => {
+                      setLoading(true);
+                      try {
+                        const res = await fetch("/api/exam/turn", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            caseText: caseData.vignette,
+                            transcript: transcript.map((t) => ({
+                              role: t.role === "prof" ? "examiner" : "student",
+                              text: t.text,
+                            })),
+                            outline,
+                            style,
+                            tipRequest: true,
+                          }),
+                        });
+                        const data = (await res.json()) as ApiReply;
+                        if (data.say_to_student) {
+                          setTranscript((prev) => [...prev, { role: "prof", text: data.say_to_student! }]);
+                          setAllowRetryNext(true);
+                        }
+                      } finally {
+                        setLoading(false);
+                      }
+                    })();
+                  }}
+                  disabled={loading || ended}
+                  className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+                  title="Kleinen Hinweis erhalten"
+                >
+                  💡 Tipp
+                </button>
+              </>
+            )}
+            <Link href={`/cases/${caseData.id}`} className="ml-auto rounded-md border px-3 py-2 text-sm hover:bg-gray-50">
+              Fallinfo
+            </Link>
+          </form>
+        </section>
       </div>
     </main>
   );

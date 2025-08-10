@@ -1,6 +1,26 @@
 @import "tailwindcss";
 
 :root {
+  --bg: #f7f9fc;
+  --panel: #ffffff;
+  --text: #0b1020;
+  --muted: #6b7280;
+}
+:root.dark {
+  --bg: #0c111c;
+  --panel: #0f1524;
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+}
+html, body { height: 100%; }
+body {
+  background: radial-gradient(1200px 600px at 10% -10%, rgba(43,138,255,.12), transparent),
+              radial-gradient(1200px 600px at 110% 10%, rgba(11,17,32,.06), transparent),
+              var(--bg);
+  color: var(--text);
+}
+
+:root {
   --background: #ffffff;
   --foreground: #171717;
 }
@@ -23,4 +43,17 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+:root{
+  /* Spaltenbreiten für Examenseite (md+): */
+  --nav-w:   220px;  /* linke Account/Übersicht-Sidebar */
+  --steps-w: 220px;  /* mittlere Fragen-Spalte */
+}
+
+/* Auf sehr breiten Screens gern etwas größer: */
+@media (min-width: 1440px){
+  :root{
+    --nav-w:   240px;
+    --steps-w: 220px;
+  }
 }

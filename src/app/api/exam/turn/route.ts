@@ -4,130 +4,230 @@ import OpenAI from "openai";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Schnelltest: http://localhost:3000/api/exam/turn
-export async function GET() {
-  return NextResponse.json({ ok: true, hint: "POST {caseText, transcript, outline?, style?}" });
+type Role = "student" | "examiner" | "patient";
+type TranscriptItem = { role: Role; text: string };
+
+type ObjMin = { id: string; label: string };
+type CompletionRules = { minObjectives: number; maxLLMTurns?: number; hardStopTurns?: number };
+
+type ApiOut =
+  | {
+      say_to_student: string | null;
+      evaluation:
+        | {
+            correctness: "correct" | "partially_correct" | "incorrect";
+            feedback: string;
+            tips?: string;
+          }
+        | null;
+      next_question: string | null;
+      end: boolean;
+    }
+  | { examiner_info: string }
+  | { say_to_student: string; evaluation: null; next_question: null; end: false };
+
+type BodyIn = {
+  caseText?: string;
+  transcript?: TranscriptItem[];
+  outline?: string[];
+  style?: "coaching" | "strict";
+  tipRequest?: boolean;
+  clarifyQuestion?: string;
+  objectives?: ObjMin[];
+  completion?: CompletionRules | null;
+};
+
+// --- Heuristik: erkenne Patienten-Nachfragen im letzten student-Text ---
+function looksLikePatientInfoQuery(s: string): boolean {
+  const t = (s || "").trim().toLowerCase();
+  if (!t) return false;
+
+  const kw = [
+    "raucht","raucher","rauchverhalten","pack","nikotin",
+    "fieber","fieberhöhe","temperatur","frösteln","schüttelfrost",
+    "atemfrequenz","puls","herzfrequenz","blutdruck","sauerstoff","spo2",
+    "d-dimer","troponin","crp","leuko","labor",
+    "vorerkrank","medikament","antikoag","ass","statin",
+    "familie","familiär","allergie",
+    "reisen","flug","immobilis","operation","op",
+    "belastbarkeit","anstrengung","ruhe",
+    "husten","auswurf","hämoptyse","schmerzqualität","ausstrahlung",
+    "bein","schwellung","ödeme",
+    "gewicht","appetit","nacht","nächtliches",
+    "schwanger","verhütung",
+  ];
+  const starts = [
+    "hat","ist","sind","nimmt","gab","gibt","bestehen",
+    "wie","wann","wo","warum","welche","welcher","welches","wer",
+    "gibt es","kann ich","möchte wissen","können sie mir sagen",
+  ];
+
+  if (t.endsWith("?") && kw.some(k => t.includes(k))) return true;
+  if (starts.some(p => t.startsWith(p + " ")) && kw.some(k => t.includes(k))) return true;
+  if (t.includes("mehr info") || t.includes("weitere info") || t.includes("anamnese")) return true;
+  if (/^[a-zäöüß0-9\- ]{1,8}\?$/.test(t)) return false;
+  return false;
 }
 
-type Turn = { role: string; text: string };
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    hint: "POST { caseText, transcript, outline?, style?, tipRequest?, clarifyQuestion?, objectives?, completion? }",
+  });
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const rawKey = process.env.OPENAI_API_KEY?.trim();
-    if (!rawKey) return NextResponse.json({ error: "OPENAI_API_KEY fehlt (.env.local)" }, { status: 500 });
-    if (!rawKey.startsWith("sk-")) return NextResponse.json({ error: "OPENAI_API_KEY ungültig" }, { status: 500 });
+    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    if (!apiKey || !apiKey.startsWith("sk-")) {
+      return NextResponse.json(
+        { error: "OPENAI_API_KEY fehlt/ungültig (.env.local oder Vercel-Env setzen)" },
+        { status: 500 }
+      );
+    }
+    const model = (process.env.OPENAI_MODEL || "gpt-4o-mini").trim();
+    const client = new OpenAI({ apiKey });
 
-    const body = (await req.json()) as {
-      caseText: string;
-      transcript: Turn[];
-      outline?: string[];                // optional: Schritte/Topics für den Fall
-      style?: "strict" | "coaching";     // optional: Tonalität
-    };
+    const body = (await req.json()) as BodyIn;
 
-    const { caseText, transcript, outline = [], style = "coaching" } = body || {};
-    if (!caseText || !Array.isArray(transcript)) {
-      return NextResponse.json({ error: "Bad request: caseText (string), transcript (array)" }, { status: 400 });
+    const caseText = (body.caseText || "").trim();
+    const transcript: TranscriptItem[] = Array.isArray(body.transcript) ? body.transcript : [];
+    const outline: string[] = Array.isArray(body.outline) ? body.outline : [];
+    const style: "coaching" | "strict" = body.style === "strict" ? "strict" : "coaching";
+    const tipRequest = Boolean(body.tipRequest);
+    const clarifyQuestion = typeof body.clarifyQuestion === "string" ? body.clarifyQuestion.trim() : "";
+    const objectives: ObjMin[] = Array.isArray(body.objectives) ? body.objectives : [];
+    const completion: CompletionRules | null = body.completion ?? null;
+
+    if (!caseText) {
+      return NextResponse.json({ error: "Bad request: caseText ist erforderlich." }, { status: 400 });
     }
 
-    const client = new OpenAI({ apiKey: rawKey });
-    const model = (process.env.OPENAI_MODEL || "gpt-4o-mini").trim();
+    // ---------- MODE A: Tipp ----------
+    if (tipRequest) {
+      const sysTip = `Du bist Prüfer:in im 3. Staatsexamen (Innere/Chirurgie/Wahlfach).
+Gib genau EINEN kurzen, konkreten Tipp (1 Satz), der in die richtige Richtung schubst.
+Kein Spoiler (keine Enddiagnose/Therapie verraten).
+Sprache: Deutsch. Stil: freundlich-klar, prüfungsnah.`;
 
-    // Hilfsinfos aus dem Verlauf
-    const lastStudent = [...transcript].reverse().find((t) => t.role === "student")?.text ?? "";
-    const lastProfQ = [...transcript].reverse().find((t) => t.role === "prof" && /[?？]$/.test(t.text))?.text ?? "";
+      const lastStudent = [...transcript].reverse().find((t) => t.role === "student")?.text || "";
+      const usrTip = `Fall (Vignette): ${caseText}
+${outline.length ? `Prüfungs-Outline: ${outline.join(" • ")}` : ""}
+Letzte Studierenden-Antwort: ${lastStudent || "(noch keine)"}
+Gib NUR den Tipp-Text zurück, ohne Zusatz.`.trim();
 
-    // ===== Dein bestehender Prompt + Engagement-Regeln (flüssiger Dialog) =====
-    const systemBase = [
-      // (Dein vorhandener Prompt, inhaltlich unverändert)
-      "Du bist Prüfer:in im 3. Staatsexamen (Innere Medizin).",
-      "Sprache: Deutsch. Stil: knapp, prüfungsnah, freundlich-klar.",
-      "Bei jeder Studierenden-Antwort tust du GENAU das:",
-      "1) Bewertung (kurz): korrekt / teilweise korrekt / nicht korrekt.",
-      "2) Begründung (1–2 Sätze): WARUM ist es so? Beziehe dich nur auf das Gesagte.",
-      "3) Tipp-Regel (PFLICHT):",
-      "   - Wenn correctness = 'partially_correct' ODER 'incorrect', MUSS das Feld 'tips' genau 1 kurzen, konkreten Hinweis enthalten, beginnend z. B. mit 'Es fehlt noch: …' oder 'Ergänze: …'.",
-      "   - Der Tipp darf keine vollständige Lösung vorwegnehmen, sondern soll gezielt in die richtige Richtung schubsen (z. B. fehlende DD, fehlender Untersuchungsschritt).",
-      "   - Wenn correctness = 'correct', darf 'tips' null sein.",
-      "4) Stelle GENAU EINE nächste Frage.",
-      "5) Wenn der Student richtig oder teilweise richtig antwortet, begründe ihm auch warum das so ist. Wenn er falsch antwortet, begründe auch warum es falsch ist.",
-      "",
-      "Spoiler-Schutz:",
-      "- Verrate KEINE Inhalte, die in der nächsten Frage gezielt abgefragt werden.",
-      "- Nenne keine finalen Diagnosen/Therapiedetails, wenn sie erst erarbeitet werden sollen.",
-      "",
-      "Feldregeln (keine Dopplungen):",
-      "- 'evaluation' enthält Bewertung + Begründung (+ optional Tips nur bei korrekt).",
-      "- 'next_question' enthält AUSSCHLIESSLICH die nächste Frage (ein Satz, Fragezeichen am Ende).",
-      "- 'say_to_student' ist optional und enthält höchstens 1 kurzen Übergangssatz, KEINE Frage.",
-      "- Wiederhole dieselbe Frage NICHT in mehreren Feldern.",
-      "",
-      "Gib NUR ein JSON-Objekt zurück:",
-      "{ \"say_to_student\": string, \"evaluation\": { \"correctness\": \"correct\" | \"partially_correct\" | \"incorrect\", \"feedback\": string, \"tips\"?: string } | null, \"next_question\": string | null, \"end\": boolean }",
-    ];
+      const outTip = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: sysTip },
+          { role: "user", content: usrTip },
+        ],
+        temperature: 0.2,
+      });
 
-    // Engagement-Regeln (flüssiger, auf letzte Antwort eingehen)
-    const engagement = [
-      "",
-      "Engagement-Regeln für flüssiges Gespräch:",
-      `- Beziehe dich explizit auf die letzte Studierenden-Antwort (z. B. zitiere 2–5 Schlüsselwörter: „${lastStudent.slice(0, 40)}…“).`,
-      "- Stelle die nächste Frage so, dass sie ENTWEDER nahtlos an die letzte Aussage anknüpft (Vertiefung/Begründung) ODER den nächsten sinnvollen Schritt im Fall (laut Outline) einleitet.",
-      "- Stelle NICHT dieselbe Frage wie zuvor erneut; wiederhole die vorherige Frage nicht paraphrasiert.",
-      "- Wenn der/die Studierende explizit um einen Tipp bittet (z. B. 'tipp', 'weiß nicht'), gib einen präzisen, kurzen Tipp und stelle dann eine niedrigschwelligere Folgefrage.",
-      `- Ton (${style}): ${style === "strict"
-        ? "streng, knapp, prüfungsnah; bohre gezielt nach Begründungen; keine langen Hinweise."
-        : "coaching-orientiert, wertschätzend; kurze Bestärkung bei korrekten Teilen; prägnante Hinweise bei Lücken."
-      }`,
-    ];
+      const tip = (outTip.choices?.[0]?.message?.content || "").trim();
+      return NextResponse.json({
+        say_to_student: tip ? `Tipp: ${tip}` : "Tipp: Denke an eine fehlende DD oder einen nächsten Untersuchungsschritt.",
+        evaluation: null,
+        next_question: null,
+        end: false,
+      });
+    }
 
-    const outlineBlock = outline.length
-      ? [
-          "",
-          "Outline (Themen-Schritte des Falls; nutze sie zur Struktur, aber spoilerfrei):",
-          ...outline.map((o, i) => `- Schritt ${i + 1}: ${o}`),
-          "Wähle die nächste Frage so, dass sie ENTWEDER die aktuelle Stelle vertieft ODER sinnvoll zum nächsten Schritt überleitet, ohne Inhalte vorwegzunehmen.",
-        ]
-      : [];
+    // --- Auto-Erkennung einer Nachfrage im letzten student-Text ---
+    const lastStudentText = [...transcript].reverse().find((t) => t.role === "student")?.text?.trim() || "";
+    const autoClarify = !clarifyQuestion && looksLikePatientInfoQuery(lastStudentText);
+    const clarify = clarifyQuestion || (autoClarify ? lastStudentText : "");
 
-    const systemPrompt = [...systemBase, ...engagement, ...outlineBlock].join("\n");
+    // ---------- MODE B: Prüfer liefert Zusatzinfos ----------
+    if (clarify) {
+      const sysClarify = `Du bist die/der PRÜFER:IN im 3. Staatsexamen.
+Auf Nachfrage gibst du ZUSÄTZLICHE PATIENTENDETAILS, die realistisch zur Vignette passen.
+Form: 1–3 kurze Sätze ODER 2–3 Bulletpoints (mit '- ').
+Kein Spoiler: keine Enddiagnose, keine definitive Therapie verraten.
+Enthülle nur Infos, die man in Anamnese/Klinik/Basisdiagnostik plausibel erheben könnte.
+Sprache: Deutsch, freundlich-klar, prüfungsnah.`;
 
-    const userContent =
-      `Fall (Vignette): ${caseText}\n\n` +
-      `Letzte Prüferfrage: ${lastProfQ || "(keine)"}\n` +
-      `Letzte Studierenden-Antwort: ${lastStudent || "(keine)"}\n\n` +
-      `Vollständiges Transkript (bisher):\n${JSON.stringify(transcript, null, 2)}\n\n` +
-      `Erzeuge jetzt NUR das JSON-Objekt ohne zusätzlichen Text.`;
+      const usrClarify = `Vignette: ${caseText}
+${outline.length ? `Geplante Prüfungsschritte: ${outline.join(" • ")}` : ""}
+${transcript.length ? `Bisheriger Dialog (Rollen student/examiner/patient):\n${JSON.stringify(transcript, null, 2)}` : ""}
+Nachfrage des Studierenden: ${clarify}
+Gib NUR die Zusatzinformation (ohne Präambel, ohne Bewertung) zurück.`.trim();
 
-    const completion = await client.chat.completions.create({
+      const outClarify = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: sysClarify },
+          { role: "user", content: usrClarify },
+        ],
+        temperature: 0.2,
+      });
+
+      const info = (outClarify.choices?.[0]?.message?.content || "").trim();
+      return NextResponse.json({ examiner_info: info || "Keine weiteren relevanten Details verfügbar." });
+    }
+
+    // ---------- MODE C: Normaler Prüfungszug ----------
+    const sysExam = `Du bist Prüfer:in im 3. Staatsexamen.
+Stil: ${style === "strict" ? "knapp, streng-sachlich" : "freundlich-klar, coaching-orientiert"}.
+Im Transkript können vorkommen: student, examiner, patient.
+- BEWERTE AUSSCHLIESSLICH die student-Antworten (patient/examiner sind Kontext).
+
+Bewertung: 'correct' / 'partially_correct' / 'incorrect'.
+Erlaube TEILPUNKTE, wenn der Kern erkennbar ist. Formuliere 1 kurzen Tipp bei 'partially_correct' oder 'incorrect'.
+Bei Differentialdiagnosen gilt: 2–3 plausible DD REICHEN (nicht vollständige Listen verlangen).
+
+Du bekommst (optional) eine Ziel-Checkliste (objectives) und End-Regeln (completion).
+Halte intern fest, welche Ziele der/die Studierende bereits erfüllt hat.
+Wenn die End-Regeln erfüllt sind (z. B. minObjectives erreicht, maxLLMTurns überschritten, etc.), setze 'end=true'.
+Wenn 'end=true', stelle KEINE neue Frage mehr. Fasse kurz zusammen, was gut war und was noch fehlt (ohne neue Aufgaben).
+
+Feldregeln:
+- 'evaluation' = { correctness, feedback, tips? } (1–2 Sätze; Tipp nur wenn nicht 'correct').
+- 'next_question' = nur eine Frage (ein Satz, Fragezeichen).
+- 'say_to_student' = optionaler Übergangssatz (ohne Frage).
+- 'end' = boolean (siehe Regeln).
+
+Gib NUR folgendes JSON zurück:
+{ "say_to_student": string, "evaluation": { "correctness": "correct" | "partially_correct" | "incorrect", "feedback": string, "tips"?: string } | null, "next_question": string | null, "end": boolean }`;
+
+    const usrExam = `Fall (Vignette): ${caseText}
+${outline.length ? `Prüfungs-Outline: ${outline.join(" • ")}` : ""}
+${objectives.length ? `Ziele (objectives): ${objectives.map(o => `${o.id}: ${o.label}`).join(" | ")}` : ""}
+${completion ? `End-Regeln (completion): minObjectives=${completion.minObjectives}${typeof completion.maxLLMTurns === "number" ? `, maxLLMTurns=${completion.maxLLMTurns}` : ""}${typeof completion.hardStopTurns === "number" ? `, hardStopTurns=${completion.hardStopTurns}` : ""}` : ""}
+${transcript.length ? `Transkript (Rollen student/examiner/patient):\n${JSON.stringify(transcript, null, 2)}` : ""}
+Erzeuge NUR das JSON-Objekt.`.trim();
+
+    const outExam = await client.chat.completions.create({
       model,
       messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userContent },
+        { role: "system", content: sysExam },
+        { role: "user", content: usrExam }
       ],
-      temperature: 0.1,
+      temperature: 0.2
     });
 
-    const raw = completion.choices?.[0]?.message?.content ?? "";
-    if (!raw) return NextResponse.json({ error: "LLM lieferte keinen Text" }, { status: 502 });
-
-    // JSON sicher herausziehen
-    let jsonText = raw.trim();
+    const raw = (outExam.choices?.[0]?.message?.content || "").trim();
+    let jsonText = raw;
     if (!(jsonText.startsWith("{") && jsonText.endsWith("}"))) {
       const s = jsonText.indexOf("{");
       const e = jsonText.lastIndexOf("}");
       if (s >= 0 && e > s) jsonText = jsonText.slice(s, e + 1);
     }
 
-    let payload: unknown;
+    let payload: ApiOut;
     try {
-      payload = JSON.parse(jsonText);
+      payload = JSON.parse(jsonText) as ApiOut;
     } catch {
-      console.error("JSON parse failed. Raw reply:", raw);
       return NextResponse.json({ error: "Antwort war kein gültiges JSON." }, { status: 502 });
     }
-
     return NextResponse.json(payload);
-  } catch (err: any) {
-    console.error("OpenAI/Route error:", err?.message || err);
-    return NextResponse.json({ error: err?.message || "LLM error" }, { status: 500 });
+
+  } catch (err: unknown) {
+    const msg =
+      err instanceof Error ? err.message :
+      typeof err === "string" ? err :
+      "LLM error";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
