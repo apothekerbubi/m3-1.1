@@ -36,7 +36,6 @@ export default function ExamPage() {
   const caseId = Array.isArray(rawId) ? rawId[0] : rawId;
 
   const c = (CASES.find((x) => x.id === caseId) ?? null) as CaseWithRules | null;
-  const hasCase = Boolean(c);
 
   const [transcript, setTranscript] = useState<Turn[]>([]);
   const [asked, setAsked] = useState<Asked[]>([]);
@@ -200,8 +199,8 @@ export default function ExamPage() {
     callExamAPI(newT, isRetry);
   }
 
-  // ✅ Bedingtes Rendern erst NACH Hooks
-  if (!hasCase) {
+  // ✅ direkt auf c prüfen, damit TS danach narrowt
+  if (!c) {
     return (
       <main className="p-6">
         <h2 className="text-xl font-semibold mb-2">Fall nicht gefunden</h2>
@@ -237,7 +236,7 @@ export default function ExamPage() {
         <aside className="rounded-xl bg-white/70 border border-black/10 p-3 md:sticky md:top-20 h-fit">
           <div className="mb-2 text-xs font-medium text-gray-700">Fragenfolge</div>
           <ul className="space-y-2">
-            {outline.map((prompt, i) => {
+            {outline.map((_, i) => {
               const a = asked[i];
               const status = a?.status ?? null;
               const dot =
@@ -256,9 +255,7 @@ export default function ExamPage() {
                   {a ? (
                     <span className="text-gray-900">{a.text}</span>
                   ) : (
-                    <span className="text-gray-400 italic select-none">
-                      {i + 1}. …
-                    </span>
+                    <span className="text-gray-400 italic select-none">{i + 1}. …</span>
                   )}
                 </li>
               );

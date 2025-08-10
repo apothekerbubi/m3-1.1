@@ -3,13 +3,23 @@
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { CASES } from "@/data/cases";
+import type { Case } from "@/lib/types";
+
+type ExtendedCase = Case & {
+  // einige Fälle benutzen andere Feldnamen – optional erlauben
+  specialty?: string;
+  subject?: string;
+  subspecialty?: string;
+  category?: string;
+  difficulty?: number;
+};
 
 export default function CaseDetail() {
   const params = useParams<{ id: string | string[] }>();
   const rawId = params?.id;
   const id = Array.isArray(rawId) ? rawId[0] : rawId;
 
-  const c = CASES.find((x) => x.id === id);
+  const c = CASES.find((x) => x.id === id) as ExtendedCase | undefined;
 
   if (!c) {
     return (
@@ -22,18 +32,13 @@ export default function CaseDetail() {
     );
   }
 
-  // Manche Datensätze haben subject/subspecialty statt specialty
-  const subject =
-    (c as any).specialty ??
-    (c as any).subject ??
-    "Allgemein";
-  const subspecialty =
-    (c as any).subspecialty ??
-    (c as any).category ??
-    null;
-  const difficulty =
-    typeof (c as any).difficulty === "number" ? (c as any).difficulty : null;
+  // Anzeige-Werte defensiv bestimmen – ohne any
+  const subject = c.specialty ?? c.subject ?? "Allgemein";
+  const subspecialty = c.subspecialty ?? c.category ?? null;
+  const difficulty = typeof c.difficulty === "number" ? c.difficulty : null;
   const tags = Array.isArray(c.tags) ? c.tags : [];
+
+  const steps = [...c.steps].sort((a, b) => a.order - b.order);
 
   return (
     <main className="mx-auto max-w-3xl p-6">
@@ -77,7 +82,7 @@ export default function CaseDetail() {
       <section className="rounded-xl border border-black/10 bg-white/80 p-4">
         <h2 className="font-medium mb-2">Prüfungs-Schritte</h2>
         <ol className="list-decimal pl-5 space-y-1 text-sm">
-          {[...c.steps].sort((a, b) => a.order - b.order).map((s) => (
+          {steps.map((s) => (
             <li key={`${s.order}-${s.prompt}`}>
               <span className="font-medium">{s.prompt}</span>
               {s.hint && <span className="text-gray-600"> – {s.hint}</span>}
