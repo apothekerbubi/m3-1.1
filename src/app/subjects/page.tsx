@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
@@ -18,14 +18,14 @@ function shortName(c: Case) {
   return first.length > 28 ? `${first.slice(0, 28)}…` : first;
 }
 
-// feste Reihenfolge (sofern vorhanden)
 const SUBJECT_ORDER: ReadonlyArray<string> = [
   "Innere Medizin",
   "Chirurgie",
   "Wahlfach",
 ];
 
-export default function SubjectsPage() {
+// -------- Inner: nutzt useSearchParams (muss in Suspense laufen) --------
+function SubjectsPageInner() {
   const search = useSearchParams();
   const router = useRouter();
 
@@ -47,16 +47,19 @@ export default function SubjectsPage() {
     }
 
     const allSubjects = Array.from(catsMap.keys());
-
     const ordered = [
       ...SUBJECT_ORDER.filter((s) => allSubjects.includes(s)),
-      ...allSubjects.filter((s) => !SUBJECT_ORDER.includes(s)).sort((a, b) => a.localeCompare(b, "de")),
+      ...allSubjects
+        .filter((s) => !SUBJECT_ORDER.includes(s))
+        .sort((a, b) => a.localeCompare(b, "de")),
     ];
 
     const catsBySubjectObj: Record<string, string[]> = Object.fromEntries(
       ordered.map((s) => [
         s,
-        Array.from(catsMap.get(s) ?? new Set<string>()).sort((a, b) => a.localeCompare(b, "de")),
+        Array.from(catsMap.get(s) ?? new Set<string>()).sort((a, b) =>
+          a.localeCompare(b, "de")
+        ),
       ])
     );
 
@@ -90,7 +93,9 @@ export default function SubjectsPage() {
   const activeCases = useMemo(() => {
     const key = `${sParam}::${subParam}`;
     const list = casesByKey.get(key) || [];
-    return [...list].sort((a, b) => shortName(a).localeCompare(shortName(b), "de"));
+    return [...list].sort((a, b) =>
+      shortName(a).localeCompare(shortName(b), "de")
+    );
   }, [casesByKey, sParam, subParam]);
 
   return (
@@ -104,10 +109,10 @@ export default function SubjectsPage() {
           <ul className="divide-y divide-black/5">
             {subjects.map((s) => {
               const count =
-                (catsBySubject[s]?.reduce(
+                catsBySubject[s]?.reduce(
                   (acc, cat) => acc + (casesByKey.get(`${s}::${cat}`)?.length || 0),
                   0
-                ) ?? 0);
+                ) ?? 0;
               const active = s === sParam;
               return (
                 <li key={s}>
@@ -212,5 +217,14 @@ export default function SubjectsPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+// -------- Export: Suspense-Wrapper (fix für useSearchParams) --------
+export default function SubjectsPage() {
+  return (
+    <Suspense fallback={<main className="p-6 text-sm text-gray-600">Lade Bibliothek…</main>}>
+      <SubjectsPageInner />
+    </Suspense>
   );
 }
