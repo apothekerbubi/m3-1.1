@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { Case } from "@/lib/types";  
 import { useEffect, useMemo, useState } from "react";
 import { slugify, subjectFromSlug } from "@/lib/slug";
 import { useParams } from "next/navigation";
