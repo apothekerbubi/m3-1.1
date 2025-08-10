@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
 import { AcademicCapIcon, MagnifyingGlassIcon, UserCircleIcon } from "@heroicons/react/24/outline";
 import { useState } from "react";
 import clsx from "clsx";
 
 export default function Header() {
-  const pathname = usePathname();
+ 
   const router = useRouter();
   const [q, setQ] = useState("");
 

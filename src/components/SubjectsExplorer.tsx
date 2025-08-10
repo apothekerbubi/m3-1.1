@@ -6,9 +6,26 @@ import { FolderIcon } from "@heroicons/react/24/outline";
 import type { Case } from "@/lib/types";
 import Badge from "@/components/Badge";
 
-// Hilfsfunktionen
+// -----------------------------
+// Utils (ohne any)
+// -----------------------------
 const uniq = (arr: string[]) => [...new Set(arr)].filter(Boolean);
 const byAlpha = (a: string, b: string) => a.localeCompare(b, "de");
+
+// Falls dein Case-Typ nur specialty/subspecialty kennt, mappen wir
+// zusätzlich subject/category, wenn die in manchen Dateien verwendet wurden.
+function getSubject(c: Case): string {
+  const s1 = (c as Partial<Case>).specialty;
+  // @ts-expect-error: legacy field support
+  const s2 = (c as unknown as { subject?: string })?.subject;
+  return (s1 || s2 || "Sonstiges").toString().trim();
+}
+function getCategory(c: Case): string {
+  const s1 = (c as Partial<Case>).subspecialty;
+  // @ts-expect-error: legacy field support
+  const s2 = (c as unknown as { category?: string })?.category;
+  return (s1 || s2 || "Allgemein").toString().trim();
+}
 
 function SectionCard(props: { title: string; children: React.ReactNode }) {
   return (
@@ -60,55 +77,55 @@ function Row({
 }
 
 export default function SubjectsExplorer({ cases }: { cases: Case[] }) {
-  // verfügbare Fächer + Kategorien aus Daten ableiten
-  const subjects = useMemo(() => uniq(cases.map((c) => String((c as any).subject || ""))).sort(byAlpha), [cases]);
+  // Alle Fächer aus Daten ableiten (robust über getSubject)
+  const subjects = useMemo(() => uniq(cases.map(getSubject)).sort(byAlpha), [cases]);
 
-  // schöner Default: „Innere Medizin“ falls vorhanden, sonst erstes
-  const defaultSubject = subjects.includes("Innere Medizin") ? "Innere Medizin" : subjects[0];
+  // schöner Default: „Innere Medizin“, sonst erstes
+  const defaultSubject = subjects.includes("Innere Medizin") ? "Innere Medizin" : (subjects[0] ?? "");
 
   const [subject, setSubject] = useState<string>(defaultSubject);
-  const categories = useMemo(
-    () =>
-      uniq(
-        cases
-          .filter((c) => (c as any).subject === subject)
-          .map((c) => String((c as any).category || ""))
-      ).sort(byAlpha),
-    [cases, subject]
-  );
 
-  const [category, setCategory] = useState<string>(categories[0]);
+  // Kategorien (Subfächer) für aktuelles Fach
+  const categories = useMemo(() => {
+    const list = cases.filter((c) => getSubject(c) === subject).map(getCategory);
+    return uniq(list).sort(byAlpha);
+  }, [cases, subject]);
 
-  // wenn Fach wechselt → erste Kategorie wählen
+  const [category, setCategory] = useState<string>(categories[0] ?? "");
+
+  // Wenn Fach wechselt → erste Kategorie wählen
   useEffect(() => {
-    setCategory(categories[0]);
+    if (categories.length > 0) setCategory(categories[0]);
+    else setCategory("");
   }, [categories]);
 
-  // Zähler
+  // Zähler pro Fach
   const countsBySubject = useMemo(() => {
     const acc: Record<string, number> = {};
     for (const c of cases) {
-      const s = String((c as any).subject || "");
+      const s = getSubject(c);
       if (!s) continue;
       acc[s] = (acc[s] || 0) + 1;
     }
     return acc;
   }, [cases]);
 
+  // Zähler pro (Fach, Kategorie)
   const countsByCat = useMemo(() => {
     const acc: Record<string, number> = {};
     for (const c of cases) {
-      const s = String((c as any).subject || "");
-      const k = String((c as any).category || "");
+      const s = getSubject(c);
+      const k = getCategory(c);
       if (!s || !k) continue;
-      acc[`${s}__${k}`] = (acc[`${s}__${k}`] || 0) + 1;
+      const key = `${s}__${k}`;
+      acc[key] = (acc[key] || 0) + 1;
     }
     return acc;
   }, [cases]);
 
   // Fälle für rechte Spalte
   const visibleCases = useMemo(
-    () => cases.filter((c) => (c as any).subject === subject && (c as any).category === category),
+    () => cases.filter((c) => getSubject(c) === subject && getCategory(c) === category),
     [cases, subject, category]
   );
 
@@ -116,15 +133,19 @@ export default function SubjectsExplorer({ cases }: { cases: Case[] }) {
     <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
       {/* Spalte 1: Fächer */}
       <SectionCard title="Fächer">
-        {subjects.map((s) => (
-          <Row
-            key={s}
-            label={s}
-            count={countsBySubject[s] || 0}
-            selected={subject === s}
-            onClick={() => setSubject(s)}
-          />
-        ))}
+        {subjects.length === 0 ? (
+          <div className="px-5 py-4 text-sm text-gray-600">Keine Fächer gefunden.</div>
+        ) : (
+          subjects.map((s) => (
+            <Row
+              key={s}
+              label={s}
+              count={countsBySubject[s] || 0}
+              selected={subject === s}
+              onClick={() => setSubject(s)}
+            />
+          ))
+        )}
       </SectionCard>
 
       {/* Spalte 2: Kategorien im gewählten Fach */}
@@ -157,17 +178,22 @@ export default function SubjectsExplorer({ cases }: { cases: Case[] }) {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-medium leading-tight">{c.title}</h3>
-                    <p className="mt-1 line-clamp-2 text-sm text-gray-600">{c.vignette}</p>
+                    <h3 className="font-medium leading-tight">
+                      {"shortTitle" in c && c.shortTitle ? c.shortTitle : c.title}
+                    </h3>
+                    {"vignette" in c && c.vignette && (
+                      <p className="mt-1 line-clamp-2 text-sm text-gray-600">{c.vignette}</p>
+                    )}
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {"difficulty" in c && typeof (c as any).difficulty !== "undefined" && (
-                    <Badge>Schwierigkeit {(c as any).difficulty}</Badge>
+                  {"difficulty" in c && typeof (c as { difficulty?: number }).difficulty !== "undefined" && (
+                    <Badge>Schwierigkeit {(c as { difficulty?: number }).difficulty}</Badge>
                   )}
-                  {c.tags?.map((t) => (
-                    <Badge key={t}>{t}</Badge>
-                  ))}
+                  {Array.isArray(c.tags) &&
+                    c.tags.map((t) => (
+                      <Badge key={t}>{t}</Badge>
+                    ))}
                 </div>
                 <div className="mt-4 flex gap-2">
                   <Link
