@@ -2,7 +2,7 @@ import type { Case } from "@/lib/types";
 
 export const hautausschlag_001: Case = {
   id: "hautausschlag_001",
-  sspecialty: "Wahlfach",
+  specialty: "Wahlfach",
   subspecialty: "Dermatologie",
   title: "Akuter Hautausschlag",
   shortTitle: "Ausschlag",
