@@ -1,4 +1,3 @@
-// src/app/api/exam/turn/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
@@ -30,16 +29,28 @@ type BodyIn = {
   outline?: string[];
   style?: "coaching" | "strict";
   tipRequest?: boolean;
+  explainRequest?: boolean;
   clarifyQuestion?: string;
   objectives?: ObjMin[];
   completion?: CompletionRules | null;
+  attemptStage?: number; // 1 erster Versuch, 2 Retry
+  focusQuestion?: string; // 🎯 für Tipp
+  explainContext?: { question?: string; lastAnswer?: string }; // 📘 für Erklären
 };
 
-// --- Heuristik: erkenne Patienten-Nachfragen im letzten student-Text ---
+// einfache Markdown/Emoji-Entfärbung (Fettdruck/Fences)
+function stripMd(s: string): string {
+  return (s || "")
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/[*_]{1,3}([^*_]+)[*_]{1,3}/g, "$1")
+    .replace(/^-\s+/gm, "• ")
+    .trim();
+}
+
+// --- Heuristik: erkennt “Patienteninfo-Nachfragen” im letzten student-Text ---
 function looksLikePatientInfoQuery(s: string): boolean {
   const t = (s || "").trim().toLowerCase();
   if (!t) return false;
-
   const kw = [
     "raucht","raucher","rauchverhalten","pack","nikotin",
     "fieber","fieberhöhe","temperatur","frösteln","schüttelfrost",
@@ -54,12 +65,7 @@ function looksLikePatientInfoQuery(s: string): boolean {
     "gewicht","appetit","nacht","nächtliches",
     "schwanger","verhütung",
   ];
-  const starts = [
-    "hat","ist","sind","nimmt","gab","gibt","bestehen",
-    "wie","wann","wo","warum","welche","welcher","welches","wer",
-    "gibt es","kann ich","möchte wissen","können sie mir sagen",
-  ];
-
+  const starts = ["hat","ist","sind","nimmt","gab","gibt","bestehen","wie","wann","wo","warum","welche","welcher","welches","wer","gibt es","kann ich","möchte wissen","können sie mir sagen"];
   if (t.endsWith("?") && kw.some(k => t.includes(k))) return true;
   if (starts.some(p => t.startsWith(p + " ")) && kw.some(k => t.includes(k))) return true;
   if (t.includes("mehr info") || t.includes("weitere info") || t.includes("anamnese")) return true;
@@ -70,7 +76,7 @@ function looksLikePatientInfoQuery(s: string): boolean {
 export async function GET() {
   return NextResponse.json({
     ok: true,
-    hint: "POST { caseText, transcript, outline?, style?, tipRequest?, clarifyQuestion?, objectives?, completion? }",
+    hint: "POST { caseText, transcript, outline?, style?, tipRequest?, explainRequest?, clarifyQuestion?, objectives?, completion?, attemptStage?, focusQuestion?, explainContext? }",
   });
 }
 
@@ -99,26 +105,34 @@ export async function POST(req: NextRequest) {
     const outline: string[] = Array.isArray(body.outline) ? body.outline : [];
     const style: "coaching" | "strict" = body.style === "strict" ? "strict" : "coaching";
     const tipRequest = Boolean(body.tipRequest);
+    const explainRequest = Boolean(body.explainRequest);
     const clarifyQuestion = typeof body.clarifyQuestion === "string" ? body.clarifyQuestion.trim() : "";
     const objectives: ObjMin[] = Array.isArray(body.objectives) ? body.objectives : [];
     const completion: CompletionRules | null = body.completion ?? null;
+    const attemptStage = typeof body.attemptStage === "number" ? body.attemptStage : 1;
+    const focusQuestion = typeof body.focusQuestion === "string" ? body.focusQuestion.trim() : "";
+    const explainContext = body.explainContext && typeof body.explainContext === "object" ? body.explainContext : undefined;
 
     if (!caseText) {
       return NextResponse.json({ error: "Bad request: caseText ist erforderlich." }, { status: 400 });
     }
 
-    // ---------- MODE A: Tipp (immer ApiOut-Form zurückgeben) ----------
+    // ---------- MODE A: Tipp (zur aktuellen Frage) ----------
     if (tipRequest) {
-      const sysTip = `Du bist Prüfer:in im 3. Staatsexamen (Innere/Chirurgie/Wahlfach).
-Gib genau EINEN kurzen, konkreten Tipp (1 Satz), der in die richtige Richtung schubst.
-Kein Spoiler (keine Enddiagnose/Therapie verraten).
-Sprache: Deutsch. Stil: freundlich-klar, prüfungsnah.`;
+      const sysTip = `Du bist Prüfer:in im 3. Staatsexamen.
+Gib genau EINEN kurzen, konkreten Tipp (1 Satz) zur BEANTWORTUNG DER ANGEGEBENEN FRAGE.
+Kein Spoiler der finalen Lösung. Deutsch, prüfungsnah.`;
 
       const lastStudent = [...transcript].reverse().find((t) => t.role === "student")?.text || "";
-      const usrTip = `Fall (Vignette): ${caseText}
+      const targetQuestion =
+        focusQuestion ||
+        ([...transcript].reverse().find((t) => t.role === "examiner" && /\?\s*$/.test(t.text))?.text || "");
+
+      const usrTip = `Vignette: ${caseText}
+Aktuelle Frage: ${targetQuestion || "(unbekannt)"}
+Letzte Studierenden-Antwort (nur Kontext): ${lastStudent || "(noch keine)"}
 ${outline.length ? `Prüfungs-Outline: ${outline.join(" • ")}` : ""}
-Letzte Studierenden-Antwort: ${lastStudent || "(noch keine)"}
-Gib NUR den Tipp-Text zurück, ohne Zusatz.`.trim();
+Gib NUR den Tipp-Text zurück, ohne Präambel.`.trim();
 
       const outTip = await client.chat.completions.create({
         model,
@@ -129,8 +143,8 @@ Gib NUR den Tipp-Text zurück, ohne Zusatz.`.trim();
         temperature: 0.2,
       });
 
-      const tipText = (outTip.choices?.[0]?.message?.content || "").trim();
-      const say = tipText || "Tipp: Denke an eine fehlende DD oder einen nächsten Untersuchungsschritt.";
+      const sayRaw = (outTip.choices?.[0]?.message?.content || "").trim();
+      const say = stripMd(sayRaw) || "Denke an den nächsten sinnvollen Diagnoseschritt.";
       const payload: ApiOut = {
         say_to_student: say.startsWith("Tipp:") ? say : `Tipp: ${say}`,
         evaluation: null,
@@ -145,20 +159,18 @@ Gib NUR den Tipp-Text zurück, ohne Zusatz.`.trim();
     const autoClarify = !clarifyQuestion && looksLikePatientInfoQuery(lastStudentText);
     const clarify = clarifyQuestion || (autoClarify ? lastStudentText : "");
 
-    // ---------- MODE B: Zusatzinfos (Clarify) – ebenfalls als ApiOut ----------
+    // ---------- MODE B: Zusatzinfos (Clarify) ----------
     if (clarify) {
       const sysClarify = `Du bist die/der PRÜFER:IN im 3. Staatsexamen.
-Auf Nachfrage gibst du ZUSÄTZLICHE PATIENTENDETAILS, die realistisch zur Vignette passen.
+Auf Nachfrage gibst du ZUSÄTZLICHE PATIENTENDETAILS, realistisch zur Vignette.
 Form: 1–3 kurze Sätze ODER 2–3 Bulletpoints (mit '- ').
-Kein Spoiler: keine Enddiagnose, keine definitive Therapie verraten.
-Enthülle nur Infos, die man in Anamnese/Klinik/Basisdiagnostik plausibel erheben könnte.
-Sprache: Deutsch, freundlich-klar, prüfungsnah.`;
+Kein Spoiler (keine Enddiagnose/definitive Therapie). Nur Basis-/Anamnese-/Klinikinfos. Deutsch.`;
 
       const usrClarify = `Vignette: ${caseText}
-${outline.length ? `Geplante Prüfungsschritte: ${outline.join(" • ")}` : ""}
-${transcript.length ? `Bisheriger Dialog (Rollen student/examiner/patient):\n${JSON.stringify(transcript, null, 2)}` : ""}
+${outline.length ? `Geplante Schritte: ${outline.join(" • ")}` : ""}
+${transcript.length ? `Bisheriger Dialog (student/examiner/patient):\n${JSON.stringify(transcript.slice(-14), null, 2)}` : ""}
 Nachfrage des Studierenden: ${clarify}
-Gib NUR die Zusatzinformation (ohne Präambel, ohne Bewertung) zurück.`.trim();
+Gib NUR die Zusatzinformation (ohne Präambel/Bewertung).`.trim();
 
       const outClarify = await client.chat.completions.create({
         model,
@@ -169,45 +181,117 @@ Gib NUR die Zusatzinformation (ohne Präambel, ohne Bewertung) zurück.`.trim();
         temperature: 0.2,
       });
 
-      const info = (outClarify.choices?.[0]?.message?.content || "").trim() || "Keine weiteren relevanten Details verfügbar.";
-      const payload: ApiOut = {
-        say_to_student: info,
-        evaluation: null,
-        next_question: null,
-        end: false,
-      };
+      const info = stripMd((outClarify.choices?.[0]?.message?.content || "").trim()) || "Keine weiteren relevanten Details verfügbar.";
+      const payload: ApiOut = { say_to_student: info, evaluation: null, next_question: null, end: false };
       return NextResponse.json(payload);
     }
 
-    // ---------- MODE C: Normaler Prüfungszug ----------
-    const sysExam = `Du bist Prüfer:in im 3. Staatsexamen.
-Stil: ${style === "strict" ? "knapp, streng-sachlich" : "freundlich-klar, coaching-orientiert"}.
-Im Transkript können vorkommen: student, examiner, patient.
-- BEWERTE AUSSCHLIESSLICH die student-Antworten (patient/examiner sind Kontext).
+    // ---------- MODE D: Erklärung auf Abruf ----------
+    if (explainRequest) {
+      const sysExplain = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
+Erkläre KURZ die Qualität der Antwort auf die angegebene Frage:
+- 2–5 knappe Punkte: Kerngedanke, warum richtig/falsch, typische Fallen, Mini-Merkhilfe.
+- KEINE neue Frage stellen.`;
 
-Bewertung: 'correct' / 'partially_correct' / 'incorrect'.
-Erlaube TEILPUNKTE, wenn der Kern erkennbar ist. Formuliere 1 kurzen Tipp bei 'partially_correct' oder 'incorrect'.
-Bei Differentialdiagnosen gilt: 2–3 plausible DD REICHEN (nicht vollständige Listen verlangen).
+      const fallbackQuestion =
+        explainContext?.question?.trim() ||
+        ([...transcript].reverse().find((t) => t.role === "examiner" && /\?\s*$/.test(t.text))?.text || "");
+      const fallbackAnswer =
+        explainContext?.lastAnswer?.trim() ||
+        ([...transcript].reverse().find((t) => t.role === "student")?.text || "");
 
-Du bekommst (optional) eine Ziel-Checkliste (objectives) und End-Regeln (completion).
-Halte intern fest, welche Ziele der/die Studierende bereits erfüllt hat.
-Wenn die End-Regeln erfüllt sind (z. B. minObjectives erreicht, maxLLMTurns überschritten, etc.), setze 'end=true'.
-Wenn 'end=true', stelle KEINE neue Frage mehr. Fasse kurz zusammen, was gut war und was noch fehlt (ohne neue Aufgaben).
-
-Feldregeln:
-- 'evaluation' = { correctness, feedback, tips? } (1–2 Sätze; Tipp nur wenn nicht 'correct').
-- 'next_question' = nur eine Frage (ein Satz, Fragezeichen).
-- 'say_to_student' = optionaler Übergangssatz (ohne Frage).
-- 'end' = boolean (siehe Regeln).
-
-Gib NUR folgendes JSON zurück:
-{ "say_to_student": string, "evaluation": { "correctness": "correct" | "partially_correct" | "incorrect", "feedback": string, "tips"?: string } | null, "next_question": string | null, "end": boolean }`;
-
-    const usrExam = `Fall (Vignette): ${caseText}
+      const usrExplain = `Vignette: ${caseText}
+Frage: ${fallbackQuestion || "(unbekannt)"}
+Antwort: ${fallbackAnswer || "(unbekannt)"}
 ${outline.length ? `Prüfungs-Outline: ${outline.join(" • ")}` : ""}
-${objectives.length ? `Ziele (objectives): ${objectives.map(o => `${o.id}: ${o.label}`).join(" | ")}` : ""}
-${completion ? `End-Regeln (completion): minObjectives=${completion.minObjectives}${typeof completion.maxLLMTurns === "number" ? `, maxLLMTurns=${completion.maxLLMTurns}` : ""}${typeof completion.hardStopTurns === "number" ? `, hardStopTurns=${completion.hardStopTurns}` : ""}` : ""}
-${transcript.length ? `Transkript (Rollen student/examiner/patient):\n${JSON.stringify(transcript, null, 2)}` : ""}
+Gib nur die kurze Erklärung (ohne neue Aufgabe).`.trim();
+
+      const outExplain = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: sysExplain },
+          { role: "user", content: usrExplain },
+        ],
+        temperature: 0.2,
+      });
+
+      const say = stripMd((outExplain.choices?.[0]?.message?.content || "").trim()) ||
+        "Kurz erklärt: Relevanz, typisches Vorgehen und Fallstricke beachten.";
+      const payload: ApiOut = { say_to_student: say, evaluation: null, next_question: null, end: false };
+      return NextResponse.json(payload);
+    }
+// ---------- KICKOFF: Erstfrage ohne Bewertung (wenn noch keine Studentenantwort nach letzter Prüfer-Nachricht) ----------
+{
+  // Index der letzten Beiträge je Rolle
+  const lastStudentIdx = [...transcript].map((t) => t.role).lastIndexOf("student");
+  const lastExaminerIdx = [...transcript].map((t) => t.role).lastIndexOf("examiner");
+
+  const noStudentAfterExaminer =
+    lastExaminerIdx >= 0 && (lastStudentIdx < lastExaminerIdx || lastStudentIdx === -1);
+
+  // Zusätzlich: typischer Startfall = nur Vignette vom Prüfer vorhanden
+  const isJustVignetteStart =
+    transcript.length === 1 &&
+    transcript[0]?.role === "examiner" &&
+    !/[?？]\s*$/.test(transcript[0]?.text || "");
+
+  if (noStudentAfterExaminer || isJustVignetteStart) {
+    const sysKickoff = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
+Stelle GENAU EINE präzise Einstiegsfrage zur Vignette (ein Satz, Fragezeichen).
+KEINE Bewertung, KEIN Feedback, KEIN Tipp. Nur die Frage. Deutsch.`;
+
+    const usrKickoff = `Vignette: ${caseText}
+${outline.length ? `Prüfungs-Outline (optional): ${outline.join(" • ")}` : ""}
+Erzeuge NUR die Frage (ein Satz, Fragezeichen).`;
+
+    const outKick = await client.chat.completions.create({
+      model,
+      messages: [
+        { role: "system", content: sysKickoff },
+        { role: "user", content: usrKickoff },
+      ],
+      temperature: 0.2,
+    });
+
+    const qRaw = (outKick.choices?.[0]?.message?.content || "").trim();
+    const q = qRaw
+      .replace(/```[\s\S]*?```/g, "")
+      .replace(/[*_]{1,3}([^*_]+)[*_]{1,3}/g, "$1")
+      .trim();
+
+    const payload: ApiOut = {
+      say_to_student: null,
+      evaluation: null,
+      next_question: q.endsWith("?") ? q : `${q}?`,
+      end: false,
+    };
+    return NextResponse.json(payload);
+  }
+}
+    // ---------- MODE C: Normaler Prüfungszug ----------
+    const sysExam = `Du bist Prüfer:in am 2. Tag (Theorie) des 3. Staatsexamens.
+Stil: ${style === "strict" ? "knapp, streng-sachlich" : "freundlich-klar, coaching-orientiert"}.
+Im Transkript: student/examiner/patient – bewerte ausschließlich student.
+
+Zwei-Versuche-Regel (attemptStage):
+- Wenn attemptStage=1 und Antwort nicht 'correct': KEINE neue Frage stellen. Gib kurze begründete Rückmeldung (1–3 Sätze) und optional Tipp.
+- Wenn attemptStage=2 und Antwort weiterhin 'incorrect': nenne kurz die korrekte Kernlösung (1–2 Sätze) + 1–3 erklärende Stichpunkte und FAHRE DANN mit der nächsten, sinnvollen Frage fort.
+
+Bewertung: correctness ('correct' | 'partially_correct' | 'incorrect') mit begründetem Feedback; Tipp nur wenn nicht 'correct'.
+
+Antworte NUR als JSON:
+{ "say_to_student": string | null,
+  "evaluation": { "correctness": "correct"|"partially_correct"|"incorrect", "feedback": string, "tips"?: string } | null,
+  "next_question": string | null,
+  "end": boolean }`;
+
+    const usrExam = `Vignette: ${caseText}
+${outline.length ? `Prüfungs-Outline: ${outline.join(" • ")}` : ""}
+${objectives.length ? `Ziele: ${objectives.map(o => `${o.id}: ${o.label}`).join(" | ")}` : ""}
+${completion ? `End-Regeln: minObjectives=${completion.minObjectives}${typeof completion.maxLLMTurns==="number"?`, maxLLMTurns=${completion.maxLLMTurns}`:""}${typeof completion.hardStopTurns==="number"?`, hardStopTurns=${completion.hardStopTurns}`:""}` : ""}
+attemptStage: ${attemptStage}
+Transkript (student/examiner/patient):
+${JSON.stringify(transcript.slice(-20), null, 2)}
 Erzeuge NUR das JSON-Objekt.`.trim();
 
     const outExam = await client.chat.completions.create({
@@ -219,9 +303,9 @@ Erzeuge NUR das JSON-Objekt.`.trim();
       temperature: 0.2
     });
 
-    // Robust gegen Code-Fences oder Prä-/Suffixe
+    // Robust gegen Fences
     const raw = (outExam.choices?.[0]?.message?.content || "").trim();
-    let jsonText = raw.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+    let jsonText = raw.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
     if (!(jsonText.startsWith("{") && jsonText.endsWith("}"))) {
       const s = jsonText.indexOf("{");
       const e = jsonText.lastIndexOf("}");
@@ -235,10 +319,16 @@ Erzeuge NUR das JSON-Objekt.`.trim();
       return NextResponse.json({ error: "Antwort war kein gültiges JSON." }, { status: 502 });
     }
 
-    // Fallbacks hart absichern
-    payload.say_to_student = (payload.say_to_student ?? "").toString().trim() || null;
-    payload.evaluation = payload.evaluation ?? null;
-    payload.next_question = (payload.next_question ?? "").toString().trim() || null;
+    // Fallbacks + Markdown säubern
+    payload.say_to_student = stripMd((payload.say_to_student ?? "") as string) || null;
+    payload.evaluation = payload.evaluation
+      ? {
+          ...payload.evaluation,
+          feedback: stripMd(payload.evaluation.feedback || ""),
+          tips: payload.evaluation.tips ? stripMd(payload.evaluation.tips) : undefined,
+        }
+      : null;
+    payload.next_question = stripMd((payload.next_question ?? "") as string) || null;
     payload.end = Boolean(payload.end);
 
     return NextResponse.json(payload);

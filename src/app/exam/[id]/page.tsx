@@ -84,9 +84,27 @@ export default function ExamPage() {
     }
   }
 
+  // 🔎 Helpers für „aktuelle offene Frage“ und „letzte Studierenden-Antwort“
+  function getOpenQuestion(items: Asked[]): string | null {
+    const lastPending = [...items].reverse().find((a) => a.status === "pending");
+    return lastPending?.text ?? null;
+    }
+  function getLastStudentAnswer(turns: Turn[]): string | null {
+    const last = [...turns].reverse().find((t) => t.role === "student");
+    return last?.text ?? null;
+  }
+
   async function callExamAPI(
     current: Turn[],
-    opts: { isRetry: boolean; tipRequest?: boolean; clarify?: string }
+    opts: {
+      isRetry: boolean;
+      tipRequest?: boolean;
+      explainRequest?: boolean;
+      clarify?: string;
+      focusQuestion?: string; // 🎯 für Tipp
+      explainContext?: { question?: string; lastAnswer?: string }; // 📘 für Erklären
+      attemptStage?: number; // 1 = erster Versuch, 2 = Retry
+    }
   ) {
     if (!c) return;
     setLoading(true);
@@ -101,9 +119,13 @@ export default function ExamPage() {
         style,
         objectives: c.objectives ?? [],
         completion: c.completion ?? null,
+        attemptStage: typeof opts.attemptStage === "number" ? opts.attemptStage : opts.isRetry ? 2 : 1,
       };
       if (opts.tipRequest) payload.tipRequest = true;
+      if (opts.explainRequest) payload.explainRequest = true;
       if (opts.clarify) payload.clarifyQuestion = opts.clarify;
+      if (opts.focusQuestion) payload.focusQuestion = opts.focusQuestion;
+      if (opts.explainContext) payload.explainContext = opts.explainContext;
 
       const res = await fetch("/api/exam/turn", {
         method: "POST",
@@ -119,14 +141,18 @@ export default function ExamPage() {
       const data: ApiReply = (await res.json()) as ApiReply;
       const nextT = [...current];
 
+      // A) reine Zusatzinfo (Clarify)
       if ("examiner_info" in data) {
         pushProfDedup(nextT, data.examiner_info);
         setTranscript(nextT);
         return;
       }
 
+      // B) Bewertung + Punkte
+      let currentCorrectness: "correct" | "partially_correct" | "incorrect" | null = null;
       if (data.evaluation) {
         const { correctness, feedback, tips } = data.evaluation;
+        currentCorrectness = correctness;
         setLastCorrectness(correctness);
 
         const base = correctness === "correct" ? 2 : correctness === "partially_correct" ? 1 : 0;
@@ -155,13 +181,19 @@ export default function ExamPage() {
           correctness !== "correct" && tips ? `Tipp: ${tips}` : "",
         ].filter(Boolean);
         pushProfDedup(nextT, parts.join(" "));
-        setAllowRetryNext(correctness !== "correct" && Boolean(tips && tips.trim()));
+
+        // immer Retry erlauben, wenn nicht correct
+        setAllowRetryNext(correctness !== "correct");
       } else {
         setAllowRetryNext(false);
       }
 
-      const retryIsOpenNow = allowRetryNext === true && !opts.isRetry;
-      const shouldAskNext = Boolean(data.next_question && data.next_question.trim()) && !retryIsOpenNow;
+      // C) Folgefrage nur stellen, wenn KEIN Retry offen (Stage 1 & falsch blockt next_question)
+      const blockNextBecauseRetry =
+        (currentCorrectness === "incorrect" || currentCorrectness === "partially_correct") && !opts.isRetry;
+      const shouldAskNext =
+        Boolean(data.next_question && data.next_question.trim()) && !blockNextBecauseRetry;
+
       if (shouldAskNext) {
         const q = data.next_question!.trim();
         pushProfDedup(nextT, q);
@@ -191,6 +223,7 @@ export default function ExamPage() {
     setLastCorrectness(null);
     setEnded(false);
     setAllowRetryNext(false);
+    // erste Prüferfrage anfordern (ohne vorherige Bewertung)
     setTimeout(() => callExamAPI(intro, { isRetry: false }), 0);
   }
 
@@ -213,12 +246,27 @@ export default function ExamPage() {
       isRetry,
       tipRequest: wantsTip ? true : undefined,
       clarify: !wantsTip && looksClarify ? text : undefined,
+      attemptStage: isRetry ? 2 : 1,
     });
   }
 
+  // 💡 Tipp → zur aktuellen offenen Frage
   async function requestTip() {
     if (!c || loading || ended) return;
-    await callExamAPI(transcript, { isRetry: false, tipRequest: true });
+    const q = getOpenQuestion(asked) || undefined;
+    await callExamAPI(transcript, { isRetry: false, tipRequest: true, focusQuestion: q });
+  }
+
+  // 📘 Erklärung → auf deine letzte Antwort zur offenen Frage
+  async function requestExplain() {
+    if (!c || loading || ended) return;
+    const q = getOpenQuestion(asked) || undefined;
+    const a = getLastStudentAnswer(transcript) || undefined;
+    await callExamAPI(transcript, {
+      isRetry: false,
+      explainRequest: true,
+      explainContext: { question: q, lastAnswer: a },
+    });
   }
 
   if (!c) {
@@ -234,6 +282,7 @@ export default function ExamPage() {
 
   return (
     <main className="p-0">
+      {/* Kopfzeile */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h2 className="flex-1 text-2xl font-semibold tracking-tight">Prüfung: {c.title}</h2>
         <ScorePill points={points} maxPoints={maxPoints} last={lastCorrectness} />
@@ -251,7 +300,9 @@ export default function ExamPage() {
         </select>
       </div>
 
+      {/* Zwei Spalten */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[var(--steps-w,220px)_1fr]">
+        {/* Linke Spalte */}
         <aside className="h-fit rounded-xl border border-black/10 bg-white/70 p-3 md:sticky md:top-20">
           <div className="mb-2 text-xs font-medium text-gray-700">Fragenfolge</div>
           <ul className="space-y-2">
@@ -289,7 +340,7 @@ export default function ExamPage() {
           )}
         </aside>
 
-        {/* Chat */}
+        {/* Rechte Spalte: Chat */}
         <section className="relative flex flex-col gap-3">
           <div
             ref={listRef}
@@ -324,6 +375,7 @@ export default function ExamPage() {
             )}
           </div>
 
+          {/* Eingabe */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -365,6 +417,15 @@ export default function ExamPage() {
                   title="Kleinen Hinweis erhalten"
                 >
                   💡 Tipp
+                </button>
+                <button
+                  type="button"
+                  onClick={requestExplain}
+                  disabled={loading || ended}
+                  className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                  title="Kurze Erklärung zur aktuellen Frage/Antwort"
+                >
+                  📘 Erklären
                 </button>
               </>
             )}
