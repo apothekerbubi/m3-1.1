@@ -204,7 +204,7 @@ export default function SubjectsExplorer({ cases }: { cases: Case[] }) {
                   </Link>
                   <Link
                     href={`/exam/${c.id}`}
-                    className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-3 py-1.5 text-sm text-white hover:bg-brand-700"
+                    className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
                   >
                     Prüfungsmodus
                   </Link>

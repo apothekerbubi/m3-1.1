@@ -17,7 +17,7 @@ export default function NotFound() {
         </Link>
         <Link
           href="/"
-          className="rounded-md bg-brand-600 px-3 py-2 text-sm text-white hover:bg-brand-700"
+          className="rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700"
         >
           Startseite
         </Link>

@@ -5,7 +5,6 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import SideNav from "@/components/SideNav";
-import WidthTuner from "@/components/WidthTuner";
 import LayoutVars from "@/components/LayoutVars";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -46,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Footer />
           </div>
 
-          <WidthTuner />
+          
         </div>
       </body>
     </html>

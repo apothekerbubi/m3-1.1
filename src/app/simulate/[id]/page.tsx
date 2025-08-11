@@ -84,7 +84,7 @@ export default function SimulatePage() {
           <button onClick={onAdd} className="rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50">
             Punkt hinzufügen
           </button>
-          <button onClick={onScore} className="rounded-md bg-brand-600 text-white px-3 py-1.5 text-sm hover:bg-brand-700">
+          <button onClick={onScore} className="rounded-md bg-blue-600 text-white px-3 py-1.5 text-sm hover:bg-blue-700">
             Auswerten
           </button>
         </div>

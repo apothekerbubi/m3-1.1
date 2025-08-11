@@ -52,7 +52,7 @@ export default function SideNav() {
                   aria-hidden
                   className={clsx(
                     "absolute left-0 top-1 bottom-1 w-1 rounded-r-md",
-                    active ? "bg-brand-600" : "bg-transparent group-hover:bg-gray-300"
+                    active ? "bg-blue-600" : "bg-transparent group-hover:bg-gray-300"
                   )}
                 />
                 <Icon className={clsx("h-5 w-5", active ? "text-brand-700" : "text-gray-500")} />

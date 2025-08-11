@@ -1,28 +1,63 @@
 // src/components/LayoutVars.tsx
 "use client";
 
-import React from "react";
+import { useEffect } from "react";
 
-export default function LayoutVars({ children }: { children: React.ReactNode }) {
-  // Hier ggf. später Dark-Mode einbauen. Jetzt nur sichere Light-Werte:
-  return (
-    <div
-      style={{
-        // Layout
-        // nav & steps optional: werden von WidthTuner überschrieben
-        // @ts-ignore CSS vars
-        ["--nav-w" as any]: "220px",
-        ["--steps-w" as any]: "320px",
+type Props = {
+  children: React.ReactNode;
+};
 
-        // Farben
-        ["--bg" as any]: "#f7f9fc",
-        ["--fg" as any]: "#0f172a",
-        ["--panel" as any]: "#ffffff",
-        ["--muted" as any]: "#475569",
-        ["--ring" as any]: "#60a5fa",
-      }}
-    >
-      {children}
-    </div>
-  );
+const LIGHT: Record<string, string> = {
+  "--bg": "#ffffff",
+  "--fg": "#0f172a",
+  "--panel": "#ffffff",
+  "--muted": "#475569",
+  "--ring": "#60a5fa",
+};
+
+const DARK: Record<string, string> = {
+  "--bg": "#0c111c",
+  "--fg": "#e5e7eb",
+  "--panel": "#0f1524",
+  "--muted": "#9ca3af",
+  "--ring": "#3b82f6",
+};
+
+function setCssVars(vars: Record<string, string>) {
+  const root = document.documentElement;
+  for (const [k, v] of Object.entries(vars)) {
+    root.style.setProperty(k, v);
+  }
+}
+
+export default function LayoutVars({ children }: Props) {
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+
+    const applyScheme = () => {
+      setCssVars(mq.matches ? DARK : LIGHT);
+    };
+
+    // initial
+    applyScheme();
+
+    // subscribe (both modern and legacy)
+    const onChange = () => applyScheme();
+    if ("addEventListener" in mq) {
+      mq.addEventListener("change", onChange);
+    } else {
+      // Fallback für ältere Browser-Typings
+      mq.addListener(onChange);
+    }
+
+    return () => {
+      if ("removeEventListener" in mq) {
+        mq.removeEventListener("change", onChange);
+      } else {
+        mq.removeListener(onChange);
+      }
+    };
+  }, []);
+
+  return <>{children}</>;
 }

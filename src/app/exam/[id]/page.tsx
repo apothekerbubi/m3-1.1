@@ -301,7 +301,7 @@ export default function ExamPage() {
                   className={`inline-block max-w-[80%] rounded-2xl px-3 py-2 shadow-sm ${
                     t.role === "prof"
                       ? "border border-black/10 bg-white text-gray-900"
-                      : "bg-brand-600 text-white"
+                      : "bg-blue-600 text-white"
                   }`}
                 >
                   <span className="text-sm leading-relaxed">
@@ -335,7 +335,7 @@ export default function ExamPage() {
             {!hasStarted ? (
               <button
                 type="submit"
-                className="rounded-md bg-brand-600 px-3 py-2 text-sm text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                className="rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
               >
                 Prüfung starten
               </button>

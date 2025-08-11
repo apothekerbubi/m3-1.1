@@ -51,7 +51,7 @@ export default function CaseDetail() {
           <button
             type="button"
             onClick={goStart}
-            className="inline-flex items-center rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+            className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
           >
             Prüfung starten
           </button>
@@ -98,7 +98,7 @@ export default function CaseDetail() {
         <button
           type="button"
           onClick={goStart}
-          className="inline-flex items-center rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+          className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
         >
           Prüfung starten
         </button>
