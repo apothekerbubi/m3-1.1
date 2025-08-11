@@ -1,11 +1,8 @@
-// src/components/LayoutVars.tsx
 "use client";
 
 import { useEffect } from "react";
 
-type Props = {
-  children: React.ReactNode;
-};
+type Props = { children: React.ReactNode };
 
 const LIGHT: Record<string, string> = {
   "--bg": "#ffffff",
@@ -25,35 +22,37 @@ const DARK: Record<string, string> = {
 
 function setCssVars(vars: Record<string, string>) {
   const root = document.documentElement;
-  for (const [k, v] of Object.entries(vars)) {
-    root.style.setProperty(k, v);
-  }
+  for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
 }
+
+// Extend MediaQueryList with optional legacy methods
+type MQWithDeprecated = MediaQueryList & {
+  addListener?: (listener: (ev: MediaQueryListEvent) => void) => void;
+  removeListener?: (listener: (ev: MediaQueryListEvent) => void) => void;
+};
 
 export default function LayoutVars({ children }: Props) {
   useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const mq = window.matchMedia("(prefers-color-scheme: dark)") as MQWithDeprecated;
 
-    const applyScheme = () => {
-      setCssVars(mq.matches ? DARK : LIGHT);
-    };
+    const applyScheme = () => setCssVars(mq.matches ? DARK : LIGHT);
 
     // initial
     applyScheme();
 
-    // subscribe (both modern and legacy)
-    const onChange = () => applyScheme();
-    if ("addEventListener" in mq) {
+    // subscribe (modern first, legacy fallback)
+    const onChange = (_e: MediaQueryListEvent) => applyScheme();
+
+    if (typeof mq.addEventListener === "function") {
       mq.addEventListener("change", onChange);
-    } else {
-      // Fallback für ältere Browser-Typings
+    } else if (typeof mq.addListener === "function") {
       mq.addListener(onChange);
     }
 
     return () => {
-      if ("removeEventListener" in mq) {
+      if (typeof mq.removeEventListener === "function") {
         mq.removeEventListener("change", onChange);
-      } else {
+      } else if (typeof mq.removeListener === "function") {
         mq.removeListener(onChange);
       }
     };
