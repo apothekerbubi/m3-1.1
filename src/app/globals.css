@@ -1,59 +1,62 @@
 @import "tailwindcss";
 
+/* ---------- Design Tokens (Light) ---------- */
 :root {
-  --bg: #f7f9fc;
-  --panel: #ffffff;
-  --text: #0b1020;
-  --muted: #6b7280;
+  --bg:     #f7f9fc;   /* Seitenhintergrund */
+  --fg:     #0f172a;   /* Haupttext */
+  --panel:  #ffffff;   /* Karten, Chat, Panels */
+  --muted:  #475569;   /* Sekundärtext */
+  --ring:   #60a5fa;   /* Fokus-Ring */
+
+  --nav-w:   220px;    /* Sidebar-Breite */
+  --steps-w: 280px;    /* Fragen-Spalte */
 }
+
+/* ---------- Dark Tokens ---------- */
 :root.dark {
-  --bg: #0c111c;
+  --bg:    #0c111c;
+  --fg:    #e5e7eb;
   --panel: #0f1524;
-  --text: #e5e7eb;
   --muted: #9ca3af;
 }
+
+/* ---------- Globale Styles ---------- */
 html, body { height: 100%; }
+
 body {
-  background: radial-gradient(1200px 600px at 10% -10%, rgba(43,138,255,.12), transparent),
-              radial-gradient(1200px 600px at 110% 10%, rgba(11,17,32,.06), transparent),
-              var(--bg);
-  color: var(--text);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: inherit;
 }
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Textauswahl */
+::selection { background: #bfdbfe; color: inherit; }
+::-moz-selection { background: #bfdbfe; color: inherit; }
+
+/* Buttons – immer kontrastreich */
+button, 
+a[role="button"], 
+input[type="submit"] {
+  color: #fff !important;
+  background-color: var(--ring) !important;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+button:hover, 
+a[role="button"]:hover, 
+input[type="submit"]:hover {
+  background-color: #3b82f6 !important; /* dunkleres Blau */
 }
 
-@media (prefers-color-scheme: dark) {
+/* ---------- Breitere Screens ---------- */
+@media (min-width: 1440px) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
-:root{
-  /* Spaltenbreiten für Examenseite (md+): */
-  --nav-w:   220px;  /* linke Account/Übersicht-Sidebar */
-  --steps-w: 280px;  /* mittlere Fragen-Spalte */
-}
-
-/* Auf sehr breiten Screens gern etwas größer: */
-@media (min-width: 1440px){
-  :root{
     --nav-w:   240px;
-    --steps-w: 220px;
+    --steps-w: 300px;
   }
+}
+
+/* ---------- Optional: Tailwind Theme Mapping ---------- */
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
 }

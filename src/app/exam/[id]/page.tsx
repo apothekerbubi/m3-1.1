@@ -23,24 +23,18 @@ type ApiReply =
     }
   | { examiner_info: string };
 
-type Asked = {
-  index: number;
-  text: string;
-  status: "pending" | "correct" | "partial" | "incorrect";
-};
+type Asked = { index: number; text: string; status: "pending" | "correct" | "partial" | "incorrect" };
 
 type ObjMin = { id: string; label: string };
 type CompletionRules = { minObjectives: number; maxLLMTurns?: number; hardStopTurns?: number };
 type CaseWithRules = Case & { objectives?: ObjMin[]; completion?: CompletionRules | null };
 
 export default function ExamPage() {
-  // --- Routing / Fall holen ---
   const params = useParams<{ id: string | string[] }>();
   const rawId = params?.id;
   const caseId = Array.isArray(rawId) ? rawId[0] : rawId;
   const c = (CASES.find((x) => x.id === caseId) ?? null) as CaseWithRules | null;
 
-  // --- UI State ---
   const [transcript, setTranscript] = useState<Turn[]>([]);
   const [asked, setAsked] = useState<Asked[]>([]);
   const [input, setInput] = useState("");
@@ -54,7 +48,6 @@ export default function ExamPage() {
 
   const listRef = useRef<HTMLDivElement | null>(null);
 
-  // --- Outline & Progress ---
   const outline = useMemo(
     () => (c ? [...c.steps].sort((a, b) => a.order - b.order).map((s) => s.prompt) : []),
     [c]
@@ -67,13 +60,10 @@ export default function ExamPage() {
     return Math.round((done / outline.length) * 100);
   }, [asked.length, outline.length]);
 
-  // --- Auto scroll ---
   useEffect(() => {
-    if (!listRef.current) return;
-    listRef.current.scrollTop = listRef.current.scrollHeight;
+    if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [transcript, loading]);
 
-  // --- Helpers ---
   function label(correctness: "correct" | "partially_correct" | "incorrect") {
     return correctness === "correct"
       ? "✅ Richtig"
@@ -94,7 +84,6 @@ export default function ExamPage() {
     }
   }
 
-  // --- API Call ---
   async function callExamAPI(
     current: Turn[],
     opts: { isRetry: boolean; tipRequest?: boolean; clarify?: string }
@@ -130,14 +119,12 @@ export default function ExamPage() {
       const data: ApiReply = (await res.json()) as ApiReply;
       const nextT = [...current];
 
-      // A) reine Zusatzinfo (Patientendetails etc.)
       if ("examiner_info" in data) {
         pushProfDedup(nextT, data.examiner_info);
         setTranscript(nextT);
         return;
       }
 
-      // B) Bewertung + Punkte
       if (data.evaluation) {
         const { correctness, feedback, tips } = data.evaluation;
         setLastCorrectness(correctness);
@@ -173,7 +160,6 @@ export default function ExamPage() {
         setAllowRetryNext(false);
       }
 
-      // C) Folgefrage nur, wenn kein Retry offen
       const retryIsOpenNow = allowRetryNext === true && !opts.isRetry;
       const shouldAskNext = Boolean(data.next_question && data.next_question.trim()) && !retryIsOpenNow;
       if (shouldAskNext) {
@@ -194,7 +180,6 @@ export default function ExamPage() {
     }
   }
 
-  // --- Flow Control ---
   const hasStarted = transcript.length > 0;
 
   function startExam() {
@@ -231,13 +216,11 @@ export default function ExamPage() {
     });
   }
 
-  // Tipp (Hint) manuell anfordern (für den 💡 Tipp-Button)
   async function requestTip() {
     if (!c || loading || ended) return;
     await callExamAPI(transcript, { isRetry: false, tipRequest: true });
   }
 
-  // --- Not found ---
   if (!c) {
     return (
       <main className="p-6">
@@ -251,7 +234,6 @@ export default function ExamPage() {
 
   return (
     <main className="p-0">
-      {/* Kopfzeile */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h2 className="flex-1 text-2xl font-semibold tracking-tight">Prüfung: {c.title}</h2>
         <ScorePill points={points} maxPoints={maxPoints} last={lastCorrectness} />
@@ -269,9 +251,7 @@ export default function ExamPage() {
         </select>
       </div>
 
-      {/* Zwei Spalten */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[var(--steps-w,220px)_1fr]">
-        {/* Linke Spalte: Fragenfolge */}
         <aside className="h-fit rounded-xl border border-black/10 bg-white/70 p-3 md:sticky md:top-20">
           <div className="mb-2 text-xs font-medium text-gray-700">Fragenfolge</div>
           <ul className="space-y-2">
@@ -309,24 +289,23 @@ export default function ExamPage() {
           )}
         </aside>
 
-        {/* Rechte Spalte: Chat */}
-        <section className="flex flex-col gap-3">
+        {/* Chat */}
+        <section className="relative flex flex-col gap-3">
           <div
             ref={listRef}
-            className="h-[58vh] overflow-y-auto rounded-2xl border border-black/10 bg-white p-4 shadow-card text-gray-900"
+            className="relative z-10 h-[58vh] overflow-y-auto rounded-2xl border border-black/10 bg-white p-4 shadow-card text-gray-900"
           >
             {transcript.map((t, i) => (
               <div key={i} className={`mb-3 ${t.role === "prof" ? "" : "text-right"}`}>
                 <div
                   className={`inline-block max-w-[80%] rounded-2xl px-3 py-2 shadow-sm ${
                     t.role === "prof"
-                      ? "border border-black/10 bg-white/80"
+                      ? "border border-black/10 bg-white text-gray-900"
                       : "bg-brand-600 text-white"
                   }`}
                 >
                   <span className="text-sm leading-relaxed">
-                    <b className="opacity-80">{t.role === "prof" ? "Prüfer" : "Du"}:</b>{" "}
-                    {t.text}
+                    <b className="opacity-80">{t.role === "prof" ? "Prüfer" : "Du"}:</b> {t.text}
                   </span>
                 </div>
               </div>
@@ -351,7 +330,7 @@ export default function ExamPage() {
               if (hasStarted) onSend();
               else startExam();
             }}
-            className="flex gap-2"
+            className="relative z-10 flex gap-2"
           >
             {!hasStarted ? (
               <button
