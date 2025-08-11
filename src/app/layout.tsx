@@ -20,21 +20,20 @@ export const metadata: Metadata = {
   description: "Prüfungsnahe M3-Simulation – Innere, Chirurgie & Wahlfach",
 };
 
+// ...
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="de" className={jakarta.variable}>
       <body className="bg-[var(--bg)] text-[var(--fg)]">
-        {/* Seiten-Layout: Header oben, Footer unten */}
         <div className="flex min-h-screen flex-col">
           <Header />
 
-          {/* Content */}
           <div className="mx-auto w-full max-w-screen-2xl px-6 py-6 flex-1">
             <LayoutVars>
-              {/* linke SideNav + Content */}
-              <div className="grid grid-cols-1 md:grid-cols-[var(--nav-w)_1fr] gap-4 items-start">
+              {/* ⬇️ Grid mit reservierter Nav-Spalte */}
+              <div className="grid grid-cols-1 md:grid-cols-[var(--nav-w,240px)_1fr] gap-6 items-start">
                 <SideNav />
-                <div>{children}</div>
+                <div className="min-w-0">{children}</div>
               </div>
             </LayoutVars>
           </div>
@@ -43,10 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Footer />
           </div>
 
-          {/* Alles mit useSearchParams in Suspense wrappen */}
-          <Suspense fallback={null}>
-            <WidthTuner />
-          </Suspense>
+          <WidthTuner />
         </div>
       </body>
     </html>

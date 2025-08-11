@@ -47,7 +47,7 @@ body {
 :root{
   /* Spaltenbreiten für Examenseite (md+): */
   --nav-w:   220px;  /* linke Account/Übersicht-Sidebar */
-  --steps-w: 220px;  /* mittlere Fragen-Spalte */
+  --steps-w: 280px;  /* mittlere Fragen-Spalte */
 }
 
 /* Auf sehr breiten Screens gern etwas größer: */
