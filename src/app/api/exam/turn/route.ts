@@ -1,3 +1,4 @@
+// src/app/api/exam/turn/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
@@ -10,21 +11,18 @@ type TranscriptItem = { role: Role; text: string };
 type ObjMin = { id: string; label: string };
 type CompletionRules = { minObjectives: number; maxLLMTurns?: number; hardStopTurns?: number };
 
-type ApiOut =
-  | {
-      say_to_student: string | null;
-      evaluation:
-        | {
-            correctness: "correct" | "partially_correct" | "incorrect";
-            feedback: string;
-            tips?: string;
-          }
-        | null;
-      next_question: string | null;
-      end: boolean;
-    }
-  | { examiner_info: string }
-  | { say_to_student: string; evaluation: null; next_question: null; end: false };
+type ApiOut = {
+  say_to_student: string | null;
+  evaluation:
+    | {
+        correctness: "correct" | "partially_correct" | "incorrect";
+        feedback: string;
+        tips?: string;
+      }
+    | null;
+  next_question: string | null;
+  end: boolean;
+};
 
 type BodyIn = {
   caseText?: string;
@@ -79,18 +77,11 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.OPENAI_API_KEY?.trim();
-
-    // Robust: nur auf Existenz prüfen
     if (!apiKey) {
       return NextResponse.json(
         { error: "OPENAI_API_KEY fehlt (.env.local oder Vercel-Env setzen)" },
         { status: 500 }
       );
-    }
-
-    // Optionales Debug: nur Länge loggen (nicht den Key)
-    if (process.env.NODE_ENV !== "production") {
-      console.log("[exam/turn] OPENAI_API_KEY length:", apiKey.length);
     }
 
     const model = (process.env.OPENAI_MODEL || "gpt-4o-mini").trim();
@@ -116,7 +107,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Bad request: caseText ist erforderlich." }, { status: 400 });
     }
 
-    // ---------- MODE A: Tipp ----------
+    // ---------- MODE A: Tipp (immer ApiOut-Form zurückgeben) ----------
     if (tipRequest) {
       const sysTip = `Du bist Prüfer:in im 3. Staatsexamen (Innere/Chirurgie/Wahlfach).
 Gib genau EINEN kurzen, konkreten Tipp (1 Satz), der in die richtige Richtung schubst.
@@ -138,21 +129,23 @@ Gib NUR den Tipp-Text zurück, ohne Zusatz.`.trim();
         temperature: 0.2,
       });
 
-      const tip = (outTip.choices?.[0]?.message?.content || "").trim();
-      return NextResponse.json({
-        say_to_student: tip ? `Tipp: ${tip}` : "Tipp: Denke an eine fehlende DD oder einen nächsten Untersuchungsschritt.",
+      const tipText = (outTip.choices?.[0]?.message?.content || "").trim();
+      const say = tipText || "Tipp: Denke an eine fehlende DD oder einen nächsten Untersuchungsschritt.";
+      const payload: ApiOut = {
+        say_to_student: say.startsWith("Tipp:") ? say : `Tipp: ${say}`,
         evaluation: null,
         next_question: null,
         end: false,
-      });
+      };
+      return NextResponse.json(payload);
     }
 
-    // --- Auto-Erkennung einer Nachfrage im letzten student-Text ---
+    // --- Nachfrage automatisch erkennen ---
     const lastStudentText = [...transcript].reverse().find((t) => t.role === "student")?.text?.trim() || "";
     const autoClarify = !clarifyQuestion && looksLikePatientInfoQuery(lastStudentText);
     const clarify = clarifyQuestion || (autoClarify ? lastStudentText : "");
 
-    // ---------- MODE B: Prüfer liefert Zusatzinfos ----------
+    // ---------- MODE B: Zusatzinfos (Clarify) – ebenfalls als ApiOut ----------
     if (clarify) {
       const sysClarify = `Du bist die/der PRÜFER:IN im 3. Staatsexamen.
 Auf Nachfrage gibst du ZUSÄTZLICHE PATIENTENDETAILS, die realistisch zur Vignette passen.
@@ -176,8 +169,14 @@ Gib NUR die Zusatzinformation (ohne Präambel, ohne Bewertung) zurück.`.trim();
         temperature: 0.2,
       });
 
-      const info = (outClarify.choices?.[0]?.message?.content || "").trim();
-      return NextResponse.json({ examiner_info: info || "Keine weiteren relevanten Details verfügbar." });
+      const info = (outClarify.choices?.[0]?.message?.content || "").trim() || "Keine weiteren relevanten Details verfügbar.";
+      const payload: ApiOut = {
+        say_to_student: info,
+        evaluation: null,
+        next_question: null,
+        end: false,
+      };
+      return NextResponse.json(payload);
     }
 
     // ---------- MODE C: Normaler Prüfungszug ----------
@@ -220,8 +219,9 @@ Erzeuge NUR das JSON-Objekt.`.trim();
       temperature: 0.2
     });
 
+    // Robust gegen Code-Fences oder Prä-/Suffixe
     const raw = (outExam.choices?.[0]?.message?.content || "").trim();
-    let jsonText = raw;
+    let jsonText = raw.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
     if (!(jsonText.startsWith("{") && jsonText.endsWith("}"))) {
       const s = jsonText.indexOf("{");
       const e = jsonText.lastIndexOf("}");
@@ -234,6 +234,12 @@ Erzeuge NUR das JSON-Objekt.`.trim();
     } catch {
       return NextResponse.json({ error: "Antwort war kein gültiges JSON." }, { status: 502 });
     }
+
+    // Fallbacks hart absichern
+    payload.say_to_student = (payload.say_to_student ?? "").toString().trim() || null;
+    payload.evaluation = payload.evaluation ?? null;
+    payload.next_question = (payload.next_question ?? "").toString().trim() || null;
+    payload.end = Boolean(payload.end);
 
     return NextResponse.json(payload);
 

@@ -1,9 +1,7 @@
 // src/app/layout.tsx
 import "./globals.css";
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { Plus_Jakarta_Sans } from "next/font/google";
-
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import SideNav from "@/components/SideNav";
@@ -20,7 +18,6 @@ export const metadata: Metadata = {
   description: "Prüfungsnahe M3-Simulation – Innere, Chirurgie & Wahlfach",
 };
 
-// ...
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="de" className={jakarta.variable}>
@@ -30,10 +27,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
           <div className="mx-auto w-full max-w-screen-2xl px-6 py-6 flex-1">
             <LayoutVars>
-              {/* ⬇️ Grid mit reservierter Nav-Spalte */}
-              <div className="grid grid-cols-1 md:grid-cols-[var(--nav-w,240px)_1fr] gap-6 items-start">
-                <SideNav />
-                <div className="min-w-0">{children}</div>
+              {/* ⬇️ Grid mit fester Nav-Spalte */}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-[var(--nav-w)_1fr] items-start">
+                {/* Linke Spalte: Sidebar – sticky, bekommt eigene Spalte */}
+                <aside className="hidden md:block">
+                  <div className="sticky top-20">
+                    <SideNav />
+                  </div>
+                </aside>
+
+                {/* Rechte Spalte: Seiteninhalt */}
+                <div>{children}</div>
               </div>
             </LayoutVars>
           </div>

@@ -95,7 +95,10 @@ export default function ExamPage() {
   }
 
   // --- API Call ---
-  async function callExamAPI(current: Turn[], opts: { isRetry: boolean; tipRequest?: boolean; clarify?: string }) {
+  async function callExamAPI(
+    current: Turn[],
+    opts: { isRetry: boolean; tipRequest?: boolean; clarify?: string }
+  ) {
     if (!c) return;
     setLoading(true);
     try {
@@ -119,7 +122,6 @@ export default function ExamPage() {
         body: JSON.stringify(payload),
       });
 
-      // Server-Fehler (z.B. fehlender API Key)
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as { error?: string })?.error || `HTTP ${res.status}`);
@@ -132,7 +134,7 @@ export default function ExamPage() {
       if ("examiner_info" in data) {
         pushProfDedup(nextT, data.examiner_info);
         setTranscript(nextT);
-        return; // keine Bewertung/keine neue Frage hier
+        return;
       }
 
       // B) Bewertung + Punkte
@@ -204,7 +206,6 @@ export default function ExamPage() {
     setLastCorrectness(null);
     setEnded(false);
     setAllowRetryNext(false);
-    // erste Frage/Begrüßung vom Prüfer anfordern
     setTimeout(() => callExamAPI(intro, { isRetry: false }), 0);
   }
 
@@ -213,11 +214,7 @@ export default function ExamPage() {
     if (!input.trim() || loading || ended) return;
 
     const text = input.trim();
-
-    // „Tipp/Hinweis/Hilfe“ per freiem Text triggern
     const wantsTip = /(^|\b)(tipp|hinweis|hilfe|help)\b/i.test(text);
-
-    // Nachfrage (z. B. Labor?) → Clarify-Modus, wenn Fragezeichen enthalten
     const looksClarify = /[?？]$/.test(text);
 
     const isRetry = allowRetryNext;
@@ -232,6 +229,12 @@ export default function ExamPage() {
       tipRequest: wantsTip ? true : undefined,
       clarify: !wantsTip && looksClarify ? text : undefined,
     });
+  }
+
+  // Tipp (Hint) manuell anfordern (für den 💡 Tipp-Button)
+  async function requestTip() {
+    if (!c || loading || ended) return;
+    await callExamAPI(transcript, { isRetry: false, tipRequest: true });
   }
 
   // --- Not found ---
@@ -310,7 +313,7 @@ export default function ExamPage() {
         <section className="flex flex-col gap-3">
           <div
             ref={listRef}
-            className="h-[58vh] overflow-y-auto rounded-2xl border border-black/10 bg-[var(--panel)] p-4 shadow-card"
+            className="h-[58vh] overflow-y-auto rounded-2xl border border-black/10 bg-white p-4 shadow-card text-gray-900"
           >
             {transcript.map((t, i) => (
               <div key={i} className={`mb-3 ${t.role === "prof" ? "" : "text-right"}`}>
@@ -345,63 +348,51 @@ export default function ExamPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              hasStarted ? onSend() : startExam();
+              if (hasStarted) onSend();
+              else startExam();
             }}
             className="flex gap-2"
           >
             {!hasStarted ? (
               <button
                 type="submit"
-                className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
+                className="rounded-md bg-brand-600 px-3 py-2 text-sm text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
               >
                 Prüfung starten
               </button>
             ) : (
               <>
                 <input
-                  className="flex-1 rounded-md border px-3 py-2 text-sm
-                             text-black placeholder:text-gray-400 bg-white
-                             focus:outline-none focus:ring-2 focus:ring-brand-400"
+                  className="flex-1 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
                   placeholder={
-                    ended
-                      ? "Fall beendet"
-                      : allowRetryNext
-                      ? "Retry/Verständnisfrage…"
-                      : "Deine Antwort…"
+                    ended ? "Fall beendet" : allowRetryNext ? "Retry/Verständnisfrage…" : "Deine Antwort…"
                   }
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   disabled={ended}
-                  autoComplete="off"
-                  autoCorrect="off"
                 />
                 <button
                   type="submit"
                   disabled={loading || !input.trim() || ended}
-                  className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+                  className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
                 >
                   Senden
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (!c || loading || ended) return;
-                    // Tipp explizit anfordern (ohne Eingabe)
-                    const now: Turn[] = [...transcript];
-                    callExamAPI(now, { isRetry: allowRetryNext, tipRequest: true });
-                    setAllowRetryNext(true); // nächste Antwort zählt als Retry
-                  }}
+                  onClick={requestTip}
                   disabled={loading || ended}
-                  className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+                  className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
                   title="Kleinen Hinweis erhalten"
                 >
                   💡 Tipp
                 </button>
               </>
             )}
+
             <Link
               href={`/cases/${c.id}`}
-              className="ml-auto rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
+              className="ml-auto rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
             >
               Fallinfo
             </Link>
