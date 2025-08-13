@@ -66,19 +66,17 @@ export default function LoginPage() {
         email,
         password,
         options: {
-          // Mail-Bestätigung + Redirect nach Klick
           emailRedirectTo:
             typeof window !== "undefined"
               ? `${window.location.origin}/login?next=${encodeURIComponent(nextUrl)}`
               : undefined,
-          // user_metadata direkt mitschicken
           data: {
             first_name: firstName,
             last_name: lastName,
             semester,
             home_university: homeUni,
             pj_track: pjTrack,
-            exam_date: examDate, // String "YYYY-MM-DD"
+            exam_date: examDate,
           },
         },
       });
@@ -124,13 +122,13 @@ export default function LoginPage() {
 
       {mode === "login" ? (
         <div className="mb-3 rounded-md border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800">
-          Nach erstmaliger Registrierung <b>bitte deine E‑Mail bestätigen</b>.
-          Danach kannst du dich hier ganz normal anmelden.
+          Nach erstmaliger Registrierung <b>bitte deine E‑Mail bestätigen</b>. Danach kannst du dich
+          hier ganz normal anmelden.
         </div>
       ) : (
         <div className="mb-3 rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
-          Nach der Registrierung schicken wir dir eine <b>Bestätigungs‑E‑Mail</b>.
-          Erst nach Klick auf den Link kannst du dich anmelden.
+          Nach der Registrierung schicken wir dir eine <b>Bestätigungs‑E‑Mail</b>. Erst nach Klick
+          auf den Link kannst du dich anmelden.
         </div>
       )}
 
@@ -270,3 +268,11 @@ export default function LoginPage() {
                 className="underline"
               >
                 Zur Anmeldung
+              </button>
+            </>
+          )}
+        </div>
+      </form>
+    </main>
+  );
+}
