@@ -2,7 +2,7 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 
-// Ein kleines Interface, damit wir kein `any` brauchen:
+// kleine, typsichere Wrapper-Interfaces (ohne `any`)
 type CookieValue = { value?: string };
 type CookieSetInput = { name: string; value: string } & Record<string, unknown>;
 interface CookieStoreLike {
@@ -19,10 +19,8 @@ export function createClient() {
     );
   }
 
-  // `cookies()` ist in manchen Next-Versionen als Promise typisiert.
-  // Zur Laufzeit ist es (im Node-SSR-Kontext) synchron nutzbar – wir casten deshalb bewusst.
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-expect-error Next kann cookies() als Promise typisieren; wir erzwingen synchronen Zugriff
+  // In einigen Next-Versionen wird `cookies()` unterschiedlich typisiert.
+  // Zur Laufzeit ist es im Route/SSR-Kontext synchron nutzbar.
   const cookieStore = cookies() as unknown as CookieStoreLike;
 
   return createServerClient(url, anonKey, {
