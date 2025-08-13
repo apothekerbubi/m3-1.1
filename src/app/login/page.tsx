@@ -11,44 +11,43 @@ export default function LoginPage() {
   const router = useRouter();
   const supabase = createBrowserSupabase();
 
-  // ?next= Ziel (aus URL, ohne useSearchParams → kein Suspense nötig)
-  const [nextUrl, setNextUrl] = useState<string>("/subjects");
-
-  const [mode, setMode] = useState<Mode>("login");
-  const [submitting, setSubmitting] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // gemeinsame Felder
-  const [email, setEmail] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
-
-  // Registrierungs-Felder
-  const [firstName, setFirstName] = useState<string>("");
-  const [lastName, setLastName] = useState<string>("");
-  const [semester, setSemester] = useState<string>("");
-  const [home_uni, setHomeUni] = useState<string>("");
-  const [pjTrack, setPjTrack] = useState<string>("");
-  const [examDate, setExamDate] = useState<string>(""); // yyyy-mm-dd
-
-  // next-Param aus URL lesen
+  // next-Redirect ohne useSearchParams (vermeidet Suspense-Warnung)
+  const [nextUrl, setNextUrl] = useState("/subjects");
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const u = new URL(window.location.href);
-      const nxt = u.searchParams.get("next");
-      if (nxt) setNextUrl(nxt);
+      const sp = new URLSearchParams(window.location.search);
+      setNextUrl(sp.get("next") || "/subjects");
     }
   }, []);
 
-  // Bereits eingeloggt? -> weiter
+  const [mode, setMode] = useState<Mode>("login");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // gemeinsame Felder
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  // Registrierungs-Felder
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [semester, setSemester] = useState("");
+  const [homeUni, setHomeUni] = useState("");
+  const [pjTrack, setPjTrack] = useState("");
+  const [examDate, setExamDate] = useState(""); // yyyy-mm-dd
+
   useEffect(() => {
+    // Bereits eingeloggt? -> weiter
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (session) {
         router.replace(nextUrl);
-        router.refresh();
       }
     })();
-  }, [router, supabase, nextUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextUrl]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -63,7 +62,7 @@ export default function LoginPage() {
         });
         if (signInError) throw signInError;
 
-        // optional: Profil anlegen/aktualisieren
+        // optional: Profil sicherstellen (legt profiles an/füllt Metadaten)
         await fetch("/api/profile/ensure", { method: "POST" });
 
         router.replace(nextUrl);
@@ -76,19 +75,19 @@ export default function LoginPage() {
         email,
         password,
         options: {
-          // Bestätigungs-Mail & Rücksprung nach Klick
+          // Bestätigungslink führt zurück auf /login, danach normal einloggen
           emailRedirectTo:
             typeof window !== "undefined"
               ? `${window.location.origin}/login?next=${encodeURIComponent(nextUrl)}`
               : undefined,
-          // user_metadata:
+          // ⚠️ Metadaten vereinheitlicht: home_uni & pj_wahlfach
           data: {
             first_name: firstName,
             last_name: lastName,
             semester,
-            home_uni: homeUni,       // ✅ vereinheitlichter Key
-            pj_wahlfach: pjTrack,    // ✅ vereinheitlichter Key
-            exam_date: examDate,
+            home_uni: homeUni,
+            pj_wahlfach: pjTrack,
+            exam_date: examDate, // "YYYY-MM-DD"
           },
         },
       });
@@ -108,17 +107,14 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const redirect =
-        typeof window !== "undefined"
-          ? `${window.location.origin}${nextUrl || "/subjects"}`
-          : undefined;
-
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: redirect },
+        options: {
+          emailRedirectTo:
+            typeof window !== "undefined" ? `${window.location.origin}/subjects` : undefined,
+        },
       });
       if (otpError) throw otpError;
-
       alert("Magic Link gesendet – bitte E‑Mail prüfen.");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Senden des Magic Links fehlgeschlagen.");
@@ -236,9 +232,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        {error && (
-          <div className="rounded-md bg-red-50 p-2 text-sm text-red-700">{error}</div>
-        )}
+        {error && <div className="rounded-md bg-red-50 p-2 text-sm text-red-700">{error}</div>}
 
         <button
           type="submit"
