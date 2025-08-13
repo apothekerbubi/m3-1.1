@@ -30,12 +30,13 @@ export default function LoginPage() {
       }
       router.replace(redirectTo);
       router.refresh();
-    } catch (err: any) {
-      setError(err?.message || "Login fehlgeschlagen");
-    } finally {
-      setLoading(false);
-    }
+    catch (e: unknown) {
+  if (e instanceof Error) {
+    setError(e.message);
+  } else {
+    setError("Unbekannter Fehler");
   }
+}
 
   async function magicLink() {
     setLoading(true);
@@ -44,12 +45,13 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithOtp({ email });
       if (error) throw error;
       alert("Magic Link gesendet – bitte E-Mail prüfen.");
-    } catch (err: any) {
-      setError(err?.message || "Fehler beim Senden");
-    } finally {
-      setLoading(false);
-    }
+    } catch (e: unknown) {
+  if (e instanceof Error) {
+    setError(e.message);
+  } else {
+    setError("Unbekannter Fehler");
   }
+}
 
   return (
     <main className="mx-auto max-w-sm p-6">
