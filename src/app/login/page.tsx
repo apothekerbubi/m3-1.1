@@ -34,7 +34,9 @@ export default function LoginPage() {
     // Bereits eingeloggt? -> weiter
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) router.replace(nextUrl);
+      if (session) {
+        router.replace(nextUrl);
+      }
     })();
   }, [router, supabase, nextUrl]);
 
@@ -42,6 +44,7 @@ export default function LoginPage() {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+
     try {
       if (mode === "login") {
         const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -63,25 +66,24 @@ export default function LoginPage() {
         email,
         password,
         options: {
-          // Mail-Bestätigung aktivieren + Redirect nach Klick auf Bestätigungslink:
+          // Mail-Bestätigung + Redirect nach Klick
           emailRedirectTo:
             typeof window !== "undefined"
               ? `${window.location.origin}/login?next=${encodeURIComponent(nextUrl)}`
               : undefined,
-          // user_metadata
+          // user_metadata direkt mitschicken
           data: {
             first_name: firstName,
             last_name: lastName,
             semester,
             home_university: homeUni,
             pj_track: pjTrack,
-            exam_date: examDate, // string (YYYY-MM-DD)
+            exam_date: examDate, // String "YYYY-MM-DD"
           },
         },
       });
       if (signUpError) throw signUpError;
 
-      // Hinweis anzeigen und auf Login bleiben
       alert("Registrierung erfolgreich! Bitte bestätige die E‑Mail und melde dich dann an.");
       setMode("login");
     } catch (err: unknown) {
@@ -94,6 +96,7 @@ export default function LoginPage() {
   async function onMagicLink() {
     setSubmitting(true);
     setError(null);
+
     try {
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email,
@@ -121,7 +124,7 @@ export default function LoginPage() {
 
       {mode === "login" ? (
         <div className="mb-3 rounded-md border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800">
-          Nach erstmaliger Registrierung,  <b>bitte deine E-Mail bestätigen</b>.
+          Nach erstmaliger Registrierung <b>bitte deine E‑Mail bestätigen</b>.
           Danach kannst du dich hier ganz normal anmelden.
         </div>
       ) : (
@@ -267,11 +270,3 @@ export default function LoginPage() {
                 className="underline"
               >
                 Zur Anmeldung
-              </button>
-            </>
-          )}
-        </div>
-      </form>
-    </main>
-  );
-}
