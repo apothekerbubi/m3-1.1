@@ -26,8 +26,8 @@ export default function LoginPage() {
   const [firstName, setFirstName] = useState<string>("");
   const [lastName, setLastName] = useState<string>("");
   const [semester, setSemester] = useState<string>("");
-  const [home_university, setHomeUni] = useState<string>("");
-  const [pj_wahlfach, setPjTrack] = useState<string>("");
+  const [home_uni, setHomeUni] = useState<string>("");
+  const [pjTrack, setPjTrack] = useState<string>("");
   const [examDate, setExamDate] = useState<string>(""); // yyyy-mm-dd
 
   // next-Param aus URL lesen
