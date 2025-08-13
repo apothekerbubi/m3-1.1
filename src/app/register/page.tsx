@@ -1,3 +1,4 @@
+// src/app/register/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -21,20 +22,21 @@ export default function RegisterPage() {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
 
     try {
-      const origin = window.location.origin;
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "";
 
-      // Wichtig: zusätzliche Felder in user_metadata mitgeben
+      // Zusätzliche Felder in user_metadata mitgeben
       const { error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${origin}/auth/callback`,
+          emailRedirectTo: origin ? `${origin}/auth/callback` : undefined,
           data: {
             first_name: firstName,
             last_name: lastName,
@@ -49,8 +51,8 @@ export default function RegisterPage() {
       if (signUpError) throw signUpError;
 
       setDone(true);
-    } catch (err: any) {
-      setError(err.message || "Registrierung fehlgeschlagen.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Registrierung fehlgeschlagen.");
     } finally {
       setSubmitting(false);
     }
@@ -61,7 +63,7 @@ export default function RegisterPage() {
       <main className="mx-auto max-w-md p-6">
         <h1 className="mb-2 text-xl font-semibold">Bestätige deine E‑Mail</h1>
         <p className="text-sm text-gray-700">
-          Wir haben dir eine E‑Mail geschickt. <b>Bitte bestätige deine Registrierung</b>. 
+          Wir haben dir eine E‑Mail geschickt. <b>Bitte bestätige deine Registrierung</b>.
           Danach kannst du dich ganz normal einloggen.
         </p>
       </main>
@@ -84,7 +86,7 @@ export default function RegisterPage() {
             <input
               className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
               value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
+              onChange={(e) => setFirstName(e.currentTarget.value)}
               required
             />
           </div>
@@ -93,7 +95,7 @@ export default function RegisterPage() {
             <input
               className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
               value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
+              onChange={(e) => setLastName(e.currentTarget.value)}
               required
             />
           </div>
@@ -105,7 +107,7 @@ export default function RegisterPage() {
             className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
             placeholder="z. B. 9. Semester"
             value={semester}
-            onChange={(e) => setSemester(e.target.value)}
+            onChange={(e) => setSemester(e.currentTarget.value)}
           />
         </div>
 
@@ -115,7 +117,7 @@ export default function RegisterPage() {
             className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
             placeholder="z. B. LMU München"
             value={homeUni}
-            onChange={(e) => setHomeUni(e.target.value)}
+            onChange={(e) => setHomeUni(e.currentTarget.value)}
           />
         </div>
 
@@ -125,17 +127,17 @@ export default function RegisterPage() {
             className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
             placeholder="z. B. Kardiologie"
             value={pjWahlfach}
-            onChange={(e) => setPjWahlfach(e.target.value)}
+            onChange={(e) => setPjWahlfach(e.currentTarget.value)}
           />
         </div>
 
         <div>
           <label className="block text-xs text-gray-600">Prüfungsdatum</label>
-          <input
+        <input
             type="date"
             className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
             value={examDate}
-            onChange={(e) => setExamDate(e.target.value)}
+            onChange={(e) => setExamDate(e.currentTarget.value)}
           />
         </div>
 
@@ -145,7 +147,7 @@ export default function RegisterPage() {
             type="email"
             className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.currentTarget.value)}
             required
             autoComplete="email"
           />
@@ -157,7 +159,7 @@ export default function RegisterPage() {
             type="password"
             className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => setPassword(e.currentTarget.value)}
             required
             autoComplete="new-password"
           />
