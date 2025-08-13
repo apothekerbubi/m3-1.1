@@ -1,46 +1,90 @@
 // src/app/account/page.tsx
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import AccountForm from "./AccountForm";
+"use client";
 
-export default async function AccountPage() {
-  const supabase = createClient();
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createBrowserSupabase } from "@/lib/supabase/client";
+import LogoutButton from "@/components/LogoutButton";
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+type Profile = {
+  first_name?: string | null;
+  last_name?: string | null;
+  semester?: string | null;
+  home_university?: string | null;
+  pj_track?: string | null;
+  exam_date?: string | null;
+};
 
-  if (!user) {
-    redirect("/login");
+export default function AccountPage() {
+  const supabase = createBrowserSupabase();
+  const router = useRouter();
+  const [email, setEmail] = useState<string>("");
+  const [profile, setProfile] = useState<Profile>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        router.replace("/login");
+        return;
+      }
+
+      setEmail(session.user.email || "");
+
+      // user_metadata (falls du das in Supabase bei Registrierung speicherst)
+      const md = session.user.user_metadata || {};
+      setProfile({
+        first_name: md.first_name ?? null,
+        last_name: md.last_name ?? null,
+        semester: md.semester ?? null,
+        home_university: md.home_university ?? null,
+        pj_track: md.pj_track ?? null,
+        exam_date: md.exam_date ?? null,
+      });
+
+      setLoading(false);
+    })();
+  }, [router, supabase]);
+
+  if (loading) {
+    return <main className="mx-auto max-w-2xl p-6 text-sm text-gray-600">Lade Account…</main>;
   }
-
-  // Profil laden (kann beim ersten Login noch nicht existieren)
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user!.id)
-    .single();
-
-  // Email aus auth, Rest aus profiles
-  const initial = {
-    id: user!.id,
-    email: user!.email ?? "",
-    first_name: profile?.first_name ?? "",
-    last_name: profile?.last_name ?? "",
-    semester: profile?.semester ?? "",
-    home_uni: profile?.home_uni ?? "",
-    pj_wahlfach: profile?.pj_wahlfach ?? "",
-    exam_date: profile?.exam_date ?? "", // ISO yyyy-mm-dd
-  };
 
   return (
     <main className="mx-auto max-w-2xl p-6">
-      <h1 className="mb-2 text-2xl font-semibold">Account</h1>
-      <p className="mb-6 text-sm text-gray-600">
-        Hier kannst du deine Profildaten verwalten. Änderungen werden sofort gespeichert.
-      </p>
-      {/* Client-Form */}
-      <AccountForm initial={initial} />
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Dein Account</h1>
+        <LogoutButton />
+      </div>
+
+      <div className="rounded-xl border border-black/10 bg-white p-4">
+        <div className="mb-4">
+          <div className="text-xs text-gray-500">E‑Mail</div>
+          <div className="text-sm font-medium">{email}</div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Vorname" value={profile.first_name} />
+          <Field label="Nachname" value={profile.last_name} />
+          <Field label="Semester" value={profile.semester} />
+          <Field label="Heimatuni" value={profile.home_university} />
+          <Field label="PJ‑Wahlfach" value={profile.pj_track} />
+          <Field label="Prüfungsdatum" value={profile.exam_date} />
+        </div>
+      </div>
     </main>
+  );
+}
+
+function Field({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div>
+      <div className="text-xs text-gray-500">{label}</div>
+      <div className="text-sm font-medium">{value || "—"}</div>
+    </div>
   );
 }

@@ -1,140 +1,250 @@
 // src/app/login/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 
+type Mode = "login" | "register";
+
 export default function LoginPage() {
-  const supabase = createBrowserSupabase();
   const router = useRouter();
   const sp = useSearchParams();
-  const redirectTo = sp.get("next") || "/subjects";
+  const supabase = createBrowserSupabase();
 
+  const nextUrl = sp.get("next") || "/subjects";
+
+  const [mode, setMode] = useState<Mode>("login");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // gemeinsame Felder
   const [email, setEmail] = useState("");
-  const [pw, setPw] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [error, setError] = useState<string>("");
-  const [info, setInfo] = useState<string>("");
+  const [password, setPassword] = useState("");
+
+  // Registrierungs-Felder
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [semester, setSemester] = useState("");
+  const [homeUni, setHomeUni] = useState("");
+  const [pjTrack, setPjTrack] = useState("");
+  const [examDate, setExamDate] = useState(""); // yyyy-mm-dd
+
+  useEffect(() => {
+    // Bereits eingeloggt? -> weiter
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) router.replace(nextUrl);
+    })();
+  }, [router, supabase, nextUrl]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setLoading(true);
-    setError("");
-    setInfo("");
-
+    setSubmitting(true);
+    setError(null);
     try {
       if (mode === "login") {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
-          password: pw,
+          password,
         });
-        if (error) throw error;
+        if (signInError) throw signInError;
 
-        // Login erfolgreich → weiterleiten
-        router.replace(redirectTo);
+        // optional: Profil anlegen/aktualisieren
+        await fetch("/api/profile/ensure", { method: "POST" });
+
+        router.replace(nextUrl);
         router.refresh();
-      } else {
-        // Registrierung: Supabase verschickt Bestätigungs-Mail (falls aktiviert)
-        const { error } = await supabase.auth.signUp({
-          email,
-          password: pw,
-          // Optional sinnvoll:
-          // options: { emailRedirectTo: `${location.origin}/auth/callback` },
-        });
-        if (error) throw error;
+        return;
+      }
 
-        setInfo(
-          "Registrierung erfolgreich. Bitte bestätige deine E‑Mail-Adresse. Danach kannst du dich ganz normal anmelden."
-        );
-        // Auf der Seite bleiben, damit der Hinweis sichtbar ist.
-      }
-    } catch (e: unknown) {
-      if (e instanceof Error) {
-        setError(e.message);
-      } else {
-        setError("Unbekannter Fehler");
-      }
+      // mode === "register"
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          // Mail-Bestätigung aktivieren + Redirect nach Klick auf Bestätigungslink:
+          emailRedirectTo:
+            typeof window !== "undefined"
+              ? `${window.location.origin}/login?next=${encodeURIComponent(nextUrl)}`
+              : undefined,
+          // user_metadata
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+            semester,
+            home_university: homeUni,
+            pj_track: pjTrack,
+            exam_date: examDate, // string (YYYY-MM-DD)
+          },
+        },
+      });
+      if (signUpError) throw signUpError;
+
+      // Hinweis anzeigen und auf Login bleiben
+      alert("Registrierung erfolgreich! Bitte bestätige die E‑Mail und melde dich dann an.");
+      setMode("login");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Vorgang fehlgeschlagen.");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }
 
-  async function magicLink() {
-    setLoading(true);
-    setError("");
-    setInfo("");
+  async function onMagicLink() {
+    setSubmitting(true);
+    setError(null);
     try {
-      const { error } = await supabase.auth.signInWithOtp({ email });
-      if (error) throw error;
-      setInfo("Magic Link gesendet – bitte E‑Mail prüfen.");
-    } catch (e: unknown) {
-      if (e instanceof Error) {
-        setError(e.message);
-      } else {
-        setError("Unbekannter Fehler");
-      }
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo:
+            typeof window !== "undefined"
+              ? `${window.location.origin}/subjects`
+              : undefined,
+        },
+      });
+      if (otpError) throw otpError;
+      alert("Magic Link gesendet – bitte E‑Mail prüfen.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Senden des Magic Links fehlgeschlagen.");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }
 
   return (
-    <main className="mx-auto max-w-sm p-6">
-      <h1 className="mb-4 text-2xl font-semibold">
+    <main className="mx-auto max-w-md p-6">
+      <h1 className="mb-2 text-2xl font-semibold">
         {mode === "login" ? "Anmelden" : "Konto erstellen"}
       </h1>
 
+      {mode === "login" ? (
+        <div className="mb-3 rounded-md border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800">
+          Nach erstmaliger Registrierung,  <b>bitte deine E-Mail bestätigen</b>.
+          Danach kannst du dich hier ganz normal anmelden.
+        </div>
+      ) : (
+        <div className="mb-3 rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
+          Nach der Registrierung schicken wir dir eine <b>Bestätigungs‑E‑Mail</b>.
+          Erst nach Klick auf den Link kannst du dich anmelden.
+        </div>
+      )}
+
       <form onSubmit={onSubmit} className="space-y-3">
-        <input
-          type="email"
-          placeholder="E‑Mail"
-          className="w-full rounded-md border border-black/10 px-3 py-2"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          autoComplete="email"
-        />
+        {/* E-Mail & Passwort */}
+        <div>
+          <label className="block text-xs text-gray-600">E‑Mail</label>
+          <input
+            type="email"
+            className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
+            value={email}
+            onChange={(e) => setEmail(e.currentTarget.value)}
+            required
+            autoComplete={mode === "login" ? "email" : "new-email"}
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-600">Passwort</label>
+          <input
+            type="password"
+            className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
+            value={password}
+            onChange={(e) => setPassword(e.currentTarget.value)}
+            required
+            autoComplete={mode === "login" ? "current-password" : "new-password"}
+          />
+        </div>
 
-        <input
-          type="password"
-          placeholder="Passwort"
-          className="w-full rounded-md border border-black/10 px-3 py-2"
-          value={pw}
-          onChange={(e) => setPw(e.target.value)}
-          required={mode === "login" || mode === "register"}
-          autoComplete={mode === "login" ? "current-password" : "new-password"}
-        />
-
-        {/* Hinweise */}
+        {/* Registrierungsfelder */}
         {mode === "register" && (
-          <p className="text-xs text-gray-600">
-            Nach der Registrierung erhältst du eine E‑Mail zur Bestätigung. Klicke auf den Link
-            und melde dich anschließend ganz normal an.
-          </p>
+          <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs text-gray-600">Vorname</label>
+                <input
+                  className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.currentTarget.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600">Nachname</label>
+                <input
+                  className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.currentTarget.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-600">Semester</label>
+              <input
+                className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
+                placeholder="z. B. 10"
+                value={semester}
+                onChange={(e) => setSemester(e.currentTarget.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-600">Heimatuni</label>
+              <input
+                className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
+                placeholder="z. B. LMU München"
+                value={homeUni}
+                onChange={(e) => setHomeUni(e.currentTarget.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-600">PJ‑Wahlfach</label>
+              <input
+                className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
+                placeholder="z. B. Innere Medizin"
+                value={pjTrack}
+                onChange={(e) => setPjTrack(e.currentTarget.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-600">Prüfungsdatum</label>
+              <input
+                type="date"
+                className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
+                value={examDate}
+                onChange={(e) => setExamDate(e.currentTarget.value)}
+              />
+            </div>
+          </div>
         )}
 
-        {error && <div className="text-sm text-red-600">{error}</div>}
-        {info && <div className="text-sm text-green-600">{info}</div>}
+        {error && (
+          <div className="rounded-md bg-red-50 p-2 text-sm text-red-700">{error}</div>
+        )}
 
         <button
           type="submit"
-          disabled={loading}
-          className="w-full rounded-md bg-blue-600 px-3 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
+          disabled={submitting}
+          className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {loading ? "…" : mode === "login" ? "Anmelden" : "Registrieren"}
+          {submitting ? "Bitte warten…" : mode === "login" ? "Anmelden" : "Registrieren"}
         </button>
 
-        <button
-          type="button"
-          onClick={magicLink}
-          disabled={loading || !email}
-          className="w-full rounded-md border px-3 py-2"
-          title="Login per Magic Link"
-        >
-          Magic Link senden
-        </button>
+        {mode === "login" && (
+          <button
+            type="button"
+            onClick={onMagicLink}
+            disabled={submitting || !email}
+            className="w-full rounded-md border px-3 py-2 text-sm"
+            title="Login per Magic Link"
+          >
+            Magic Link senden
+          </button>
+        )}
 
         <div className="text-sm">
           {mode === "login" ? (
