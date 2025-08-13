@@ -86,9 +86,9 @@ export default function LoginPage() {
             first_name: firstName,
             last_name: lastName,
             semester,
-            home_university: homeUni,
-            pj_track: pjTrack,
-            exam_date: examDate, // string im Format YYYY-MM-DD
+            home_uni: homeUni,       // ✅ vereinheitlichter Key
+            pj_wahlfach: pjTrack,    // ✅ vereinheitlichter Key
+            exam_date: examDate,
           },
         },
       });
