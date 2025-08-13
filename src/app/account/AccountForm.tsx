@@ -1,7 +1,7 @@
 // src/app/account/AccountForm.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 
 type AccountInitial = {
@@ -14,6 +14,8 @@ type AccountInitial = {
   pj_wahlfach: string;
   exam_date: string; // yyyy-mm-dd oder ""
 };
+
+type PgError = { message?: string; details?: string; hint?: string };
 
 export default function AccountForm({ initial }: { initial: AccountInitial }) {
   const supabase = createBrowserSupabase();
@@ -29,7 +31,18 @@ export default function AccountForm({ initial }: { initial: AccountInitial }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  async function save(): Promise<void> {
+  // Falls das Profil (noch) nicht existiert, hier sicherheitshalber anlegen
+  useEffect(() => {
+    (async () => {
+      try {
+        await fetch("/api/profile/ensure", { method: "POST" });
+      } catch {
+        // still go on; upsert fängt das in der Regel ebenfalls ab
+      }
+    })();
+  }, []);
+
+  async function save() {
     setSaving(true);
     setMsg(null);
     setErr(null);
@@ -43,18 +56,23 @@ export default function AccountForm({ initial }: { initial: AccountInitial }) {
           semester: semester || null,
           home_uni: homeUni || null,
           pj_wahlfach: pjWahlfach || null,
-          exam_date: examDate || null, // Supabase erwartet "YYYY-MM-DD"
+          exam_date: examDate || null,
         },
         { onConflict: "id" }
       );
-      if (error) throw error;
+
+      if (error) {
+        const e = error as PgError;
+        throw new Error(e.message || e.details || e.hint || "Speichern fehlgeschlagen.");
+      }
+
       setMsg("Gespeichert.");
     } catch (e: unknown) {
-      if (e instanceof Error) {
-        setErr(e.message);
-      } else {
-        setErr("Speichern fehlgeschlagen.");
-      }
+      const m =
+        e instanceof Error
+          ? e.message
+          : (e as PgError)?.message || "Speichern fehlgeschlagen.";
+      setErr(m);
     } finally {
       setSaving(false);
     }

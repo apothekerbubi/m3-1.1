@@ -1,35 +1,54 @@
-import { NextRequest, NextResponse } from "next/server";
+// src/app/api/profile/ensure/route.ts
+import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-export async function POST(req: NextRequest) {
+export async function POST() {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  const { data: { user }, error: userErr } = await supabase.auth.getUser();
+  if (userErr || !user) {
+    return NextResponse.json({ ok: false, error: userErr?.message || "Not authenticated" }, { status: 401 });
+  }
 
-  // Datenquelle: user_metadata (vom SignUp gesetzt)
-  const meta = user.user_metadata || {};
-  const payload = await req.json().catch(() => ({})); // erlaubt Überschreiben aus Client
+  // 1) Bestehendes Profil holen (kann null sein)
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .maybeSingle();
 
-  const upsertData = {
+  // 2) Metadaten robust auslesen (beide Varianten unterstützen)
+  const md = (user.user_metadata || {}) as Record<string, unknown>;
+  const mdFirst = (md.first_name as string) || null;
+  const mdLast  = (md.last_name as string) || null;
+  const mdSem   = (md.semester as string) || null;
+  const mdHome  = (md.home_uni as string) || (md.home_university as string) || null; // 👈 beide
+  const mdPj    = (md.pj_wahlfach as string) || (md.pj_track as string) || null;     // 👈 beide
+  const mdDate  = (md.exam_date as string) || null; // "YYYY-MM-DD" oder null
+
+  // 3) Zusammenführen: vorhandenes Profil hat Vorrang; sonst Metadaten; sonst null
+  const merged = {
     id: user.id,
     email: user.email,
-    first_name: payload.first_name ?? meta.first_name ?? null,
-    last_name: payload.last_name ?? meta.last_name ?? null,
-    semester: payload.semester ?? meta.semester ?? null,
-    home_uni: payload.home_uni ?? meta.home_uni ?? null,
-    pj_wahlfach: payload.pj_wahlfach ?? meta.pj_wahlfach ?? null,
-    exam_date: payload.exam_date ?? meta.exam_date ?? null,
+    first_name: profile?.first_name ?? mdFirst ?? null,
+    last_name:  profile?.last_name  ?? mdLast  ?? null,
+    semester:   profile?.semester   ?? mdSem   ?? null,
+    home_uni:   profile?.home_uni   ?? mdHome  ?? null,
+    pj_wahlfach:profile?.pj_wahlfach?? mdPj    ?? null,
+    exam_date:  profile?.exam_date  ?? mdDate  ?? null,
   };
 
+  // 4) Upsert (legt an oder aktualisiert fehlende Werte)
   const { error } = await supabase
     .from("profiles")
-    .upsert(upsertData, { onConflict: "id" });
+    .upsert(merged, { onConflict: "id" });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, merged });
 }
