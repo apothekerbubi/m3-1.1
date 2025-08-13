@@ -29,7 +29,7 @@ export default function AccountForm({ initial }: { initial: AccountInitial }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  async function save() {
+  async function save(): Promise<void> {
     setSaving(true);
     setMsg(null);
     setErr(null);
@@ -43,14 +43,18 @@ export default function AccountForm({ initial }: { initial: AccountInitial }) {
           semester: semester || null,
           home_uni: homeUni || null,
           pj_wahlfach: pjWahlfach || null,
-          exam_date: examDate || null, // Supabase nimmt "YYYY-MM-DD"
+          exam_date: examDate || null, // Supabase erwartet "YYYY-MM-DD"
         },
         { onConflict: "id" }
       );
       if (error) throw error;
       setMsg("Gespeichert.");
-    } catch (e: any) {
-      setErr(e.message || "Speichern fehlgeschlagen.");
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        setErr(e.message);
+      } else {
+        setErr("Speichern fehlgeschlagen.");
+      }
     } finally {
       setSaving(false);
     }
