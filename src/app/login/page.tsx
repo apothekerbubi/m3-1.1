@@ -2,40 +2,50 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 
 type Mode = "login" | "register";
 
 export default function LoginPage() {
   const router = useRouter();
-  const sp = useSearchParams();
   const supabase = createBrowserSupabase();
 
-  const nextUrl = sp.get("next") || "/subjects";
+  // ?next= Ziel (aus URL, ohne useSearchParams → kein Suspense nötig)
+  const [nextUrl, setNextUrl] = useState<string>("/subjects");
 
   const [mode, setMode] = useState<Mode>("login");
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   // gemeinsame Felder
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
 
   // Registrierungs-Felder
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [semester, setSemester] = useState("");
-  const [homeUni, setHomeUni] = useState("");
-  const [pjTrack, setPjTrack] = useState("");
-  const [examDate, setExamDate] = useState(""); // yyyy-mm-dd
+  const [firstName, setFirstName] = useState<string>("");
+  const [lastName, setLastName] = useState<string>("");
+  const [semester, setSemester] = useState<string>("");
+  const [homeUni, setHomeUni] = useState<string>("");
+  const [pjTrack, setPjTrack] = useState<string>("");
+  const [examDate, setExamDate] = useState<string>(""); // yyyy-mm-dd
 
+  // next-Param aus URL lesen
   useEffect(() => {
-    // Bereits eingeloggt? -> weiter
+    if (typeof window !== "undefined") {
+      const u = new URL(window.location.href);
+      const nxt = u.searchParams.get("next");
+      if (nxt) setNextUrl(nxt);
+    }
+  }, []);
+
+  // Bereits eingeloggt? -> weiter
+  useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         router.replace(nextUrl);
+        router.refresh();
       }
     })();
   }, [router, supabase, nextUrl]);
@@ -66,17 +76,19 @@ export default function LoginPage() {
         email,
         password,
         options: {
+          // Bestätigungs-Mail & Rücksprung nach Klick
           emailRedirectTo:
             typeof window !== "undefined"
               ? `${window.location.origin}/login?next=${encodeURIComponent(nextUrl)}`
               : undefined,
+          // user_metadata:
           data: {
             first_name: firstName,
             last_name: lastName,
             semester,
             home_university: homeUni,
             pj_track: pjTrack,
-            exam_date: examDate,
+            exam_date: examDate, // string im Format YYYY-MM-DD
           },
         },
       });
@@ -96,16 +108,17 @@ export default function LoginPage() {
     setError(null);
 
     try {
+      const redirect =
+        typeof window !== "undefined"
+          ? `${window.location.origin}${nextUrl || "/subjects"}`
+          : undefined;
+
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email,
-        options: {
-          emailRedirectTo:
-            typeof window !== "undefined"
-              ? `${window.location.origin}/subjects`
-              : undefined,
-        },
+        options: { emailRedirectTo: redirect },
       });
       if (otpError) throw otpError;
+
       alert("Magic Link gesendet – bitte E‑Mail prüfen.");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Senden des Magic Links fehlgeschlagen.");
