@@ -1,3 +1,4 @@
+// src/app/exam/[id]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -48,6 +49,7 @@ export default function ExamPage() {
 
   const listRef = useRef<HTMLDivElement | null>(null);
 
+  // Outline & Progress
   const outline = useMemo(
     () => (c ? [...c.steps].sort((a, b) => a.order - b.order).map((s) => s.prompt) : []),
     [c]
@@ -57,13 +59,15 @@ export default function ExamPage() {
   const progressPct = useMemo(() => {
     if (!outline.length) return 0;
     const done = Math.min(asked.length, outline.length);
-    return Math.round((done / outline.length) * 100);
+    return Math.round((done / Math.max(1, outline.length)) * 100);
   }, [asked.length, outline.length]);
 
+  // Auto-scroll
   useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [transcript, loading]);
 
+  // Helpers
   function label(correctness: "correct" | "partially_correct" | "incorrect") {
     return correctness === "correct"
       ? "✅ Richtig"
@@ -84,16 +88,17 @@ export default function ExamPage() {
     }
   }
 
-  // 🔎 Helpers für „aktuelle offene Frage“ und „letzte Studierenden-Antwort“
+  // 🔎 „aktuelle offene Frage“ und „letzte Studierenden-Antwort“
   function getOpenQuestion(items: Asked[]): string | null {
     const lastPending = [...items].reverse().find((a) => a.status === "pending");
     return lastPending?.text ?? null;
-    }
+  }
   function getLastStudentAnswer(turns: Turn[]): string | null {
     const last = [...turns].reverse().find((t) => t.role === "student");
     return last?.text ?? null;
   }
 
+  // API Call (Punkt 7: caseId, points, progressPct mitsenden)
   async function callExamAPI(
     current: Turn[],
     opts: {
@@ -110,6 +115,9 @@ export default function ExamPage() {
     setLoading(true);
     try {
       const payload: Record<string, unknown> = {
+        caseId: c.id,                    // ✅ Punkt 7
+        points,                          // ✅ Punkt 7
+        progressPct,                     // ✅ Punkt 7
         caseText: c.vignette,
         transcript: current.map((t) => ({
           role: t.role === "prof" ? "examiner" : "student",
@@ -188,7 +196,7 @@ export default function ExamPage() {
         setAllowRetryNext(false);
       }
 
-      // C) Folgefrage nur stellen, wenn KEIN Retry offen (Stage 1 & falsch blockt next_question)
+      // C) Folgefrage nur, wenn KEIN Retry offen
       const blockNextBecauseRetry =
         (currentCorrectness === "incorrect" || currentCorrectness === "partially_correct") && !opts.isRetry;
       const shouldAskNext =

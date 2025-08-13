@@ -1,5 +1,7 @@
+// src/app/api/exam/turn/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,7 +25,10 @@ type ApiOut = {
   end: boolean;
 };
 
+type ExplainContext = { question?: string; lastAnswer?: string };
+
 type BodyIn = {
+  // bisher:
   caseText?: string;
   transcript?: TranscriptItem[];
   outline?: string[];
@@ -35,7 +40,11 @@ type BodyIn = {
   completion?: CompletionRules | null;
   attemptStage?: number; // 1 erster Versuch, 2 Retry
   focusQuestion?: string; // 🎯 für Tipp
-  explainContext?: { question?: string; lastAnswer?: string }; // 📘 für Erklären
+  explainContext?: ExplainContext; // 📘 für Erklären
+  // neu für Fortschritt:
+  caseId?: string;
+  points?: number;
+  progressPct?: number;
 };
 
 // einfache Markdown/Emoji-Entfärbung (Fettdruck/Fences)
@@ -76,7 +85,8 @@ function looksLikePatientInfoQuery(s: string): boolean {
 export async function GET() {
   return NextResponse.json({
     ok: true,
-    hint: "POST { caseText, transcript, outline?, style?, tipRequest?, explainRequest?, clarifyQuestion?, objectives?, completion?, attemptStage?, focusQuestion?, explainContext? }",
+    hint:
+      "POST { caseText, transcript, outline?, style?, tipRequest?, explainRequest?, clarifyQuestion?, objectives?, completion?, attemptStage?, focusQuestion?, explainContext?, caseId?, points?, progressPct? }",
   });
 }
 
@@ -101,6 +111,7 @@ export async function POST(req: NextRequest) {
     }
 
     const caseText = (body.caseText || "").trim();
+    const caseId = typeof body.caseId === "string" ? body.caseId.trim() : undefined;
     const transcript: TranscriptItem[] = Array.isArray(body.transcript) ? body.transcript : [];
     const outline: string[] = Array.isArray(body.outline) ? body.outline : [];
     const style: "coaching" | "strict" = body.style === "strict" ? "strict" : "coaching";
@@ -112,10 +123,17 @@ export async function POST(req: NextRequest) {
     const attemptStage = typeof body.attemptStage === "number" ? body.attemptStage : 1;
     const focusQuestion = typeof body.focusQuestion === "string" ? body.focusQuestion.trim() : "";
     const explainContext = body.explainContext && typeof body.explainContext === "object" ? body.explainContext : undefined;
+    const points = typeof body.points === "number" ? body.points : undefined;
+    const progressPct = typeof body.progressPct === "number" ? body.progressPct : undefined;
 
     if (!caseText) {
       return NextResponse.json({ error: "Bad request: caseText ist erforderlich." }, { status: 400 });
     }
+
+    // Supabase-Serverclient + User (für Persistenz; wenn nicht eingeloggt → nur weiter ohne Speichern)
+    const supabase = createClient();
+    const { data: userRes } = await supabase.auth.getUser();
+    const userId = userRes?.user?.id ?? null;
 
     // ---------- MODE A: Tipp (zur aktuellen Frage) ----------
     if (tipRequest) {
@@ -151,6 +169,25 @@ Gib NUR den Tipp-Text zurück, ohne Präambel.`.trim();
         next_question: null,
         end: false,
       };
+
+      // 🔐 Persistenz (nicht blockierend)
+      if (userId) {
+        void logTurn(supabase, {
+          userId,
+          caseId,
+          attemptStage,
+          tipRequest: true,
+          explainRequest: false,
+          clarifyQuestion: null,
+          focusQuestion: targetQuestion || null,
+          lastStudentAnswer: lastStudent || null,
+          modelOut: payload,
+        });
+        if (typeof points === "number" || typeof progressPct === "number") {
+          void upsertProgress(supabase, { userId, caseId, points, progressPct });
+        }
+      }
+
       return NextResponse.json(payload);
     }
 
@@ -183,6 +220,21 @@ Gib NUR die Zusatzinformation (ohne Präambel/Bewertung).`.trim();
 
       const info = stripMd((outClarify.choices?.[0]?.message?.content || "").trim()) || "Keine weiteren relevanten Details verfügbar.";
       const payload: ApiOut = { say_to_student: info, evaluation: null, next_question: null, end: false };
+
+      if (userId) {
+        void logTurn(supabase, {
+          userId,
+          caseId,
+          attemptStage,
+          tipRequest: false,
+          explainRequest: false,
+          clarifyQuestion: clarify,
+          focusQuestion: null,
+          lastStudentAnswer: lastStudentText || null,
+          modelOut: payload,
+        });
+      }
+
       return NextResponse.json(payload);
     }
 
@@ -218,56 +270,82 @@ Gib nur die kurze Erklärung (ohne neue Aufgabe).`.trim();
       const say = stripMd((outExplain.choices?.[0]?.message?.content || "").trim()) ||
         "Kurz erklärt: Relevanz, typisches Vorgehen und Fallstricke beachten.";
       const payload: ApiOut = { say_to_student: say, evaluation: null, next_question: null, end: false };
+
+      if (userId) {
+        void logTurn(supabase, {
+          userId,
+          caseId,
+          attemptStage,
+          tipRequest: false,
+          explainRequest: true,
+          clarifyQuestion: null,
+          focusQuestion: fallbackQuestion || null,
+          lastStudentAnswer: fallbackAnswer || null,
+          modelOut: payload,
+        });
+      }
+
       return NextResponse.json(payload);
     }
-// ---------- KICKOFF: Erstfrage ohne Bewertung (wenn noch keine Studentenantwort nach letzter Prüfer-Nachricht) ----------
-{
-  // Index der letzten Beiträge je Rolle
-  const lastStudentIdx = [...transcript].map((t) => t.role).lastIndexOf("student");
-  const lastExaminerIdx = [...transcript].map((t) => t.role).lastIndexOf("examiner");
 
-  const noStudentAfterExaminer =
-    lastExaminerIdx >= 0 && (lastStudentIdx < lastExaminerIdx || lastStudentIdx === -1);
+    // ---------- KICKOFF: Erstfrage ohne Bewertung ----------
+    {
+      const lastStudentIdx = [...transcript].map((t) => t.role).lastIndexOf("student");
+      const lastExaminerIdx = [...transcript].map((t) => t.role).lastIndexOf("examiner");
+      const noStudentAfterExaminer =
+        lastExaminerIdx >= 0 && (lastStudentIdx < lastExaminerIdx || lastStudentIdx === -1);
 
-  // Zusätzlich: typischer Startfall = nur Vignette vom Prüfer vorhanden
-  const isJustVignetteStart =
-    transcript.length === 1 &&
-    transcript[0]?.role === "examiner" &&
-    !/[?？]\s*$/.test(transcript[0]?.text || "");
+      const isJustVignetteStart =
+        transcript.length === 1 &&
+        transcript[0]?.role === "examiner" &&
+        !/[?？]\s*$/.test(transcript[0]?.text || "");
 
-  if (noStudentAfterExaminer || isJustVignetteStart) {
-    const sysKickoff = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
+      if (noStudentAfterExaminer || isJustVignetteStart) {
+        const sysKickoff = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
 Stelle GENAU EINE präzise Einstiegsfrage zur Vignette (ein Satz, Fragezeichen).
 KEINE Bewertung, KEIN Feedback, KEIN Tipp. Nur die Frage. Deutsch.`;
 
-    const usrKickoff = `Vignette: ${caseText}
+        const usrKickoff = `Vignette: ${caseText}
 ${outline.length ? `Prüfungs-Outline (optional): ${outline.join(" • ")}` : ""}
 Erzeuge NUR die Frage (ein Satz, Fragezeichen).`;
 
-    const outKick = await client.chat.completions.create({
-      model,
-      messages: [
-        { role: "system", content: sysKickoff },
-        { role: "user", content: usrKickoff },
-      ],
-      temperature: 0.2,
-    });
+        const outKick = await client.chat.completions.create({
+          model,
+          messages: [
+            { role: "system", content: sysKickoff },
+            { role: "user", content: usrKickoff },
+          ],
+          temperature: 0.2,
+        });
 
-    const qRaw = (outKick.choices?.[0]?.message?.content || "").trim();
-    const q = qRaw
-      .replace(/```[\s\S]*?```/g, "")
-      .replace(/[*_]{1,3}([^*_]+)[*_]{1,3}/g, "$1")
-      .trim();
+        const qRaw = (outKick.choices?.[0]?.message?.content || "").trim();
+        const q = stripMd(qRaw);
 
-    const payload: ApiOut = {
-      say_to_student: null,
-      evaluation: null,
-      next_question: q.endsWith("?") ? q : `${q}?`,
-      end: false,
-    };
-    return NextResponse.json(payload);
-  }
-}
+        const payload: ApiOut = {
+          say_to_student: null,
+          evaluation: null,
+          next_question: q.endsWith("?") ? q : `${q}?`,
+          end: false,
+        };
+
+        if (userId) {
+          void logTurn(supabase, {
+            userId,
+            caseId,
+            attemptStage,
+            tipRequest: false,
+            explainRequest: false,
+            clarifyQuestion: null,
+            focusQuestion: payload.next_question,
+            lastStudentAnswer: null,
+            modelOut: payload,
+          });
+        }
+
+        return NextResponse.json(payload);
+      }
+    }
+
     // ---------- MODE C: Normaler Prüfungszug ----------
     const sysExam = `Du bist Prüfer:in am 2. Tag (Theorie) des 3. Staatsexamens.
 Stil: ${style === "strict" ? "knapp, streng-sachlich" : "freundlich-klar, coaching-orientiert"}.
@@ -331,10 +409,85 @@ Erzeuge NUR das JSON-Objekt.`.trim();
     payload.next_question = stripMd((payload.next_question ?? "") as string) || null;
     payload.end = Boolean(payload.end);
 
+    // 🔐 Persistenz (nicht blockierend)
+    if (userId) {
+      const lastStudentAns = [...transcript].reverse().find((t) => t.role === "student")?.text || null;
+      void logTurn(supabase, {
+        userId,
+        caseId,
+        attemptStage,
+        tipRequest: false,
+        explainRequest: false,
+        clarifyQuestion: null,
+        focusQuestion: payload.next_question,
+        lastStudentAnswer: lastStudentAns,
+        modelOut: payload,
+      });
+      if (typeof points === "number" || typeof progressPct === "number") {
+        void upsertProgress(supabase, { userId, caseId, points, progressPct });
+      }
+    }
+
     return NextResponse.json(payload);
 
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : typeof err === "string" ? err : "LLM error";
     return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+/* ---------------------- Helpers: Supabase Writes ---------------------- */
+
+type LogTurnArgs = {
+  userId: string;
+  caseId?: string;
+  attemptStage: number;
+  tipRequest: boolean;
+  explainRequest: boolean;
+  clarifyQuestion: string | null;
+  focusQuestion: string | null;
+  lastStudentAnswer: string | null;
+  modelOut: ApiOut;
+};
+
+async function logTurn(
+  supabase: ReturnType<typeof createClient>,
+  args: LogTurnArgs
+) {
+  try {
+    await supabase.from("exam_turns").insert({
+      user_id: args.userId,
+      case_id: args.caseId ?? null,
+      attempt_stage: args.attemptStage,
+      tip_request: args.tipRequest,
+      explain_request: args.explainRequest,
+      clarify_question: args.clarifyQuestion,
+      focus_question: args.focusQuestion,
+      last_student_answer: args.lastStudentAnswer,
+      model_out: args.modelOut,
+    });
+  } catch {
+    // bewusst geschluckt – App-Fluss nicht stören
+  }
+}
+
+async function upsertProgress(
+  supabase: ReturnType<typeof createClient>,
+  params: { userId: string; caseId?: string; points?: number; progressPct?: number }
+) {
+  const { userId, caseId, points, progressPct } = params;
+  if (!caseId) return;
+  try {
+    await supabase
+      .from("user_progress")
+      .upsert({
+        user_id: userId,
+        case_id: caseId,
+        points: typeof points === "number" ? points : undefined,
+        progress_pct: typeof progressPct === "number" ? progressPct : undefined,
+        updated_at: new Date().toISOString(),
+      });
+  } catch {
+    // nicht blockieren
   }
 }
