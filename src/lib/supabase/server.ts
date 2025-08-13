@@ -2,50 +2,55 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 
-export function createClient() {
-  const cookieStore = cookies();
+// Ein kleines Interface, damit wir kein `any` brauchen:
+type CookieValue = { value?: string };
+type CookieSetInput = { name: string; value: string } & Record<string, unknown>;
+interface CookieStoreLike {
+  get(name: string): CookieValue | undefined;
+  set(options: CookieSetInput): void;
+}
 
+export function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
   if (!url || !anonKey) {
     throw new Error(
       "Supabase ist nicht konfiguriert: Bitte NEXT_PUBLIC_SUPABASE_URL und NEXT_PUBLIC_SUPABASE_ANON_KEY setzen."
     );
   }
 
-  // Ohne generischen Typ -> kein ./types Import nötig
+  // `cookies()` ist in manchen Next-Versionen als Promise typisiert.
+  // Zur Laufzeit ist es (im Node-SSR-Kontext) synchron nutzbar – wir casten deshalb bewusst.
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-expect-error Next kann cookies() als Promise typisieren; wir erzwingen synchronen Zugriff
+  const cookieStore = cookies() as unknown as CookieStoreLike;
+
   return createServerClient(url, anonKey, {
     cookies: {
       get(name: string) {
-        // Next.js cookies() ist im RSC-Kontext read-only → nur Wert zurückgeben
         return cookieStore.get(name)?.value;
       },
-      set(name: string, value: string, options?: Parameters<typeof cookieStore.set>[0]) {
-        // In Route-Handlern/Server Actions ist Setzen erlaubt; in reinen RSC ggf. no-op
+      set(name: string, value: string, options?: Record<string, unknown>) {
         try {
-          // cookieStore.set akzeptiert ein Objekt; wir mappen name/value hinein
           cookieStore.set({
-            // @ts-expect-error – Next-Types sind hier etwas strikt; zur Laufzeit funktioniert es
             name,
             value,
             ...(options ?? {}),
           });
         } catch {
-          // no-op in read-only Kontexten
+          // read-only Kontext (z. B. reine RSC) → ignorieren
         }
       },
-      remove(name: string, options?: Parameters<typeof cookieStore.set>[0]) {
+      remove(name: string, options?: Record<string, unknown>) {
         try {
           cookieStore.set({
-            // @ts-expect-error wie oben
             name,
             value: "",
             ...(options ?? {}),
             maxAge: 0,
           });
         } catch {
-          // no-op
+          // read-only Kontext → ignorieren
         }
       },
     },
