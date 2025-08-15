@@ -583,7 +583,7 @@ export default function ExamPage() {
                   }`}
                 >
                   <span className="text-sm leading-relaxed">
-                    <b className="opacity-80">{t.role === "prof" ? "Prüfer" : "Du"}:</b> {t.text}
+                    <b className="opacity-80">{t.role === "prof" ? "👨🏻‍🏫Prüfer" : "Du"}:</b> {t.text}
                   </span>
                 </div>
               </div>
