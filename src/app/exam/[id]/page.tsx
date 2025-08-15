@@ -11,14 +11,38 @@ import ScorePill from "@/components/ScorePill";
 
 /** ---- Zusatttypen für optionale Step-Infos ---- */
 type RevealWhen = "on_enter" | "always" | "after_answer" | "after_full" | "after_partial";
+type RevealConfig = { when: RevealWhen; content?: RevealContent };
 
-type RevealConfig = {
-  when: RevealWhen;
-  content?: unknown; // wird unter formatReveal sicher gehandhabt
+/** ---- Typen für Reveal-Inhalte (kein any) ---- */
+type RevealVitals = {
+  rr?: string;
+  puls?: number | string;
+  temp?: number | string;
+  spo2?: number | string;
+};
+type RevealLabEntry =
+  | {
+      wert?: number | string;
+      einheit?: string;
+      referenz?: string;
+    }
+  | string
+  | number;
+type RevealBildgebung = {
+  ultraschall?: string;
+  ct?: string;
+  mrt?: string;
+};
+type RevealContent = {
+  befundpaketTitel?: string;
+  vitalparameter?: RevealVitals;
+  labor?: Record<string, RevealLabEntry>;
+  bildgebung?: RevealBildgebung;
+  interpretationKurz?: string;
+  [k: string]: unknown; // tolerant für zukünftige Felder
 };
 
 type CaseStepExtra = {
-  // alles optional, damit wir mit deinem bestehenden Case-Schema kompatibel bleiben
   prompt: string;
   order: number;
   rule?: unknown;
@@ -53,17 +77,17 @@ export default function ExamPage() {
   const c = (CASES.find((x) => x.id === caseId) ?? null) as CaseWithRules | null;
 
   // *** State ***
-  const [asked, setAsked] = useState<Asked[]>([]);               // sichtbare Fragen (wächst dynamisch)
+  const [asked, setAsked] = useState<Asked[]>([]); // sichtbare Fragen (wächst dynamisch)
   const [style, setStyle] = useState<"strict" | "coaching">("coaching");
   const [ended, setEnded] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Aktueller Schritt (aktiv zu beantworten) + Ansicht (Review)
-  const [activeIndex, setActiveIndex] = useState<number>(0);     // der Schritt, der beantwortet wird
-  const [viewIndex, setViewIndex] = useState<number>(0);         // der Schritt, der angezeigt wird (Review erlaubt)
+  // Aktueller Schritt (beantworten) + Ansicht (Review)
+  const [activeIndex, setActiveIndex] = useState<number>(0);
+  const [viewIndex, setViewIndex] = useState<number>(0);
 
   // Chats pro Schritt
-  const [chats, setChats] = useState<Turn[][]>([]);              // ein Chat-Array pro Schritt
+  const [chats, setChats] = useState<Turn[][]>([]);
   const listRef = useRef<HTMLDivElement | null>(null);
 
   // Punkte pro Schritt (Bestwert) → verhindert Doppelzählung
@@ -71,9 +95,9 @@ export default function ExamPage() {
   const [lastCorrectness, setLastCorrectness] =
     useState<"correct" | "partially_correct" | "incorrect" | null>(null);
 
-  // Versuchszähler für den aktiven Schritt
-  const [attemptCount, setAttemptCount] = useState<number>(0);   // 0→1. Versuch, 1→2., >=2 → 3. (Lösung)
-  const [canAdvance, setCanAdvance] = useState<boolean>(false);  // „Nächste Frage“ freigeben?
+  // Versuche für den aktiven Schritt
+  const [attemptCount, setAttemptCount] = useState<number>(0); // 0→1. Versuch, 1→2., >=2 → 3. (Lösung)
+  const [canAdvance, setCanAdvance] = useState<boolean>(false); // „Nächste Frage“ freigeben?
 
   const [input, setInput] = useState("");
 
@@ -95,7 +119,6 @@ export default function ExamPage() {
   );
 
   const nSteps = stepsOrdered.length;
-
   const currentPrompt = stepsOrdered[activeIndex]?.prompt ?? "";
   const stepRule: unknown = stepsOrdered[activeIndex]?.rule ?? null;
 
@@ -107,10 +130,7 @@ export default function ExamPage() {
   const stepReveal: RevealConfig | null = stepsOrdered[activeIndex]?.reveal ?? null;
 
   const maxPoints = useMemo<number>(
-    () =>
-      stepsOrdered.reduce((acc, s) => {
-        return acc + (typeof s.points === "number" ? s.points : 2);
-      }, 0),
+    () => stepsOrdered.reduce((acc, s) => acc + (typeof s.points === "number" ? s.points : 2), 0),
     [stepsOrdered]
   );
 
@@ -118,7 +138,7 @@ export default function ExamPage() {
     () => perStepScores.reduce((a, b) => a + (b || 0), 0),
     [perStepScores]
   );
-  const totalPoints = Math.min(Math.round(totalPointsRaw * 10) / 10, maxPoints); // ✅ clamp gegen >100%
+  const totalPoints = Math.min(Math.round(totalPointsRaw * 10) / 10, maxPoints); // clamp ≤ maxPoints
 
   // Fortschritt = erledigte Schritte (Status != pending) / alle Schritte
   const progressPct = useMemo<number>(() => {
@@ -144,6 +164,7 @@ export default function ExamPage() {
   }
   const normalize = (s: string) =>
     s.toLowerCase().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "").trim();
+
   function pushProf(step: number, text?: string | null) {
     if (!text || !text.trim()) return;
     const t = text.trim();
@@ -152,8 +173,7 @@ export default function ExamPage() {
       const arr = copy[step] ?? [];
       const lastProf = [...arr].reverse().find((x) => x.role === "prof");
       if (!lastProf || normalize(lastProf.text) !== normalize(t)) {
-        const next = [...arr, { role: "prof", text: t }];
-        copy[step] = next;
+        copy[step] = [...arr, { role: "prof", text: t }];
       }
       return copy;
     });
@@ -182,34 +202,31 @@ export default function ExamPage() {
     return false;
   }
 
-  function formatReveal(content: unknown): string {
+  function formatReveal(content: RevealContent | undefined): string {
     try {
-      const c = content as Record<string, unknown> | null;
-      const title =
-        c && typeof c.befundpaketTitel === "string" ? (c.befundpaketTitel as string) : undefined;
+      const c = content ?? {};
+      const title = typeof c.befundpaketTitel === "string" ? c.befundpaketTitel : undefined;
 
       const parts: string[] = [];
 
-      const vital = c && typeof c.vitalparameter === "object" ? (c.vitalparameter as Record<string, unknown>) : null;
-      if (vital) {
-        const rr = typeof vital.rr === "string" ? vital.rr : "?";
-        const puls = typeof vital.puls === "number" || typeof vital.puls === "string" ? vital.puls : "?";
-        const temp = typeof vital.temp === "number" || typeof vital.temp === "string" ? vital.temp : "?";
-        const spo2 = typeof vital.spo2 === "number" || typeof vital.spo2 === "string" ? vital.spo2 : "?";
+      // Vitalparameter
+      if (c.vitalparameter && typeof c.vitalparameter === "object") {
+        const v = c.vitalparameter as RevealVitals;
+        const rr = v.rr ?? "?";
+        const puls = v.puls ?? "?";
+        const temp = v.temp ?? "?";
+        const spo2 = v.spo2 ?? "?";
         parts.push(`Vitalparameter: RR ${rr}, Puls ${puls}/min, Temp ${temp}°C, SpO₂ ${spo2}`);
       }
 
-      const lab = c && typeof c.labor === "object" ? (c.labor as Record<string, unknown>) : null;
-      if (lab) {
+      // Labor
+      if (c.labor && typeof c.labor === "object") {
         const labPairs: string[] = [];
-        for (const k of Object.keys(lab)) {
-          const entry = lab[k] as Record<string, unknown> | unknown;
+        for (const k of Object.keys(c.labor)) {
+          const entry = c.labor[k];
           if (entry && typeof entry === "object" && "wert" in (entry as Record<string, unknown>)) {
-            const e = entry as Record<string, unknown>;
-            const wert = e.wert as string | number | undefined;
-            const einheit = (e.einheit as string | undefined) ?? "";
-            const referenz = (e.referenz as string | undefined) ?? "";
-            labPairs.push(`${k}: ${wert ?? "?"} ${einheit} (Ref ${referenz})`);
+            const e = entry as { wert?: number | string; einheit?: string; referenz?: string };
+            labPairs.push(`${k}: ${e.wert ?? "?"} ${e.einheit ?? ""} (Ref ${e.referenz ?? "?"})`);
           } else {
             labPairs.push(`${k}: ${String(entry)}`);
           }
@@ -217,22 +234,29 @@ export default function ExamPage() {
         parts.push(`Labor: ${labPairs.join(", ")}`);
       }
 
-      const sono =
-        c && typeof c.bildgebung === "object" && c.bildgebung && typeof (c.bildgebung as any).ultraschall === "string"
-          ? ((c.bildgebung as Record<string, unknown>).ultraschall as string)
-          : null;
-      if (sono) parts.push(`Sono: ${sono}`);
+      // Bildgebung
+      if (c.bildgebung && typeof c.bildgebung === "object") {
+        const im = c.bildgebung as RevealBildgebung;
+        if (typeof im.ultraschall === "string" && im.ultraschall.trim()) {
+          parts.push(`Sono: ${im.ultraschall}`);
+        } else if (typeof im.ct === "string" && im.ct.trim()) {
+          parts.push(`CT: ${im.ct}`);
+        } else if (typeof im.mrt === "string" && im.mrt.trim()) {
+          parts.push(`MRT: ${im.mrt}`);
+        }
+      }
 
-      const kurz =
-        c && typeof c.interpretationKurz === "string" ? (c.interpretationKurz as string) : null;
-      if (kurz) parts.push(`Kurzinterpretation: ${kurz}`);
+      // Kurzinterpretation
+      if (typeof c.interpretationKurz === "string" && c.interpretationKurz.trim()) {
+        parts.push(`Kurzinterpretation: ${c.interpretationKurz}`);
+      }
 
       if (title || parts.length > 0) {
         return `🔎 ${title ?? "Zusatzinformation"}\n- ${parts.join("\n- ")}`;
       }
 
       // Fallback
-      return `Zusatzinfo:\n${JSON.stringify(content, null, 2)}`;
+      return `Zusatzinfo:\n${JSON.stringify(c, null, 2)}`;
     } catch {
       return "Zusatzinfo verfügbar.";
     }
@@ -255,14 +279,14 @@ export default function ExamPage() {
           role: t.role === "prof" ? "examiner" : "student",
           text: t.text,
         })),
-        outline: [], // ➜ verhindert Auto-NEXT
+        outline: [], // verhindert Auto-NEXT
         style,
         objectives: c.objectives ?? [],
         completion: c.completion ?? null,
 
         // pro Frage bewerten
         stepIndex: activeIndex,
-        stepsPrompts: [], // ➜ verhindert Auto-NEXT
+        stepsPrompts: [], // verhindert Auto-NEXT
         stepRule,
         focusQuestion: currentPrompt,
       };
@@ -294,17 +318,14 @@ export default function ExamPage() {
         const { correctness, feedback, tips } = data.evaluation;
         setLastCorrectness(correctness);
 
-        // Punkte für diesen Schritt als Bestwert (Delta-Update)
+        // Punkte → Bestwert je Schritt
         setPerStepScores((prev) => {
           const curPrev = prev[activeIndex] || 0;
           const candidate =
-            correctness === "correct"
-              ? stepPoints
-              : correctness === "partially_correct"
-              ? stepPoints * 0.5
-              : 0;
+            correctness === "correct" ? stepPoints :
+            correctness === "partially_correct" ? stepPoints * 0.5 : 0;
           const best = Math.max(curPrev, candidate);
-          if (best === curPrev) return prev; // keine Änderung
+          if (best === curPrev) return prev;
           const copy = [...prev];
           copy[activeIndex] = Math.min(Math.round(best * 10) / 10, stepPoints);
           return copy;
@@ -334,11 +355,11 @@ export default function ExamPage() {
         ].filter(Boolean);
         if (!hadSolution) pushProf(activeIndex, parts.join(" "));
 
-        // Weiter nur bei korrekt oder wenn Lösung erschien (3. Versuch)
+        // Weiter nur bei korrekt oder „Lösung:“ (3. Versuch)
         setCanAdvance(correctness === "correct" || hadSolution);
       }
 
-      // Reveal (falls konfiguriert)
+      // Reveal (falls konfiguriert) nach Bewertung/Lösung
       if (stepReveal && shouldReveal(stepReveal, data.evaluation, hadSolution)) {
         pushProf(activeIndex, formatReveal(stepReveal.content));
       }
@@ -388,7 +409,6 @@ export default function ExamPage() {
 
   function onSend() {
     if (!c || loading || ended) return;
-    // Nur im aktiven Schritt antworten
     if (viewIndex !== activeIndex) return;
 
     const text = input.trim();
@@ -397,9 +417,7 @@ export default function ExamPage() {
     pushStudent(activeIndex, text);
     setInput("");
 
-    // Versuchszähler hoch (ab 3. Send bleibt attemptStage bei 3)
     setAttemptCount((n) => (n >= 2 ? 2 : n + 1));
-
     const current = [...(chats[activeIndex] ?? []), { role: "student", text }];
     void callExamAPI(current, { mode: "answer" });
   }
@@ -433,7 +451,6 @@ export default function ExamPage() {
       return copy;
     });
 
-    // Status/Steuerung
     setActiveIndex(idx);
     setViewIndex(idx);
     setAttemptCount(0);
@@ -509,16 +526,17 @@ export default function ExamPage() {
                 <li key={a.index} className="flex items-start gap-2 text-sm leading-snug">
                   <span className={`mt-1 inline-block h-3 w-3 rounded-full ${dot}`} />
                   <button
-                    type="button"
-                    onClick={() => setViewIndex(a.index)}
-                    className={`appearance-none bg-transparent border-0 p-0 m-0 text-left leading-snug cursor-pointer text-[13px]
-                      ${a.index === viewIndex ? "font-semibold underline" : ""}
-                      ${a.index === activeIndex ? "text-gray-900" : "text-gray-800"}
-                      hover:underline focus:outline-none focus-visible:underline`}
-                    title="Frage ansehen"
-                  >
-                    {a.text}
-                  </button>
+  type="button"
+  onClick={() => setViewIndex(a.index)}
+  className={`[all:unset] cursor-pointer select-none text-[13px] leading-snug
+    ${a.index === viewIndex ? "font-semibold underline" : ""}
+    ${a.index === activeIndex ? "!text-gray-900" : "!text-gray-800"}
+    hover:underline focus-visible:underline
+    !bg-transparent !shadow-none !ring-0 !outline-none`}
+  title="Frage ansehen"
+>
+  {a.text}
+</button>
                 </li>
               );
             })}
@@ -560,7 +578,7 @@ export default function ExamPage() {
           </div>
         </aside>
 
-        {/* Rechte Spalte: Chat pro Frage (Review- oder aktiver Modus) */}
+        {/* Rechte Spalte: Chat */}
         <section className="relative flex flex-col gap-3">
           <div
             ref={listRef}
