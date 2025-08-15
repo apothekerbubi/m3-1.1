@@ -9,6 +9,23 @@ import type { Case } from "@/lib/types";
 import ProgressBar from "@/components/ProgressBar";
 import ScorePill from "@/components/ScorePill";
 
+/** ---- Zusatttypen für optionale Step-Infos ---- */
+type RevealWhen = "always" | "after_answer" | "after_full" | "after_partial";
+
+type RevealConfig = {
+  when: RevealWhen;
+  content?: unknown; // wird unter formatReveal sicher gehandhabt
+};
+
+type CaseStepExtra = {
+  // alles optional, damit wir mit deinem bestehenden Case-Schema kompatibel bleiben
+  prompt: string;
+  order: number;
+  rule?: unknown;
+  points?: number;
+  reveal?: RevealConfig | null;
+};
+
 // ---- Lokale UI-Typen ----
 type Turn = { role: "prof" | "student"; text: string };
 
@@ -61,47 +78,57 @@ export default function ExamPage() {
   const [input, setInput] = useState("");
 
   // *** Abgeleitete Daten ***
-  const stepsOrdered = useMemo(
-    () => (c ? [...c.steps].sort((a, b) => a.order - b.order) : []),
+  const stepsOrdered = useMemo<CaseStepExtra[]>(
+    () =>
+      c
+        ? [...c.steps]
+            .sort((a, b) => a.order - b.order)
+            .map((s) => ({
+              prompt: (s as unknown as { prompt: string }).prompt,
+              order: (s as unknown as { order: number }).order,
+              rule: (s as Partial<CaseStepExtra>).rule,
+              points: (s as Partial<CaseStepExtra>).points,
+              reveal: (s as Partial<CaseStepExtra>).reveal ?? null,
+            }))
+        : [],
     [c]
   );
+
   const nSteps = stepsOrdered.length;
 
   const currentPrompt = stepsOrdered[activeIndex]?.prompt ?? "";
-  const stepRule = (stepsOrdered[activeIndex] as any)?.rule ?? null;
-  const stepPoints = useMemo(() => {
-    const p = (stepsOrdered[activeIndex] as any)?.points as number | undefined;
+  const stepRule: unknown = stepsOrdered[activeIndex]?.rule ?? null;
+
+  const stepPoints = useMemo<number>(() => {
+    const p = stepsOrdered[activeIndex]?.points;
     return typeof p === "number" ? p : 2;
   }, [stepsOrdered, activeIndex]);
-  const stepReveal = (stepsOrdered[activeIndex] as any)?.reveal ?? null;
 
-  const maxPoints = useMemo(
+  const stepReveal: RevealConfig | null = stepsOrdered[activeIndex]?.reveal ?? null;
+
+  const maxPoints = useMemo<number>(
     () =>
       stepsOrdered.reduce((acc, s) => {
-        const p = (s as any).points;
-        return acc + (typeof p === "number" ? p : 2);
+        return acc + (typeof s.points === "number" ? s.points : 2);
       }, 0),
     [stepsOrdered]
   );
 
-  const totalPointsRaw = useMemo(
+  const totalPointsRaw = useMemo<number>(
     () => perStepScores.reduce((a, b) => a + (b || 0), 0),
     [perStepScores]
   );
-  const totalPoints = Math.min(
-    Math.round(totalPointsRaw * 10) / 10,
-    maxPoints
-  ); // ✅ clamp gegen >100%
+  const totalPoints = Math.min(Math.round(totalPointsRaw * 10) / 10, maxPoints); // ✅ clamp gegen >100%
 
   // Fortschritt = erledigte Schritte (Status != pending) / alle Schritte
-  const progressPct = useMemo(() => {
+  const progressPct = useMemo<number>(() => {
     const total = Math.max(1, nSteps);
     const done = asked.filter((a) => a.status !== "pending").length;
     return Math.round((done / total) * 100);
   }, [asked, nSteps]);
 
-  // Chat der aktuellen Ansicht (Review oder aktiv)
-  const viewChat: Turn[] = chats[viewIndex] ?? [];
+  // Chat der aktuellen Ansicht (Review oder aktiv) — via useMemo, damit useEffect-Deps stabil bleiben
+  const viewChat: Turn[] = useMemo(() => chats[viewIndex] ?? [], [chats, viewIndex]);
 
   // *** UI Helpers ***
   useEffect(() => {
@@ -141,45 +168,72 @@ export default function ExamPage() {
   }
 
   function shouldReveal(
-    now: { when: string } | null,
-    correctness: ApiReply["evaluation"] | null,
+    now: RevealConfig | null,
+    evaluation: ApiReply["evaluation"] | null,
     hadSolution: boolean
   ): boolean {
     if (!now) return false;
-    const w = (now as any).when as string;
+    const w = now.when;
     if (w === "always") return true;
-    if (w === "after_answer") return Boolean(correctness) || hadSolution;
-    if (w === "after_full") return correctness?.correctness === "correct";
+    if (w === "after_answer") return Boolean(evaluation) || hadSolution;
+    if (w === "after_full") return evaluation?.correctness === "correct";
     if (w === "after_partial")
-      return correctness?.correctness === "partially_correct" || correctness?.correctness === "correct";
+      return evaluation?.correctness === "partially_correct" || evaluation?.correctness === "correct";
     return false;
   }
 
   function formatReveal(content: unknown): string {
+    // Wir versuchen, bekannte Felder (z. B. Vitalparameter/Labor) hübsch zu rendern,
+    // fallen ansonsten auf JSON zurück – ohne any-Casts.
     try {
-      if (content && typeof content === "object" && (content as any).befundpaketTitel) {
-        const c = content as any;
-        const lines: string[] = [];
-        if (c.vitalparameter) {
-          const v = c.vitalparameter;
-          lines.push(
-            `Vitalparameter: RR ${v.rr ?? "?"}, Puls ${v.puls ?? "?"}/min, Temp ${v.temp ?? "?"}°C, SpO₂ ${v.spo2 ?? "?"}`
-          );
-        }
-        if (c.labor) {
-          const lab = c.labor;
-          const labPairs = Object.keys(lab).map((k) => {
-            const e = lab[k];
-            if (e && typeof e === "object" && "wert" in e)
-              return `${k}: ${e.wert} ${e.einheit ?? ""} (Ref ${e.referenz ?? ""})`;
-            return `${k}: ${String(lab[k])}`;
-          });
-          lines.push(`Labor: ${labPairs.join(", ")}`);
-        }
-        if (c.bildgebung?.ultraschall) lines.push(`Sono: ${c.bildgebung.ultraschall}`);
-        if (c.interpretationKurz) lines.push(`Kurzinterpretation: ${c.interpretationKurz}`);
-        return `🔎 ${c.befundpaketTitel}\n- ${lines.join("\n- ")}`;
+      const c = content as Record<string, unknown> | null;
+      const title =
+        c && typeof c.befundpaketTitel === "string" ? (c.befundpaketTitel as string) : undefined;
+
+      const parts: string[] = [];
+
+      const vital = c && typeof c.vitalparameter === "object" ? (c.vitalparameter as Record<string, unknown>) : null;
+      if (vital) {
+        const rr = typeof vital.rr === "string" ? vital.rr : "?";
+        const puls = typeof vital.puls === "number" || typeof vital.puls === "string" ? vital.puls : "?";
+        const temp = typeof vital.temp === "number" || typeof vital.temp === "string" ? vital.temp : "?";
+        const spo2 = typeof vital.spo2 === "number" || typeof vital.spo2 === "string" ? vital.spo2 : "?";
+        parts.push(`Vitalparameter: RR ${rr}, Puls ${puls}/min, Temp ${temp}°C, SpO₂ ${spo2}`);
       }
+
+      const lab = c && typeof c.labor === "object" ? (c.labor as Record<string, unknown>) : null;
+      if (lab) {
+        const labPairs: string[] = [];
+        for (const k of Object.keys(lab)) {
+          const entry = lab[k] as Record<string, unknown> | unknown;
+          if (entry && typeof entry === "object" && "wert" in (entry as Record<string, unknown>)) {
+            const e = entry as Record<string, unknown>;
+            const wert = e.wert as string | number | undefined;
+            const einheit = (e.einheit as string | undefined) ?? "";
+            const referenz = (e.referenz as string | undefined) ?? "";
+            labPairs.push(`${k}: ${wert ?? "?"} ${einheit} (Ref ${referenz})`);
+          } else {
+            labPairs.push(`${k}: ${String(entry)}`);
+          }
+        }
+        parts.push(`Labor: ${labPairs.join(", ")}`);
+      }
+
+      const sono =
+        c && typeof c.bildgebung === "object" && c.bildgebung && typeof (c.bildgebung as any).ultraschall === "string"
+          ? ((c.bildgebung as Record<string, unknown>).ultraschall as string)
+          : null;
+      if (sono) parts.push(`Sono: ${sono}`);
+
+      const kurz =
+        c && typeof c.interpretationKurz === "string" ? (c.interpretationKurz as string) : null;
+      if (kurz) parts.push(`Kurzinterpretation: ${kurz}`);
+
+      if (title || parts.length > 0) {
+        return `🔎 ${title ?? "Zusatzinformation"}\n- ${parts.join("\n- ")}`;
+      }
+
+      // Fallback
       return `Zusatzinfo:\n${JSON.stringify(content, null, 2)}`;
     } catch {
       return "Zusatzinfo verfügbar.";
@@ -287,15 +341,15 @@ export default function ExamPage() {
       }
 
       // Reveal (falls konfiguriert)
-      if (stepReveal && shouldReveal(stepReveal as any, data.evaluation, hadSolution)) {
-        pushProf(activeIndex, formatReveal((stepReveal as any).content));
+      if (stepReveal && shouldReveal(stepReveal, data.evaluation, hadSolution)) {
+        pushProf(activeIndex, formatReveal(stepReveal.content));
       }
 
       // Zusätzliche Prüfer-Nachrichten (Tip/Explain)
       if (!hadSolution && (!data.evaluation || !data.evaluation.feedback) && data.say_to_student) {
         pushProf(activeIndex, data.say_to_student);
       }
-    } catch (e) {
+    } catch (e: unknown) {
       alert(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);

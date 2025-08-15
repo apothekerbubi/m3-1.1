@@ -1,35 +1,26 @@
-// Hinweis:
-// Ich habe pro Schritt zwei optionale Felder ergänzt:
-//   - points: maximale Punktzahl für die Frage
-//   - reveal: was nach dem Schritt automatisch preisgegeben wird (z.B. Befunde)
-// Falls dein Case-Typ diese Felder noch nicht kennt, ergänze sie in deinem
-// "Case"- und "Step"-Type als optionale Properties, damit es weiter typ-sicher bleibt.
-// (z.B. interface Step { points?: number; reveal?: { when: "after_answer"|"after_full"|"after_partial"; content: unknown } })
-
+// src/data/cases/pankreatitis_001.ts
 import type { Case } from "@/lib/types";
 
 export const pankreatitis_001: Case = {
   id: "pankreatitis_001",
-  title:
-    "Akute Pankreatitis – Klinik, Differenzialdiagnose, diagnostisches Vorgehen, Schweregrade, Therapie",
+  title: "Oberbauchschmerzen",
   shortTitle: "Akute Pankreatitis",
   vignette:
-    "48-jähriger Patient mit starken epigastrischen Schmerzen mit Ausstrahlung in den Rücken, Übelkeit und Erbrechen. Beginn vor 6 Stunden, progredient. Anamnestisch regelmäßiger Alkoholkonsum.",
+    "48-jähriger Patient mit starken epigastrischen Schmerzen mit Ausstrahlung in den Rücken, Übelkeit und Erbrechen kommt in die Notaufnahme. Beginn vor ca. 6 Stunden, Symptomatik progredient. Anamnestisch regelmäßiger Alkoholkonsum.",
   specialty: "Innere Medizin",
   subspecialty: "Gastroenterologie",
 
   difficulty: 3,
-  tags: ["Pankreatitis", "Bauchschmerz", "Labor", "Diagnostik", "Therapie"],
+  tags: ["Pankreatitis", "Bauchschmerz", "Oberbauchschmerz"],
 
-  // *** Neuer, strikt sequentieller Aufbau ***
   steps: [
-    // 1) Differenzialdiagnosen
+    // 1) DDx
     {
       order: 1,
       points: 3,
       prompt:
-        "Welche 3 differenzialdiagnostisch wichtigen Ursachen ziehen Sie bei akuten epigastrischen Schmerzen mit Rückenausstrahlung in Betracht?",
-      hint: "Strukturiere nach GI / kardial / Gefäße; nenne mind. eine zeitkritische Option.",
+        "Welche 3 differenzialdiagnostisch wichtigen Ursachen aus mind. zwei verschiednen Organsystemen ziehen Sie bei akuten epigastrischen Schmerzen mit Rückenausstrahlung in Betracht?",
+      hint: "Denke an Erkrankungen die mit Schmerzausstrahlung in den Rücken einhergehen können",
       rule: {
         mode: "categories",
         categories: {
@@ -43,27 +34,21 @@ export const pankreatitis_001: Case = {
           ],
           kardial: ["akutes koronares syndrom", "myokardinfarkt", "acs"],
           vaskulär: ["aortendissektion", "abdominelles aortenaneurysma", "aaa"],
-          urologisch: [
-            "pyelonephritis",
-            "nierenkolik",
-            "nierenstein",
-            "harnleiterstein",
-          ],
+          urologisch: ["pyelonephritis", "nierenkolik", "nierenstein", "harnleiterstein"],
         },
         minCategories: 2,
-        minHits: 3, // ≥3 Nennungen -> volle Punkte
+        minHits: 3,
         forbidden: ["appendizitis"],
-        hint_general:
-          "Häufig + zeitkritisch priorisieren: GI, kardial, große Gefäße.",
+        hint_general: "Häufig + zeitkritisch priorisieren: GI, kardial, große Gefäße.",
       },
     },
 
-    // 2) Diagnostisches Vorgehen (danach Befunde offenlegen)
+    // 2) Diagnostisches Vorgehen (KEIN Reveal hier!)
     {
       order: 2,
       points: 3,
-      prompt: "Wie gehen Sie in der Akutdiagnostik strukturiert vor? Nennen Sie die SÄULEN.",
-      hint: "Denk in Säulen: körperliche Untersuchung, Labor (inkl. Lipase), Bildgebung (primär Sono).",
+      prompt: "Wie gehen Sie in der Akutdiagnostik strukturiert vor?",
+      hint: "Denke an das übliche Vorgehen in der Diagnostik und welche Diagnostik hier besonders gefragt ist",
       rule: {
         mode: "allOf",
         required: ["körperliche untersuchung", "labor", "bildgebung"],
@@ -82,30 +67,38 @@ export const pankreatitis_001: Case = {
             "crp",
             "pankreasenzyme",
           ],
-          bildgebung: [
-            "ultraschall",
-            "sono",
-            "ct",
-            "mrt",
-            "mrcp",
-            "endosonografie",
-            "eus",
+          bildgebung: ["ultraschall", "sono", "ct", "mrt", "mrcp", "endosonografie", "eus"],
+        },
+        minHits: 2,
+        hint_general:
+          "Denke an das übliche Vorgehen in der Diagnostik und welche Diagnostik hier besonders gefragt ist",
+      },
+    },
+
+    // 3) Diagnose — Reveal direkt zum Start dieser Frage
+    {
+      order: 3,
+      points: 2,
+      prompt:
+        "Was ist auf Basis von Anamnese, Untersuchung und Befunden die wahrscheinlichste Diagnose?",
+      hint: "Leitsymptome + Lipase/Amylase ≥3× ULN + Sono-Befund zusammenführen.",
+      rule: {
+        mode: "anyOf",
+        expected: ["akute pankreatitis", "pankreatitis"],
+        synonyms: {
+          "akute pankreatitis": [
+            "entzündung der bauchspeicheldrüse",
+            "akute entzündung des pankreas",
           ],
         },
-        minHits: 2, // ≥2 Säulen -> Teilpunkte; alle 3 -> volle Punkte
-        hint_general:
-          "Nenne KU, Labor (inkl. Lipase) und Bildgebung (Sono zuerst).",
+        forbidden: ["appendizitis"],
+        hint_general: "≥2 der 3 Diagnostikkriterien erfüllt.",
       },
       reveal: {
-        when: "after_answer",
+        when: "on_enter", // ⬅️ NEU: beim Öffnen von Frage 3 anzeigen
         content: {
           befundpaketTitel: "Ergebnis der initialen Diagnostik",
-          vitalparameter: {
-            rr: "135/82 mmHg",
-            puls: 98,
-            temp: 37.9,
-            spo2: "97%",
-          },
+          vitalparameter: { rr: "135/82 mmHg", puls: 98, temp: 37.9, spo2: "97%" },
           labor: {
             lipase: { wert: 820, einheit: "U/L", referenz: "<60" },
             amylase: { wert: 650, einheit: "U/L", referenz: "<100" },
@@ -126,27 +119,6 @@ export const pankreatitis_001: Case = {
       },
     },
 
-    // 3) Wahrscheinlichste Diagnose
-    {
-      order: 3,
-      points: 2,
-      prompt:
-        "Was ist auf Basis von Anamnese, Untersuchung und Befunden die wahrscheinlichste Diagnose?",
-      hint: "Leitsymptome + Lipase/Amylase ≥3× ULN + Sono-Befund zusammenführen.",
-      rule: {
-        mode: "anyOf",
-        expected: ["akute pankreatitis", "pankreatitis"],
-        synonyms: {
-          "akute pankreatitis": [
-            "entzündung der bauchspeicheldrüse",
-            "akute entzündung des pankreas",
-          ],
-        },
-        forbidden: ["appendizitis"],
-        hint_general: "≥2 der 3 Diagnostikkriterien erfüllt.",
-      },
-    },
-
     // 4) Initiale Therapie
     {
       order: 4,
@@ -155,12 +127,7 @@ export const pankreatitis_001: Case = {
       hint: "Flüssigkeit, Analgesie, frühe enterale Ernährung, Monitoring; kein prophylaktisches AB.",
       rule: {
         mode: "allOf",
-        required: [
-          "volumentherapie",
-          "analgesie",
-          "enterale ernährung",
-          "monitoring",
-        ],
+        required: ["volumentherapie", "analgesie", "enterale ernährung", "monitoring"],
         optional: [
           "antiemetika",
           "sauerstoff",
@@ -171,13 +138,7 @@ export const pankreatitis_001: Case = {
           "intensivüberwachung",
         ],
         synonyms: {
-          volumentherapie: [
-            "ringer",
-            "ringer-laktat",
-            "iv-flüssigkeit",
-            "flüssigkeitsgabe",
-            "iv-fluide",
-          ],
+          volumentherapie: ["ringer", "ringer-laktat", "iv-flüssigkeit", "flüssigkeitsgabe", "iv-fluide"],
           analgesie: ["opioid", "opiatanalgesie", "schmerztherapie", "pethidin"],
           "enterale ernährung": [
             "frühe enterale ernährung",
@@ -185,32 +146,17 @@ export const pankreatitis_001: Case = {
             "nasojejunale sonde",
             "nahrung nach verträglichkeit",
           ],
-          monitoring: [
-            "überwachung",
-            "engmaschig",
-            "telemetrie",
-            "bilanzierung",
-            "urinmenge",
-          ],
-          ursachentherapie: [
-            "ursache behandeln",
-            "alkoholentzug",
-            "cholezystektomie",
-            "ercp",
-          ],
+          monitoring: ["überwachung", "engmaschig", "telemetrie", "bilanzierung", "urinmenge"],
+          ursachentherapie: ["ursache behandeln", "alkoholentzug", "cholezystektomie", "ercp"],
           ercp: ["endoskopische steinextraktion", "papillotomie"],
           cholezystektomie: ["laparoskopische cholezystektomie"],
         },
-        forbidden: [
-          "prophylaktische antibiotika",
-          "prophylaktisches antibiotikum",
-        ],
-        hint_general:
-          "Supportiv + zielgerichtet. AB nur bei infizierter Nekrose/Cholangitis.",
+        forbidden: ["prophylaktische antibiotika", "prophylaktisches antibiotikum"],
+        hint_general: "Supportiv + zielgerichtet. AB nur bei infizierter Nekrose/Cholangitis.",
       },
     },
 
-    // 5+) Vertiefende Fragen
+    // 5+) Vertiefung …
     {
       order: 5,
       points: 1,
@@ -218,37 +164,18 @@ export const pankreatitis_001: Case = {
       hint: "International üblich: 2 von 3 Kriterien.",
       rule: {
         mode: "allOf",
-        required: [
-          "typischer schmerz",
-          "lipase ≥3×",
-          "bildgebung vereinbar",
-        ],
+        required: ["typischer schmerz", "lipase ≥3×", "bildgebung vereinbar"],
         synonyms: {
-          "typischer schmerz": [
-            "epigastrischer schmerz",
-            "rücken",
-            "starke oberbauchschmerzen",
-          ],
-          "lipase ≥3×": [
-            "lipase über dreifach",
-            "amylase ≥3×",
-            ">3x ulno",
-            ">3x ul",
-          ],
-          "bildgebung vereinbar": [
-            "sono vereinbar",
-            "ct vereinbar",
-            "mrt vereinbar",
-            "befund vereinbar",
-          ],
+          "typischer schmerz": ["epigastrischer schmerz", "rücken", "starke oberbauchschmerzen"],
+          "lipase ≥3×": ["lipase über dreifach", "amylase ≥3×", ">3x ulno", ">3x ul"],
+          "bildgebung vereinbar": ["sono vereinbar", "ct vereinbar", "mrt vereinbar", "befund vereinbar"],
         },
       },
     },
     {
       order: 6,
       points: 1,
-      prompt:
-        "Nennen Sie häufige Ätiologien der akuten Pankreatitis in strukturierter Form.",
+      prompt: "Nennen Sie häufige Ätiologien der akuten Pankreatitis in strukturierter Form.",
       hint: "Z.B. I GET SMASHED / deutschsprachige Merkhilfen; v.a. biliär & Alkohol.",
       rule: {
         mode: "anyOf",
@@ -271,20 +198,11 @@ export const pankreatitis_001: Case = {
     {
       order: 7,
       points: 1,
-      prompt:
-        "Wie ordnen Sie den Schweregrad nach revidierter Atlanta-Klassifikation ein?",
+      prompt: "Wie ordnen Sie den Schweregrad nach revidierter Atlanta-Klassifikation ein?",
       hint: "mild (keine Organdysfunktion), moderat (vorübergehende OF/Komplikationen), schwer (anhaltende OF).",
       rule: {
         mode: "anyOf",
-        expected: [
-          "mild",
-          "moderat",
-          "schwer",
-          "revidierte atlanta",
-          "organversagen",
-          "persistierend",
-          "of",
-        ],
+        expected: ["mild", "moderat", "schwer", "revidierte atlanta", "organversagen", "persistierend", "of"],
         hint_general: "Begriffe + Definitionen nennen.",
       },
     },
@@ -313,22 +231,16 @@ export const pankreatitis_001: Case = {
     {
       order: 9,
       points: 1,
-      prompt:
-        "Welche spezifischen Indikationen für eine zeitnahe ERCP bestehen bei Pankreatitis?",
+      prompt: "Welche spezifischen Indikationen für eine zeitnahe ERCP bestehen bei Pankreatitis?",
       hint: "Cholangitis oder cholestatischer Ikterus mit DHC-Verdacht.",
       rule: {
         mode: "allOf",
-        required: ["cholangitis", "cholestase", "dilattierte gallenwege"],
+        required: ["cholangitis", "cholestase", "dilatierte gallenwege"],
         synonyms: {
           cholestase: ["cholestatischer ikterus", "ikterus", "bilirubin hoch"],
-          "dilattierte gallenwege": [
-            "dilatiert",
-            "erweiterte gallenwege",
-            "dil DHC",
-            "weite DHC",
-          ],
+          "dilatierte gallenwege": ["dilatiert", "erweiterte gallenwege", "dil DHC", "weite DHC"],
         },
-        minHits: 1, // mind. eine der – typischerweise werden 1–2 Kernaussagen erwartet
+        minHits: 1,
         hint_general: "Nur bei klarer biliärer Komplikation frühzeitig.",
       },
     },
@@ -345,9 +257,5 @@ export const pankreatitis_001: Case = {
     { id: "komplikationen", label: "Komplikationen der Pankreatitis aufzählen" },
   ],
 
-  completion: {
-    minObjectives: 5,
-    maxLLMTurns: 12,
-    hardStopTurns: 14,
-  },
+  completion: { minObjectives: 5, maxLLMTurns: 12, hardStopTurns: 14 },
 };
