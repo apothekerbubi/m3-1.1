@@ -14,32 +14,19 @@ type RevealWhen = "on_enter" | "always" | "after_answer" | "after_full" | "after
 type RevealConfig = { when: RevealWhen; content?: RevealContent };
 
 /** ---- Typen für Reveal-Inhalte (kein any) ---- */
-type RevealVitals = {
-  rr?: string;
-  puls?: number | string;
-  temp?: number | string;
-  spo2?: number | string;
-};
+type RevealVitals = { rr?: string; puls?: number | string; temp?: number | string; spo2?: number | string };
 type RevealLabEntry =
-  | {
-      wert?: number | string;
-      einheit?: string;
-      referenz?: string;
-    }
+  | { wert?: number | string; einheit?: string; referenz?: string }
   | string
   | number;
-type RevealBildgebung = {
-  ultraschall?: string;
-  ct?: string;
-  mrt?: string;
-};
+type RevealBildgebung = { ultraschall?: string; ct?: string; mrt?: string };
 type RevealContent = {
   befundpaketTitel?: string;
   vitalparameter?: RevealVitals;
   labor?: Record<string, RevealLabEntry>;
   bildgebung?: RevealBildgebung;
   interpretationKurz?: string;
-  [k: string]: unknown; // tolerant für zukünftige Felder
+  [k: string]: unknown;
 };
 
 type CaseStepExtra = {
@@ -60,8 +47,8 @@ type ApiReply = {
     feedback: string;
     tips?: string;
   };
-  next_question: string | null; // im neuen Flow ungenutzt
-  end: boolean; // im neuen Flow ungenutzt
+  next_question: string | null;
+  end: boolean;
 };
 
 type Asked = { index: number; text: string; status: "pending" | "correct" | "partial" | "incorrect" };
@@ -77,12 +64,12 @@ export default function ExamPage() {
   const c = (CASES.find((x) => x.id === caseId) ?? null) as CaseWithRules | null;
 
   // *** State ***
-  const [asked, setAsked] = useState<Asked[]>([]); // sichtbare Fragen (wächst dynamisch)
+  const [asked, setAsked] = useState<Asked[]>([]);
   const [style, setStyle] = useState<"strict" | "coaching">("coaching");
   const [ended, setEnded] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Aktueller Schritt (beantworten) + Ansicht (Review)
+  // Aktiver Schritt + Ansicht (Review)
   const [activeIndex, setActiveIndex] = useState<number>(0);
   const [viewIndex, setViewIndex] = useState<number>(0);
 
@@ -90,14 +77,14 @@ export default function ExamPage() {
   const [chats, setChats] = useState<Turn[][]>([]);
   const listRef = useRef<HTMLDivElement | null>(null);
 
-  // Punkte pro Schritt (Bestwert) → verhindert Doppelzählung
+  // Punkte pro Schritt (Bestwert)
   const [perStepScores, setPerStepScores] = useState<number[]>([]);
   const [lastCorrectness, setLastCorrectness] =
     useState<"correct" | "partially_correct" | "incorrect" | null>(null);
 
   // Versuche für den aktiven Schritt
-  const [attemptCount, setAttemptCount] = useState<number>(0); // 0→1. Versuch, 1→2., >=2 → 3. (Lösung)
-  const [canAdvance, setCanAdvance] = useState<boolean>(false); // „Nächste Frage“ freigeben?
+  const [attemptCount, setAttemptCount] = useState<number>(0); // 0→1. Versuch, 1→2., >=2 → 3.
+  const [canAdvance, setCanAdvance] = useState<boolean>(false);
 
   const [input, setInput] = useState("");
 
@@ -140,14 +127,12 @@ export default function ExamPage() {
   );
   const totalPoints = Math.min(Math.round(totalPointsRaw * 10) / 10, maxPoints); // clamp ≤ maxPoints
 
-  // Fortschritt = erledigte Schritte (Status != pending) / alle Schritte
   const progressPct = useMemo<number>(() => {
     const total = Math.max(1, nSteps);
     const done = asked.filter((a) => a.status !== "pending").length;
     return Math.round((done / total) * 100);
   }, [asked, nSteps]);
 
-  // Chat der aktuellen Ansicht (Review oder aktiv)
   const viewChat: Turn[] = useMemo(() => chats[viewIndex] ?? [], [chats, viewIndex]);
 
   // *** UI Helpers ***
@@ -170,7 +155,7 @@ export default function ExamPage() {
     const t = text.trim();
     setChats((prev) => {
       const copy = prev.map((x) => [...x]);
-      const arr = copy[step] ?? [];
+      const arr: Turn[] = copy[step] ?? [];
       const lastProf = [...arr].reverse().find((x) => x.role === "prof");
       if (!lastProf || normalize(lastProf.text) !== normalize(t)) {
         copy[step] = [...arr, { role: "prof", text: t }];
@@ -181,7 +166,7 @@ export default function ExamPage() {
   function pushStudent(step: number, text: string) {
     setChats((prev) => {
       const copy = prev.map((x) => [...x]);
-      const arr = copy[step] ?? [];
+      const arr: Turn[] = copy[step] ?? [];
       copy[step] = [...arr, { role: "student", text }];
       return copy;
     });
@@ -255,7 +240,6 @@ export default function ExamPage() {
         return `🔎 ${title ?? "Zusatzinformation"}\n- ${parts.join("\n- ")}`;
       }
 
-      // Fallback
       return `Zusatzinfo:\n${JSON.stringify(c, null, 2)}`;
     } catch {
       return "Zusatzinfo verfügbar.";
@@ -359,7 +343,7 @@ export default function ExamPage() {
         setCanAdvance(correctness === "correct" || hadSolution);
       }
 
-      // Reveal (falls konfiguriert) nach Bewertung/Lösung
+      // Reveal (falls konfiguriert)
       if (stepReveal && shouldReveal(stepReveal, data.evaluation, hadSolution)) {
         pushProf(activeIndex, formatReveal(stepReveal.content));
       }
@@ -392,7 +376,7 @@ export default function ExamPage() {
     setEnded(false);
 
     // Chats vorbereiten
-    const initChats: Turn[][] = Array.from({ length: n }, () => []);
+    const initChats: Turn[][] = Array.from({ length: n }, () => [] as Turn[]);
     const q0 = stepsOrdered[0]?.prompt ?? "";
     const reveal0 = stepsOrdered[0]?.reveal ?? null;
 
@@ -414,11 +398,16 @@ export default function ExamPage() {
     const text = input.trim();
     if (!text) return;
 
+    // lokal in den Chat
     pushStudent(activeIndex, text);
     setInput("");
 
+    // Versuchszähler hoch
     setAttemptCount((n) => (n >= 2 ? 2 : n + 1));
-    const current = [...(chats[activeIndex] ?? []), { role: "student", text }];
+
+    // *** WICHTIG: current typisieren (Literal "student" fixen mit as const) ***
+    const prevArr: Turn[] = (chats[activeIndex] ?? []) as Turn[];
+    const current: Turn[] = [...prevArr, { role: "student" as const, text }];
     void callExamAPI(current, { mode: "answer" });
   }
 
@@ -460,15 +449,15 @@ export default function ExamPage() {
 
   async function requestTip() {
     if (!c || loading || ended) return;
-    if (viewIndex !== activeIndex) return; // Tipp nur für aktive Frage
-    const current = chats[activeIndex] ?? [];
+    if (viewIndex !== activeIndex) return;
+    const current: Turn[] = (chats[activeIndex] ?? []) as Turn[];
     await callExamAPI(current, { mode: "tip" });
   }
 
   async function requestExplain() {
     if (!c || loading || ended) return;
-    if (viewIndex !== activeIndex) return; // Erklären nur für aktive Frage
-    const current = chats[activeIndex] ?? [];
+    if (viewIndex !== activeIndex) return;
+    const current: Turn[] = (chats[activeIndex] ?? []) as Turn[];
     await callExamAPI(current, { mode: "explain" });
   }
 
@@ -526,17 +515,17 @@ export default function ExamPage() {
                 <li key={a.index} className="flex items-start gap-2 text-sm leading-snug">
                   <span className={`mt-1 inline-block h-3 w-3 rounded-full ${dot}`} />
                   <button
-  type="button"
-  onClick={() => setViewIndex(a.index)}
-  className={`[all:unset] cursor-pointer select-none text-[13px] leading-snug
-    ${a.index === viewIndex ? "font-semibold underline" : ""}
-    ${a.index === activeIndex ? "!text-gray-900" : "!text-gray-800"}
-    hover:underline focus-visible:underline
-    !bg-transparent !shadow-none !ring-0 !outline-none`}
-  title="Frage ansehen"
->
-  {a.text}
-</button>
+                    type="button"
+                    onClick={() => setViewIndex(a.index)}
+                    // harter Reset: nur Text + Hover-Unterstrich + explizite Textfarbe
+                    className={`[all:unset] cursor-pointer select-none text-[13px] leading-snug
+                      ${a.index === viewIndex ? "font-semibold underline" : ""}
+                      ${a.index === activeIndex ? "!text-gray-900" : "!text-gray-800"}
+                      hover:underline focus-visible:underline !bg-transparent !shadow-none !ring-0 !outline-none`}
+                    title="Frage ansehen"
+                  >
+                    {a.text}
+                  </button>
                 </li>
               );
             })}
