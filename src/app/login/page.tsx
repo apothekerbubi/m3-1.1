@@ -11,7 +11,7 @@ export default function LoginPage() {
   const router = useRouter();
   const supabase = createBrowserSupabase();
 
-  // next-Redirect ohne useSearchParams (vermeidet Suspense-Warnung)
+  // Redirect-Ziel ohne useSearchParams (vermeidet Suspense-Warnung)
   const [nextUrl, setNextUrl] = useState("/subjects");
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -39,9 +39,7 @@ export default function LoginPage() {
   useEffect(() => {
     // Bereits eingeloggt? -> weiter
     (async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         router.replace(nextUrl);
       }
@@ -62,7 +60,7 @@ export default function LoginPage() {
         });
         if (signInError) throw signInError;
 
-        // optional: Profil sicherstellen (legt profiles an/füllt Metadaten)
+        // Profil sicherstellen (legt profiles an/füllt Metadaten)
         await fetch("/api/profile/ensure", { method: "POST" });
 
         router.replace(nextUrl);
@@ -80,7 +78,8 @@ export default function LoginPage() {
             typeof window !== "undefined"
               ? `${window.location.origin}/login?next=${encodeURIComponent(nextUrl)}`
               : undefined,
-          // ⚠️ Metadaten vereinheitlicht: home_uni & pj_wahlfach
+          // user_metadata – konsistent zu deiner profiles-Table:
+          // home_uni, pj_wahlfach
           data: {
             first_name: firstName,
             last_name: lastName,
