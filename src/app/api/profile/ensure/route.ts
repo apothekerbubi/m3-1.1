@@ -26,7 +26,7 @@ export async function POST() {
   const mdLast  = (md.last_name as string) || null;
   const mdSem   = (md.semester as string) || null;
   const mdHome  = (md.home_uni as string) || (md.home_uni as string) || null; // 👈 beide
-  const mdPj    = (md.pj_wahlfach as string) || (md.pj_track as string) || null;     // 👈 beide
+  const mdPj    = (md.pj_wahlfach as string) || (md.pj_wahlfach as string) || null;     // 👈 beide
   const mdDate  = (md.exam_date as string) || null; // "YYYY-MM-DD" oder null
 
   // 3) Zusammenführen: vorhandenes Profil hat Vorrang; sonst Metadaten; sonst null
