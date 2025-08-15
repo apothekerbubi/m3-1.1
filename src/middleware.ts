@@ -1,57 +1,60 @@
 // src/middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createServerClient, type CookieMethodsServer } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 
-const PROTECTED_PATHS = ["/exam", "/simulate", "/cases", "/subjects", "/account"];
+const PROTECTED_PATHS = ["/exam", "/simulate", "/cases", "/subjects"];
 
 export async function middleware(req: NextRequest) {
   const { pathname, origin } = req.nextUrl;
 
-  // ❗ API & statische Assets NICHT prüfen
-  if (
-    pathname.startsWith("/api/") ||
-    pathname.startsWith("/_next/") ||
-    pathname === "/favicon.ico" ||
-    pathname === "/robots.txt" ||
-    pathname === "/sitemap.xml"
-  ) {
-    return NextResponse.next();
-  }
-
-  // Nur geschützte Seiten prüfen
-  const needsAuth = PROTECTED_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  // Nur für geschützte Pfade Auth prüfen
+  const needsAuth = PROTECTED_PATHS.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`)
+  );
   if (!needsAuth) return NextResponse.next();
 
+  // Response-Objekt anlegen (wichtig, wenn wir Cookies setzen/aktualisieren)
   const res = NextResponse.next();
 
-  // Supabase‑Client mit Cookie‑Brücke
+  // Supabase-Client mit Cookie-Bridge (typsicher, ohne Fremdtypen)
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
+        // string | undefined zurückgeben (kein .value erzwingen)
         get: (name: string) => req.cookies.get(name)?.value,
-        set: (name: string, value: string, options?: Parameters<CookieMethodsServer["set"]>[2]) =>
-          res.cookies.set({ name, value, ...options }),
-        remove: (name: string, options?: Parameters<CookieMethodsServer["set"]>[2]) =>
-          res.cookies.set({ name, value: "", ...options }),
+        // In Middleware darf man auf der Response Cookies setzen
+        set: (name: string, value: string, options?: Parameters<typeof res.cookies.set>[2]) => {
+          res.cookies.set(name, value, options);
+        },
+        remove: (name: string, options?: Parameters<typeof res.cookies.set>[2]) => {
+          // Löschen durch Setzen mit maxAge: 0
+          res.cookies.set(name, "", { ...options, maxAge: 0 });
+        },
       },
     }
   );
 
-  const { data, error } = await supabase.auth.getUser();
+  // User aus Session lesen
+  const { data: { user } } = await supabase.auth.getUser();
 
-  if (error || !data.user) {
+  // Nicht eingeloggt → auf Login leiten (mit next-Param)
+  if (!user) {
     const loginUrl = new URL("/login", origin);
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
+  // Eingeloggt → Request normal weiterreichen (inkl. evtl. aktualisierter Cookies)
   return res;
 }
 
+// Matcher: Middleware nur dort ausführen, wo sinnvoll (API & Next-Assets ausschließen)
 export const config = {
-  // Middleware läuft überall, aber wir verlassen früh bei /api|/_next|… (s.o.)
-  matcher: ["/((?!.*).*)"],
+  matcher: [
+    // alles außer Next intern & statische Dateien
+    "/((?!_next/|static/|favicon.ico|robots.txt|sitemap.xml|api/).*)",
+  ],
 };
