@@ -452,9 +452,10 @@ export default function ExamPage() {
                   <button
                     type="button"
                     onClick={() => setViewIndex(a.index)}
-                    className={`text-left ${isViewed ? "font-semibold" : ""} ${
-                      isCurrent ? "" : "text-gray-800"
-                    } hover:underline`}
+                    className={`appearance-none bg-transparent border-0 p-0 m-0 text-left leading-snug cursor-pointer 
+                      text-[13px] ${isViewed ? "font-semibold underline" : ""} 
+                      ${isCurrent ? "" : "text-gray-800"} hover:underline focus:outline-none focus-visible:underline`}
+                    title="Frage ansehen"
                   >
                     {a.text}
                   </button>
@@ -549,17 +550,17 @@ export default function ExamPage() {
                   ? "Fall beendet"
                   : !hasStarted
                   ? "Zum Start bitte links klicken"
-                  : viewingPast
+                  : viewIndex !== activeIndex
                   ? "Nur Ansicht – zurück zur aktuellen Frage wechseln"
                   : "Deine Antwort…"
               }
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              disabled={!hasStarted || ended || viewingPast}
+              disabled={!hasStarted || ended || viewIndex !== activeIndex}
             />
             <button
               type="submit"
-              disabled={loading || !hasStarted || ended || viewingPast || !input.trim()}
+              disabled={loading || !hasStarted || ended || viewIndex !== activeIndex || !input.trim()}
               className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
             >
               Senden
@@ -567,7 +568,7 @@ export default function ExamPage() {
             <button
               type="button"
               onClick={requestTip}
-              disabled={loading || !hasStarted || ended || viewingPast}
+              disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
               className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
               title="Kleinen Hinweis erhalten"
             >
@@ -576,7 +577,7 @@ export default function ExamPage() {
             <button
               type="button"
               onClick={requestExplain}
-              disabled={loading || !hasStarted || ended || viewingPast}
+              disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
               className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
               title="Kurze Erklärung zur aktuellen Frage/Antwort"
             >

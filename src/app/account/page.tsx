@@ -10,7 +10,7 @@ type Profile = {
   first_name?: string | null;
   last_name?: string | null;
   semester?: string | null;
-  home_university?: string | null;
+  home_uni?: string | null;
   pj_track?: string | null;
   exam_date?: string | null;
 };
@@ -41,7 +41,7 @@ export default function AccountPage() {
         first_name: md.first_name ?? null,
         last_name: md.last_name ?? null,
         semester: md.semester ?? null,
-        home_university: md.home_university ?? null,
+        home_uni: md.home_uni ?? null,
         pj_track: md.pj_track ?? null,
         exam_date: md.exam_date ?? null,
       });
@@ -71,7 +71,7 @@ export default function AccountPage() {
           <Field label="Vorname" value={profile.first_name} />
           <Field label="Nachname" value={profile.last_name} />
           <Field label="Semester" value={profile.semester} />
-          <Field label="Heimatuni" value={profile.home_university} />
+          <Field label="Heimatuni" value={profile.home_uni} />
           <Field label="PJ‑Wahlfach" value={profile.pj_track} />
           <Field label="Prüfungsdatum" value={profile.exam_date} />
         </div>
