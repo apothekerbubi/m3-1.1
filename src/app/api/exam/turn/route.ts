@@ -18,7 +18,7 @@ type ApiOut = {
     | {
         correctness: "correct" | "partially_correct" | "incorrect";
         feedback: string;
-        tips?: string;
+        tips?: string; // bleibt optional für den 💡-Flow
       }
     | null;
   next_question: string | null;
@@ -61,12 +61,11 @@ function stripMd(s: string): string {
     .trim();
 }
 
-// Patient:innen-Info-Nachfragen (FIX: nur echte Fragen!)
+// Patient:innen-Info-Nachfragen (nur echte Fragen!)
 function looksLikePatientInfoQuery(s: string): boolean {
   const t = (s || "").trim().toLowerCase();
   if (!t) return false;
 
-  // relevante Schlüsselwörter (Anamnese/Vitals/Labore etc.)
   const kw = [
     "raucht","raucher","rauchverhalten","pack","nikotin",
     "fieber","fieberhöhe","temperatur","frösteln","schüttelfrost",
@@ -80,10 +79,8 @@ function looksLikePatientInfoQuery(s: string): boolean {
     "bein","schwellung","ödeme",
     "gewicht","appetit","nacht","nächtliches",
     "schwanger","verhütung",
-    "anamnese" // ← bleibt enthalten, aber triggert nur bei echter Frage
+    "anamnese"
   ];
-
-  // typische Frage-Starts
   const starts = [
     "hat","ist","sind","nimmt","gab","gibt","bestehen",
     "wie","wann","wo","warum","welche","welcher","welches","wer",
@@ -93,7 +90,6 @@ function looksLikePatientInfoQuery(s: string): boolean {
 
   const isQuestion = t.endsWith("?") || starts.some(p => t.startsWith(p + " "));
   if (!isQuestion) return false;
-
   return kw.some(k => t.includes(k));
 }
 
@@ -125,17 +121,12 @@ function inferAttemptFromTranscript(transcript: TranscriptItem[]): 1|2|3 {
   return 3;
 }
 
-// Spoiler-Schutz für attempt < 3
+// Spoiler-Schutz NUR für falsche/teilweise Antworten in frühen Versuchen
 function sanitizeForEarlyAttempts(txt: string): string {
   let s = (txt || "");
+  // Beispiel-/Listen-Passagen einkürzen, aber KEINE Diagnosen/Begriffe maskieren
   s = s.replace(/\b(z\.?\s?b\.?|u\.a\.|unter anderem|zum beispiel)\b[^.]*\./gi, " (Beispiele weggelassen).");
-  const dx = [
-    /pankreatit\w*/gi, /cholezystit\w*/gi, /choledocholith\w*/gi,
-    /aortenaneurysm\w*/gi, /aortendissek\w*/gi, /gastrit\w*/gi,
-    /ulkus\w*/gi, /stemi|nstemi|akutes\s*koronar\w*/gi
-  ];
-  dx.forEach(r => { s = s.replace(r, "[…]"); });
-  s = s.replace(/(:\s*)([^.]*?,\s*){2,}[^.]*\./g, "$1(Beispiele weggelassen).");
+  // Präfix "Tipp:" entfernen, falls das Modell doch eins reinschreibt
   s = s.replace(/^\s*tipp:\s*/i, "");
   return s.trim();
 }
@@ -202,7 +193,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Bad request: caseText ist erforderlich." }, { status: 400 });
     }
 
-    // Supabase-Serverclient
+    // Supabase
     const supabase = createClient();
     const { data: userRes } = await supabase.auth.getUser();
     const userId = userRes?.user?.id ?? null;
@@ -210,7 +201,7 @@ export async function POST(req: NextRequest) {
     // --- Nachfrage/Letzte Antwort vorbereiten ---
     const lastStudentText = [...transcript].reverse().find((t) => t.role === "student")?.text?.trim() || "";
 
-    /* ---------- MODE A: Tipp ---------- */
+    /* ---------- MODE A: Tipp (nur per Button) ---------- */
     if (tipRequest) {
       const sysTip = `Du bist Prüfer:in im 3. Staatsexamen (M3, Tag 2 – Theorie).
 Gib GENAU EINEN sehr kurzen Tipp (1 Satz) zur CURRENT_STEP_PROMPT.
@@ -264,7 +255,7 @@ Gib NUR den Tipp-Text zurück (ohne Präambel).`;
       return NextResponse.json(payload);
     }
 
-    // --- Nachfrage automatisch erkennen (FIX: nur echte Fragen triggern) ---
+    // --- Nachfrage automatisch erkennen (nur echte Fragen triggern) ---
     const autoClarify = !clarifyQuestion && looksLikePatientInfoQuery(lastStudentText);
     const clarify = (clarifyQuestion || (autoClarify ? lastStudentText : "")).trim();
 
@@ -380,7 +371,6 @@ Gib nur die kurze Erklärung (ohne neue Aufgabe).`;
         transcript[0]?.role === "examiner" &&
         !/[?？]\s*$/.test(transcript[0]?.text || "");
 
-      // Falls stepsPrompts[0] vorhanden ist, nimm die als Startfrage (kein LLM nötig)
       if (noStudentAfterExaminer || isJustVignetteStart) {
         if (stepsPrompts[0]) {
           const payload: ApiOut = {
@@ -407,7 +397,6 @@ Gib nur die kurze Erklärung (ohne neue Aufgabe).`;
           return NextResponse.json(payload);
         }
 
-        // Fallback (nur falls kein stepsPrompts übergeben wurde)
         const sysKickoff = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
 Stelle GENAU EINE präzise Einstiegsfrage zur Vignette (ein Satz, Fragezeichen).
 KEINE Bewertung, KEIN Feedback, KEIN Tipp. Nur die Frage. Deutsch.`;
@@ -466,34 +455,31 @@ KONTEXT-REGELN:
 
 VERSUCHSLOGIK (hart):
 - Drei Versuche (attemptStage=1..3). Give-up zählt wie 3.
-- attemptStage=1/2 UND nicht korrekt: 1–3 Sätze Feedback (kategorial/prozessual), optional 1 Tipp. KEINE Beispiele/konkreten Diagnosen/Labor-/Bild-Befunde. next_question = null.
-- attemptStage=3 ODER Give-up: say_to_student MUSS mit "Lösung:" beginnen. 1–2 Sätze Kernlösung + 1–3 sehr kurze Bullet-Begründungen (Fallen/Merksatz). next_question = NEXT_STEP_PROMPT (falls vorhanden).
-- Antwort ist korrekt ⇒ next_question = NEXT_STEP_PROMPT (falls vorhanden); end=true falls letzter Schritt.
+- attemptStage=1/2 UND nicht korrekt:
+  • 1–3 Sätze Feedback (warum die gegebene Antwort unvollständig/inkonsistent ist; Kategorien/Prozess, keine Lösungen).
+  • KEINE Tipps automatisch (tips-Feld nur beim separaten Tipp-Modus). KEINE Beispiele/konkreten Diagnosen/Labor-/Bild-Befunde.
+  • next_question = null (Studierende:r bessert nach).
+- attemptStage=3 ODER Give-up:
+  • say_to_student MUSS mit "Lösung:" beginnen. 1–2 Sätze Kernlösung + 1–3 sehr kurze Bullet-Begründungen (Fallen/Merksatz).
+  • next_question = NEXT_STEP_PROMPT (falls vorhanden), sonst null.
+- Antwort ist korrekt:
+  • Kurze Bestätigung in 1 Satz, danach 2–3 Bullet-Begründungen (Warum sinnvoll, Kategorie/Pathomechanismus/Dringlichkeit).
+  • Keine Platzhalter, keine eckigen Klammern, keine "…".
+  • next_question = NEXT_STEP_PROMPT (falls vorhanden); end=true falls letzter Schritt.
 
 REGEL-ENGINE (RULE_JSON):
-- mode="exact": Antwort muss exakt eines der expected (inkl. Synonyme) treffen; forbidden → incorrect.
-- mode="anyOf":
-  • Treffer, wenn ≥ (minHits||1) Elemente aus expected/synonyms genannt werden.
-  • Forbidden-Keywords machen die Antwort incorrect, wenn sie zentral sind oder mehrfach auftreten.
-- mode="allOf":
-  • required müssen alle (über Synonyme) erkannt werden; optional zählen für Feedback, nicht für Korrektheit.
-  • minHits kann verwendet werden, um Teilmengen zu erlauben → dann "partially_correct".
-- mode="categories":
-  • Es zählen Kategoriennamen nicht – nur Nennungen aus den Kategorie-Listen.
-  • Korrekt, wenn ≥ (minCategories||1) verschiedene Kategorien jeweils ≥1 Treffer haben UND (minHits||0) gesamt erfüllt ist.
-- mode="numeric": prüfe numeric.min/max/equals gegen eindeutig genannte Zahlenwerte.
-- mode="regex": prüfe regex gegen die Antwort.
-- synonyms: Map aus Canon → [Synonyme]. Ein Synonym zählt wie der Canon.
-
-BEWERTUNG:
-- correctness: "correct" | "partially_correct" | "incorrect" gemäß obiger Logik.
-- feedback: 1–3 Sätze, präzise, ohne Markdown. Bei attempt<3 keine Spoiler/Beispiele.
-- tips (optional): 1 Satz, spoilerfrei.
+- "exact": alle expected (Synonyme zulässig); forbidden → incorrect.
+- "anyOf": Treffer, wenn ≥ (minHits||1) aus expected/synonyms genannt werden.
+- "allOf": required-Gruppen müssen alle getroffen sein (Synonyme = OR); minHits erlaubt Teilpunkte.
+- "categories": nur Items zählen (nicht die Kategorienamen); korrekt, wenn ≥ (minCategories||1) Kategorien je ≥1 Item und (minHits||0) gesamt.
+- "numeric": prüfe numeric.min/max/equals gegen eindeutig genannte Zahl.
+- "regex": prüfe regex.
+- synonyms: Map Canon → [Synonyme].
 
 AUSGABE NUR als JSON exakt im Schema:
 {
   "say_to_student": string | null,
-  "evaluation": { "correctness": "correct"|"partially_correct"|"incorrect", "feedback": string, "tips"?: string } | null,
+  "evaluation": { "correctness": "correct"|"partially_correct"|"incorrect", "feedback": string } | null,
   "next_question": string | null,
   "end": boolean
 }`;
@@ -544,22 +530,19 @@ Erzeuge NUR das JSON-Objekt.`.trim();
       ? {
           ...payload.evaluation,
           feedback: stripMd(payload.evaluation.feedback || ""),
+          // KEINE Auto-Tipps mehr (nur im Tipp-Modus) – falls LLM doch eins schickt, lassen wir es still zu.
           tips: payload.evaluation.tips ? stripMd(payload.evaluation.tips) : undefined,
         }
       : null;
     payload.next_question = stripMd((payload.next_question ?? "") as string) || null;
     payload.end = Boolean(payload.end);
 
-    // Spoiler-Schutz für frühe Versuche
-    if (payload.evaluation && effectiveAttempt < 3) {
+    // Spoiler-Schutz NUR für frühe Versuche und NICHT bei korrekter Antwort
+    if (payload.evaluation && effectiveAttempt < 3 && payload.evaluation.correctness !== "correct") {
       payload.evaluation.feedback = sanitizeForEarlyAttempts(payload.evaluation.feedback || "");
       if (payload.evaluation.tips) {
         payload.evaluation.tips = sanitizeForEarlyAttempts(payload.evaluation.tips);
       }
-    }
-    // Doppel-"Tipp:" bereinigen
-    if (payload.evaluation?.tips) {
-      payload.evaluation.feedback = (payload.evaluation.feedback || "").replace(/^\s*tipp:\s*/i, "");
     }
 
     // --- Guards für 3-Versuche-System ---

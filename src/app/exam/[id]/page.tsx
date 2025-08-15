@@ -1,4 +1,3 @@
-// src/app/exam/[id]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -11,22 +10,10 @@ import ScorePill from "@/components/ScorePill";
 
 /** ---- Zusatttypen für optionale Step-Infos ---- */
 type RevealWhen = "on_enter" | "always" | "after_answer" | "after_full" | "after_partial";
-type RevealConfig = { when: RevealWhen; content?: RevealContent };
 
-/** ---- Typen für Reveal-Inhalte (kein any) ---- */
-type RevealVitals = { rr?: string; puls?: number | string; temp?: number | string; spo2?: number | string };
-type RevealLabEntry =
-  | { wert?: number | string; einheit?: string; referenz?: string }
-  | string
-  | number;
-type RevealBildgebung = { ultraschall?: string; ct?: string; mrt?: string };
-type RevealContent = {
-  befundpaketTitel?: string;
-  vitalparameter?: RevealVitals;
-  labor?: Record<string, RevealLabEntry>;
-  bildgebung?: RevealBildgebung;
-  interpretationKurz?: string;
-  [k: string]: unknown;
+type RevealConfig = {
+  when: RevealWhen;
+  content?: unknown;
 };
 
 type CaseStepExtra = {
@@ -69,7 +56,7 @@ export default function ExamPage() {
   const [ended, setEnded] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Aktiver Schritt + Ansicht (Review)
+  // Aktueller Schritt (aktiv zu beantworten) + Ansicht (Review)
   const [activeIndex, setActiveIndex] = useState<number>(0);
   const [viewIndex, setViewIndex] = useState<number>(0);
 
@@ -82,9 +69,8 @@ export default function ExamPage() {
   const [lastCorrectness, setLastCorrectness] =
     useState<"correct" | "partially_correct" | "incorrect" | null>(null);
 
-  // Versuche für den aktiven Schritt
-  const [attemptCount, setAttemptCount] = useState<number>(0); // 0→1. Versuch, 1→2., >=2 → 3.
-  const [canAdvance, setCanAdvance] = useState<boolean>(false);
+  // Versuchszähler für den aktiven Schritt
+  const [attemptCount, setAttemptCount] = useState<number>(0);
 
   const [input, setInput] = useState("");
 
@@ -106,6 +92,7 @@ export default function ExamPage() {
   );
 
   const nSteps = stepsOrdered.length;
+
   const currentPrompt = stepsOrdered[activeIndex]?.prompt ?? "";
   const stepRule: unknown = stepsOrdered[activeIndex]?.rule ?? null;
 
@@ -116,8 +103,10 @@ export default function ExamPage() {
 
   const stepReveal: RevealConfig | null = stepsOrdered[activeIndex]?.reveal ?? null;
 
+  // ❗ Hier wird die maximale Punktzahl der Case Study berechnet
   const maxPoints = useMemo<number>(
-    () => stepsOrdered.reduce((acc, s) => acc + (typeof s.points === "number" ? s.points : 2), 0),
+    () =>
+      stepsOrdered.reduce((acc, s) => acc + (typeof s.points === "number" ? s.points : 2), 0),
     [stepsOrdered]
   );
 
@@ -125,8 +114,9 @@ export default function ExamPage() {
     () => perStepScores.reduce((a, b) => a + (b || 0), 0),
     [perStepScores]
   );
-  const totalPoints = Math.min(Math.round(totalPointsRaw * 10) / 10, maxPoints); // clamp ≤ maxPoints
+  const totalPoints = Math.min(Math.round(totalPointsRaw * 10) / 10, maxPoints); // clamp ≤ 100%
 
+  // Fortschritt = erledigte Schritte (Status != pending) / alle Schritte
   const progressPct = useMemo<number>(() => {
     const total = Math.max(1, nSteps);
     const done = asked.filter((a) => a.status !== "pending").length;
@@ -155,10 +145,11 @@ export default function ExamPage() {
     const t = text.trim();
     setChats((prev) => {
       const copy = prev.map((x) => [...x]);
-      const arr: Turn[] = copy[step] ?? [];
+      const arr = copy[step] ?? [];
       const lastProf = [...arr].reverse().find((x) => x.role === "prof");
       if (!lastProf || normalize(lastProf.text) !== normalize(t)) {
-        copy[step] = [...arr, { role: "prof", text: t }];
+        const next = [...arr, { role: "prof", text: t }];
+        copy[step] = next;
       }
       return copy;
     });
@@ -166,7 +157,7 @@ export default function ExamPage() {
   function pushStudent(step: number, text: string) {
     setChats((prev) => {
       const copy = prev.map((x) => [...x]);
-      const arr: Turn[] = copy[step] ?? [];
+      const arr = copy[step] ?? [];
       copy[step] = [...arr, { role: "student", text }];
       return copy;
     });
@@ -184,34 +175,45 @@ export default function ExamPage() {
     if (w === "after_full") return evaluation?.correctness === "correct";
     if (w === "after_partial")
       return evaluation?.correctness === "partially_correct" || evaluation?.correctness === "correct";
+    // "on_enter" behandeln wir separat beim Öffnen des Schritts
     return false;
   }
 
-  function formatReveal(content: RevealContent | undefined): string {
+  function formatReveal(content: unknown): string {
     try {
-      const c = content ?? {};
-      const title = typeof c.befundpaketTitel === "string" ? c.befundpaketTitel : undefined;
+      const c = content as Record<string, unknown> | null;
+      const title =
+        c && typeof c.befundpaketTitel === "string" ? (c.befundpaketTitel as string) : undefined;
 
       const parts: string[] = [];
 
-      // Vitalparameter
-      if (c.vitalparameter && typeof c.vitalparameter === "object") {
-        const v = c.vitalparameter as RevealVitals;
-        const rr = v.rr ?? "?";
-        const puls = v.puls ?? "?";
-        const temp = v.temp ?? "?";
-        const spo2 = v.spo2 ?? "?";
+      const vital =
+        c && typeof c.vitalparameter === "object" && c.vitalparameter !== null
+          ? (c.vitalparameter as Record<string, unknown>)
+          : null;
+      if (vital) {
+        const rr = typeof vital.rr === "string" ? vital.rr : "?";
+        const puls =
+          typeof vital.puls === "number" || typeof vital.puls === "string" ? vital.puls : "?";
+        const temp =
+          typeof vital.temp === "number" || typeof vital.temp === "string" ? vital.temp : "?";
+        const spo2 =
+          typeof vital.spo2 === "number" || typeof vital.spo2 === "string" ? vital.spo2 : "?";
         parts.push(`Vitalparameter: RR ${rr}, Puls ${puls}/min, Temp ${temp}°C, SpO₂ ${spo2}`);
       }
 
-      // Labor
-      if (c.labor && typeof c.labor === "object") {
+      const lab =
+        c && typeof c.labor === "object" && c.labor !== null ? (c.labor as Record<string, unknown>) : null;
+      if (lab) {
         const labPairs: string[] = [];
-        for (const k of Object.keys(c.labor)) {
-          const entry = c.labor[k];
-          if (entry && typeof entry === "object" && "wert" in (entry as Record<string, unknown>)) {
-            const e = entry as { wert?: number | string; einheit?: string; referenz?: string };
-            labPairs.push(`${k}: ${e.wert ?? "?"} ${e.einheit ?? ""} (Ref ${e.referenz ?? "?"})`);
+        for (const k of Object.keys(lab)) {
+          const entry = lab[k] as unknown;
+          if (entry && typeof entry === "object" && entry !== null && "wert" in (entry as Record<string, unknown>)) {
+            const e = entry as Record<string, unknown>;
+            const wert = e.wert as string | number | undefined;
+            const einheit = (e.einheit as string | undefined) ?? "";
+            const referenz = (e.referenz as string | undefined) ?? "";
+            labPairs.push(`${k}: ${wert ?? "?"} ${einheit} (Ref ${referenz})`);
           } else {
             labPairs.push(`${k}: ${String(entry)}`);
           }
@@ -219,30 +221,30 @@ export default function ExamPage() {
         parts.push(`Labor: ${labPairs.join(", ")}`);
       }
 
-      // Bildgebung
-      if (c.bildgebung && typeof c.bildgebung === "object") {
-        const im = c.bildgebung as RevealBildgebung;
-        if (typeof im.ultraschall === "string" && im.ultraschall.trim()) {
-          parts.push(`Sono: ${im.ultraschall}`);
-        } else if (typeof im.ct === "string" && im.ct.trim()) {
-          parts.push(`CT: ${im.ct}`);
-        } else if (typeof im.mrt === "string" && im.mrt.trim()) {
-          parts.push(`MRT: ${im.mrt}`);
-        }
-      }
+      const bild =
+        c && typeof c.bildgebung === "object" && c.bildgebung !== null
+          ? (c.bildgebung as Record<string, unknown>)
+          : null;
+      const sono = bild && typeof bild.ultraschall === "string" ? (bild.ultraschall as string) : null;
+      if (sono) parts.push(`Sono: ${sono}`);
 
-      // Kurzinterpretation
-      if (typeof c.interpretationKurz === "string" && c.interpretationKurz.trim()) {
-        parts.push(`Kurzinterpretation: ${c.interpretationKurz}`);
-      }
+      const kurz = c && typeof c.interpretationKurz === "string" ? (c.interpretationKurz as string) : null;
+      if (kurz) parts.push(`Kurzinterpretation: ${kurz}`);
 
       if (title || parts.length > 0) {
         return `🔎 ${title ?? "Zusatzinformation"}\n- ${parts.join("\n- ")}`;
       }
 
-      return `Zusatzinfo:\n${JSON.stringify(c, null, 2)}`;
+      return `Zusatzinfo:\n${JSON.stringify(content, null, 2)}`;
     } catch {
       return "Zusatzinfo verfügbar.";
+    }
+  }
+
+  function maybeRevealOnEnter(idx: number) {
+    const rv = stepsOrdered[idx]?.reveal;
+    if (rv && rv.when === "on_enter") {
+      pushProf(idx, formatReveal(rv.content));
     }
   }
 
@@ -256,21 +258,20 @@ export default function ExamPage() {
     try {
       const payload: Record<string, unknown> = {
         caseId: c.id,
-        points: totalPoints, // nur informativ
+        points: totalPoints,
         progressPct,
         caseText: c.vignette,
         transcript: current.map((t) => ({
           role: t.role === "prof" ? "examiner" : "student",
           text: t.text,
         })),
-        outline: [], // verhindert Auto-NEXT
+        outline: [],
         style,
         objectives: c.objectives ?? [],
         completion: c.completion ?? null,
 
-        // pro Frage bewerten
         stepIndex: activeIndex,
-        stepsPrompts: [], // verhindert Auto-NEXT
+        stepsPrompts: [],
         stepRule,
         focusQuestion: currentPrompt,
       };
@@ -297,17 +298,19 @@ export default function ExamPage() {
 
       if (hadSolution) pushProf(activeIndex, data.say_to_student);
 
-      // Bewertung nur bei Answer-Mode
       if (data.evaluation && opts.mode === "answer") {
         const { correctness, feedback, tips } = data.evaluation;
         setLastCorrectness(correctness);
 
-        // Punkte → Bestwert je Schritt
+        // Punkte (Bestwert je Schritt)
         setPerStepScores((prev) => {
           const curPrev = prev[activeIndex] || 0;
           const candidate =
-            correctness === "correct" ? stepPoints :
-            correctness === "partially_correct" ? stepPoints * 0.5 : 0;
+            correctness === "correct"
+              ? stepPoints
+              : correctness === "partially_correct"
+              ? stepPoints * 0.5
+              : 0;
           const best = Math.max(curPrev, candidate);
           if (best === curPrev) return prev;
           const copy = [...prev];
@@ -315,7 +318,7 @@ export default function ExamPage() {
           return copy;
         });
 
-        // Asked-Status aktualisieren
+        // Status
         setAsked((prev) => {
           const copy = [...prev];
           const i = copy.findIndex((x) => x.index === activeIndex);
@@ -339,13 +342,10 @@ export default function ExamPage() {
         ].filter(Boolean);
         if (!hadSolution) pushProf(activeIndex, parts.join(" "));
 
-        // Weiter nur bei korrekt oder „Lösung:“ (3. Versuch)
-        setCanAdvance(correctness === "correct" || hadSolution);
-      }
-
-      // Reveal (falls konfiguriert)
-      if (stepReveal && shouldReveal(stepReveal, data.evaluation, hadSolution)) {
-        pushProf(activeIndex, formatReveal(stepReveal.content));
+        // Reveal (falls konfiguriert, nicht on_enter)
+        if (stepReveal && shouldReveal(stepReveal, data.evaluation, hadSolution)) {
+          pushProf(activeIndex, formatReveal(stepReveal.content));
+        }
       }
 
       // Zusätzliche Prüfer-Nachrichten (Tip/Explain)
@@ -372,23 +372,20 @@ export default function ExamPage() {
     setAttemptCount(0);
     setActiveIndex(0);
     setViewIndex(0);
-    setCanAdvance(false);
     setEnded(false);
 
     // Chats vorbereiten
-    const initChats: Turn[][] = Array.from({ length: n }, () => [] as Turn[]);
+    const initChats: Turn[][] = Array.from({ length: n }, () => []);
     const q0 = stepsOrdered[0]?.prompt ?? "";
-    const reveal0 = stepsOrdered[0]?.reveal ?? null;
-
-    initChats[0] = [{ role: "prof", text: `Vignette: ${c.vignette}` }];
-    if (reveal0 && reveal0.when === "on_enter" && reveal0.content) {
-      initChats[0].push({ role: "prof", text: formatReveal(reveal0.content) });
-    }
-    initChats[0].push({ role: "prof", text: q0 });
+    initChats[0] = [
+      { role: "prof", text: `Vignette: ${c.vignette}` },
+      { role: "prof", text: q0 },
+    ];
     setChats(initChats);
 
-    // Erste Frage sichtbar machen
+    // Erste Frage sichtbar + evtl. on_enter-Reveal
     setAsked([{ index: 0, text: q0, status: "pending" }]);
+    maybeRevealOnEnter(0);
   }
 
   function onSend() {
@@ -398,17 +395,21 @@ export default function ExamPage() {
     const text = input.trim();
     if (!text) return;
 
-    // lokal in den Chat
     pushStudent(activeIndex, text);
     setInput("");
 
-    // Versuchszähler hoch
     setAttemptCount((n) => (n >= 2 ? 2 : n + 1));
 
-    // *** WICHTIG: current typisieren (Literal "student" fixen mit as const) ***
-    const prevArr: Turn[] = (chats[activeIndex] ?? []) as Turn[];
-    const current: Turn[] = [...prevArr, { role: "student" as const, text }];
+    const current = [...(chats[activeIndex] ?? []), { role: "student", text }];
     void callExamAPI(current, { mode: "answer" });
+  }
+
+  function goToStep(idx: number) {
+    if (!c) return;
+    // Nur bereits freigegebene Fragen wählbar
+    if (!asked.find((a) => a.index === idx)) return;
+
+    setViewIndex(idx);
   }
 
   function nextStep() {
@@ -417,47 +418,48 @@ export default function ExamPage() {
     const last = activeIndex >= nSteps - 1;
     if (last) {
       setEnded(true);
-      setCanAdvance(false);
       return;
     }
 
     const idx = activeIndex + 1;
     const q = stepsOrdered[idx]?.prompt ?? "";
-    const revealNext = stepsOrdered[idx]?.reveal ?? null;
 
-    // neue Frage freischalten
-    setAsked((prev) => [...prev, { index: idx, text: q, status: "pending" }]);
+    // neue Frage freischalten (immer erlaubt)
+    setAsked((prev) => {
+      if (prev.find((a) => a.index === idx)) return prev; // schon freigeschaltet
+      return [...prev, { index: idx, text: q, status: "pending" }];
+    });
 
-    // neuen Chat anlegen – ggf. erst Reveal (on_enter), dann Frage
+    // neuen Chat ggf. anlegen
     setChats((prev) => {
       const copy = prev.map((x) => [...x]);
-      const msgs: Turn[] = [];
-      if (revealNext && revealNext.when === "on_enter" && revealNext.content) {
-        msgs.push({ role: "prof", text: formatReveal(revealNext.content) });
+      if (!copy[idx] || copy[idx].length === 0) {
+        copy[idx] = [{ role: "prof", text: q }];
       }
-      msgs.push({ role: "prof", text: q });
-      copy[idx] = msgs;
       return copy;
     });
 
+    // Status/Steuerung
     setActiveIndex(idx);
     setViewIndex(idx);
     setAttemptCount(0);
     setLastCorrectness(null);
-    setCanAdvance(false);
+
+    // on_enter-Reveal
+    maybeRevealOnEnter(idx);
   }
 
   async function requestTip() {
     if (!c || loading || ended) return;
     if (viewIndex !== activeIndex) return;
-    const current: Turn[] = (chats[activeIndex] ?? []) as Turn[];
+    const current = chats[activeIndex] ?? [];
     await callExamAPI(current, { mode: "tip" });
   }
 
   async function requestExplain() {
     if (!c || loading || ended) return;
     if (viewIndex !== activeIndex) return;
-    const current: Turn[] = (chats[activeIndex] ?? []) as Turn[];
+    const current = chats[activeIndex] ?? [];
     await callExamAPI(current, { mode: "explain" });
   }
 
@@ -531,41 +533,29 @@ export default function ExamPage() {
             })}
           </ul>
 
-          {/* Start / Nächste Frage */}
-          <div className="mt-4 flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={hasStarted ? nextStep : startExam}
-              disabled={loading || (hasStarted && !canAdvance)}
-              className={`rounded-md px-3 py-2 text-sm text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
-                hasStarted
-                  ? canAdvance
-                    ? "bg-emerald-600 hover:bg-emerald-700"
-                    : "bg-gray-400"
-                  : "bg-blue-600 hover:bg-blue-700"
-              }`}
-            >
-              {hasStarted ? (isLastStep && canAdvance ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
-            </button>
 
-            {hasStarted && viewingPast && (
-              <button
-                type="button"
-                onClick={() => setViewIndex(activeIndex)}
-                className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs text-gray-800 hover:bg-black/[.04]"
-              >
-                Zur aktuellen Frage springen
-              </button>
-            )}
+  {/* Start / Nächste Frage – neutraler Button, kein Blau */}
+  <div className="mt-4 flex flex-col gap-2">
+    <button
+      type="button"
+      onClick={hasStarted ? nextStep : startExam}
+      disabled={loading}
+      className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+    >
+      {hasStarted ? (activeIndex >= stepsOrdered.length - 1 ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
+    </button>
 
-            {hasStarted && !canAdvance && !viewingPast && (
-              <div className="rounded-md border border-yellow-200 bg-yellow-50 p-2 text-[11px] text-yellow-800">
-                🔎 Antworte (max. 3 Versuche) oder nutze 💡 Tipp / 📘 Erklären. Weiter erst bei korrekter Lösung
-                oder bei „Lösung:“ im 3. Versuch.
-              </div>
-            )}
-          </div>
-        </aside>
+    {hasStarted && viewIndex !== activeIndex && (
+      <button
+        type="button"
+        onClick={() => setViewIndex(activeIndex)}
+        className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs text-gray-800 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+      >
+        Zur aktuellen Frage springen
+      </button>
+    )}
+  </div>
+</aside>
 
         {/* Rechte Spalte: Chat */}
         <section className="relative flex flex-col gap-3">
@@ -583,7 +573,7 @@ export default function ExamPage() {
                   }`}
                 >
                   <span className="text-sm leading-relaxed">
-                    <b className="opacity-80">{t.role === "prof" ? "👨🏻‍🏫Prüfer" : "Du"}:</b> {t.text}
+                    <b className="opacity-80">{t.role === "prof" ? "Prüfer" : "Du"}:</b> {t.text}
                   </span>
                 </div>
               </div>
@@ -654,16 +644,10 @@ export default function ExamPage() {
             <button
               type="button"
               onClick={hasStarted ? nextStep : startExam}
-              disabled={loading || (hasStarted && !canAdvance)}
-              className={`ml-auto rounded-md px-3 py-2 text-sm text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
-                hasStarted
-                  ? canAdvance
-                    ? "bg-emerald-600 hover:bg-emerald-700"
-                    : "bg-gray-400"
-                  : "bg-blue-600 hover:bg-blue-700"
-              }`}
+              disabled={loading}
+              className="ml-auto rounded-md px-3 py-2 text-sm text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 bg-blue-600 hover:bg-blue-700"
             >
-              {hasStarted ? (isLastStep && canAdvance ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
+              {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
             </button>
 
             <Link
