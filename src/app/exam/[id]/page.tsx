@@ -10,7 +10,7 @@ import ProgressBar from "@/components/ProgressBar";
 import ScorePill from "@/components/ScorePill";
 
 /** ---- Zusatttypen für optionale Step-Infos ---- */
-type RevealWhen = "always" | "after_answer" | "after_full" | "after_partial";
+type RevealWhen = "on_enter" | "always" | "after_answer" | "after_full" | "after_partial";
 
 type RevealConfig = {
   when: RevealWhen;
@@ -127,7 +127,7 @@ export default function ExamPage() {
     return Math.round((done / total) * 100);
   }, [asked, nSteps]);
 
-  // Chat der aktuellen Ansicht (Review oder aktiv) — via useMemo, damit useEffect-Deps stabil bleiben
+  // Chat der aktuellen Ansicht (Review oder aktiv)
   const viewChat: Turn[] = useMemo(() => chats[viewIndex] ?? [], [chats, viewIndex]);
 
   // *** UI Helpers ***
@@ -183,8 +183,6 @@ export default function ExamPage() {
   }
 
   function formatReveal(content: unknown): string {
-    // Wir versuchen, bekannte Felder (z. B. Vitalparameter/Labor) hübsch zu rendern,
-    // fallen ansonsten auf JSON zurück – ohne any-Casts.
     try {
       const c = content as Record<string, unknown> | null;
       const title =
@@ -375,10 +373,13 @@ export default function ExamPage() {
     // Chats vorbereiten
     const initChats: Turn[][] = Array.from({ length: n }, () => []);
     const q0 = stepsOrdered[0]?.prompt ?? "";
-    initChats[0] = [
-      { role: "prof", text: `Vignette: ${c.vignette}` },
-      { role: "prof", text: q0 },
-    ];
+    const reveal0 = stepsOrdered[0]?.reveal ?? null;
+
+    initChats[0] = [{ role: "prof", text: `Vignette: ${c.vignette}` }];
+    if (reveal0 && reveal0.when === "on_enter" && reveal0.content) {
+      initChats[0].push({ role: "prof", text: formatReveal(reveal0.content) });
+    }
+    initChats[0].push({ role: "prof", text: q0 });
     setChats(initChats);
 
     // Erste Frage sichtbar machen
@@ -415,14 +416,20 @@ export default function ExamPage() {
 
     const idx = activeIndex + 1;
     const q = stepsOrdered[idx]?.prompt ?? "";
+    const revealNext = stepsOrdered[idx]?.reveal ?? null;
 
     // neue Frage freischalten
     setAsked((prev) => [...prev, { index: idx, text: q, status: "pending" }]);
 
-    // neuen Chat anlegen
+    // neuen Chat anlegen – ggf. erst Reveal (on_enter), dann Frage
     setChats((prev) => {
       const copy = prev.map((x) => [...x]);
-      copy[idx] = [{ role: "prof", text: q }];
+      const msgs: Turn[] = [];
+      if (revealNext && revealNext.when === "on_enter" && revealNext.content) {
+        msgs.push({ role: "prof", text: formatReveal(revealNext.content) });
+      }
+      msgs.push({ role: "prof", text: q });
+      copy[idx] = msgs;
       return copy;
     });
 
@@ -490,8 +497,6 @@ export default function ExamPage() {
           <div className="mb-2 text-xs font-medium text-gray-700">Fragenfolge</div>
           <ul className="space-y-2">
             {asked.map((a) => {
-              const isCurrent = a.index === activeIndex;
-              const isViewed = a.index === viewIndex;
               const dot =
                 a.status === "pending"
                   ? "bg-gray-300"
@@ -506,9 +511,10 @@ export default function ExamPage() {
                   <button
                     type="button"
                     onClick={() => setViewIndex(a.index)}
-                    className={`appearance-none bg-transparent border-0 p-0 m-0 text-left leading-snug cursor-pointer 
-                      text-[13px] ${isViewed ? "font-semibold underline" : ""} 
-                      ${isCurrent ? "" : "text-gray-800"} hover:underline focus:outline-none focus-visible:underline`}
+                    className={`appearance-none bg-transparent border-0 p-0 m-0 text-left leading-snug cursor-pointer text-[13px]
+                      ${a.index === viewIndex ? "font-semibold underline" : ""}
+                      ${a.index === activeIndex ? "text-gray-900" : "text-gray-800"}
+                      hover:underline focus:outline-none focus-visible:underline`}
                     title="Frage ansehen"
                   >
                     {a.text}
