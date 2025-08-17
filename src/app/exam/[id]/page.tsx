@@ -155,27 +155,28 @@ export default function ExamPage() {
     s.toLowerCase().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "").trim();
 
   function pushProf(step: number, text?: string | null) {
-    if (!text || !text.trim()) return;
-    const t = text.trim();
-    setChats((prev) => {
-      const copy = prev.map((x) => [...x]);
-      const arr = copy[step] ?? [];
-      const lastProf = [...arr].reverse().find((x) => x.role === "prof");
-      if (!lastProf || normalize(lastProf.text) !== normalize(t)) {
-        const next = [...arr, { role: "prof", text: t }];
-        copy[step] = next;
-      }
-      return copy;
-    });
-  }
-  function pushStudent(step: number, text: string) {
-    setChats((prev) => {
-      const copy = prev.map((x) => [...x]);
-      const arr = copy[step] ?? [];
-      copy[step] = [...arr, { role: "student", text }];
-      return copy;
-    });
-  }
+  if (!text || !text.trim()) return;
+  const t = text.trim();
+  setChats((prev) => {
+    const copy: Turn[][] = prev.map((x) => [...x]);
+    const arr: Turn[] = (copy[step] ?? []) as Turn[];
+    const lastProf = [...arr].reverse().find((x) => x.role === "prof");
+    if (!lastProf || normalize(lastProf.text) !== normalize(t)) {
+      const next: Turn[] = [...arr, { role: "prof" as const, text: t }];
+      copy[step] = next;
+    }
+    return copy;
+  });
+}
+
+function pushStudent(step: number, text: string) {
+  setChats((prev) => {
+    const copy: Turn[][] = prev.map((x) => [...x]);
+    const arr: Turn[] = (copy[step] ?? []) as Turn[];
+    copy[step] = [...arr, { role: "student" as const, text }];
+    return copy;
+  });
+}
 
   function shouldReveal(
     now: RevealConfig | null,
