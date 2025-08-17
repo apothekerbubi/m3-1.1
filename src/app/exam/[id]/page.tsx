@@ -283,7 +283,7 @@ function pushStudent(step: number, text: string) {
         outline: [],
         style,
         objectives: c.objectives ?? [],
-        completion: c.completeion ?? null, // <- bleibt wie bei dir (falls Tippfehler bitte entsprechend anpassen)
+        completion: c.completion ?? null, // <- bleibt wie bei dir (falls Tippfehler bitte entsprechend anpassen)
         // ^^^ ich ändere sonst nichts am bestehenden Codefluss
 
         stepIndex: activeIndex,

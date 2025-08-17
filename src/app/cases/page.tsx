@@ -42,7 +42,8 @@ function SymptomsSkeleton() {
   return (
     <main className="p-0 animate-pulse">
       <div className="h-8 w-48 rounded bg-gray-200 mb-4" />
-      <div className="grid gap-6 md:grid-cols-[280px_1fr] xl:grid-cols-[320px_1fr] items-start">
+      {/* ⬇️ Immer 2 Spalten: links Symptome, rechts Fälle */}
+      <div className="grid gap-6 grid-cols-[minmax(320px,420px)_1fr] items-start">
         {/* linke Liste */}
         <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
           <div className="h-6 w-40 rounded bg-gray-200 mb-3" />
@@ -55,9 +56,9 @@ function SymptomsSkeleton() {
           </ul>
         </section>
         {/* rechte Karten */}
-        <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm md:col-span-1 xl:col-span-2">
+        <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
           <div className="h-6 w-56 rounded bg-gray-200 mb-3" />
-          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(420px,1fr))]">
             {Array.from({ length: 6 }).map((_, i) => (
               <li key={i} className="rounded-xl border border-black/10 bg-white px-4 py-4 shadow-sm">
                 <div className="h-5 w-44 rounded bg-gray-200 mb-3" />
@@ -78,8 +79,8 @@ type ProgressItem = {
   score?: number | null;
   max_score?: number | null;
   completed?: boolean | null;
-  finished?: boolean | null;     // falls dein API so heißt
-  progress_pct?: number | null;  // falls dein API direkt Prozent liefert
+  finished?: boolean | null;
+  progress_pct?: number | null;
 };
 
 export default function SymptomsPage() {
@@ -91,7 +92,7 @@ export default function SymptomsPage() {
       if (!map.has(s)) map.set(s, []);
       map.get(s)!.push(c);
     }
-    // sortiere Fälle innerhalb eines Symptoms nach pseudonym (oder id)
+    // Fälle innerhalb des Symptoms sortieren (nach pseudonym/id)
     for (const [k, arr] of map) {
       map.set(
         k,
@@ -120,13 +121,13 @@ export default function SymptomsPage() {
     }
   }
 
-  /* 3) Nutzer-Fortschritt laden (für die Kästchen + Prozent) */
+  /* 3) Nutzer-Fortschritt laden */
   const [loadingProg, setLoadingProg] = useState(true);
   const [progByCase, setProgByCase] = useState<Record<string, { pct: number; done: boolean }>>({});
 
   useEffect(() => {
     let alive = true;
-    const MIN_SKELETON_MS = 600; // ⏳ Mindestdauer fürs Skeleton
+    const MIN_SKELETON_MS = 600;
     const started = Date.now();
 
     (async () => {
@@ -144,10 +145,7 @@ export default function SymptomsPage() {
               ? Math.round((it.score / it.max_score) * 100)
               : 0;
           const done = Boolean(it.completed ?? it.finished);
-          map[it.case_id] = {
-            pct: Math.max(0, Math.min(100, pct)),
-            done,
-          };
+          map[it.case_id] = { pct: Math.max(0, Math.min(100, pct)), done };
         }
         if (alive) setProgByCase(map);
       } catch {
@@ -155,9 +153,7 @@ export default function SymptomsPage() {
       } finally {
         const elapsed = Date.now() - started;
         const rest = Math.max(0, MIN_SKELETON_MS - elapsed);
-        setTimeout(() => {
-          if (alive) setLoadingProg(false);
-        }, rest);
+        setTimeout(() => alive && setLoadingProg(false), rest);
       }
     })();
 
@@ -180,7 +176,8 @@ export default function SymptomsPage() {
     <main className="p-0">
       <h1 className="mb-4 text-3xl font-semibold tracking-tight">Leitsymptome</h1>
 
-      <div className="grid gap-6 md:grid-cols-[minmax(320px,420px)_1fr] items-start">
+      {/* ⬇️ Immer zwei Spalten – Fälle stehen RECHTS neben der Liste */}
+      <div className="grid gap-6 grid-cols-[minmax(320px,420px)_1fr] items-start">
         {/* Spalte 1: Symptome */}
         <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
           <h2 className="mb-3 text-xl font-semibold">Symptome</h2>
@@ -218,8 +215,8 @@ export default function SymptomsPage() {
           )}
         </section>
 
-        {/* Spalten 2–3: Fälle (größere Karten, ohne Fach-Unterzeile, mit Häkchen + Prozent) */}
-        <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm md:col-span-1 xl:col-span-2">
+        {/* Spalte 2: Fälle (rechts) */}
+        <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
           <h2 className="mb-3 text-xl font-semibold">
             {activeSymptom ? `Fälle: ${activeSymptom}` : "Fälle"}
           </h2>
@@ -264,7 +261,6 @@ export default function SymptomsPage() {
                         </div>
                       </div>
 
-                      {/* kein Fach/Subject unter der Überschrift */}
                       <MiniBar pct={pct} />
                     </div>
 
