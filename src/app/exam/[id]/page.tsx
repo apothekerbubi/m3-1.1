@@ -427,20 +427,25 @@ function pushStudent(step: number, text: string) {
   }
 
   function onSend() {
-    if (!c || loading || ended) return;
-    if (viewIndex !== activeIndex) return;
+  if (!c || loading || ended) return;
+  if (viewIndex !== activeIndex) return;
 
-    const text = input.trim();
-    if (!text) return;
+  const text = input.trim();
+  if (!text) return;
 
-    pushStudent(activeIndex, text);
-    setInput("");
+  pushStudent(activeIndex, text);
+  setInput("");
 
-    setAttemptCount((n) => (n >= 2 ? 2 : n + 1));
+  setAttemptCount((n) => (n >= 2 ? 2 : n + 1));
 
-    const current = [...(chats[activeIndex] ?? []), { role: "student", text }];
-    void callExamAPI(current, { mode: "answer" });
-  }
+  // 👉 hier typisieren & Literal fixen
+  const current: Turn[] = [
+    ...(((chats[activeIndex] ?? []) as Turn[])),
+    { role: "student" as const, text },
+  ];
+
+  void callExamAPI(current, { mode: "answer" });
+}
 
   function goToStep(idx: number) {
     if (!c) return;
