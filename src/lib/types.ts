@@ -133,7 +133,8 @@ export type Case = {
   category?: string;
   subject?: Subject;
   shortTitle?: string;
-
+  leadSymptom?: string;   // z. B. "Bauchschmerz", "Dyspnoe", ...
+  pseudonym?: string;     // z. B. "bauchschmerz_001"
   // optionale LLM-Regeln
   objectives?: Objective[];
   completion?: CompletionRules | null;

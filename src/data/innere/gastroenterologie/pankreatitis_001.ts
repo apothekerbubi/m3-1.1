@@ -9,6 +9,8 @@ export const pankreatitis_001: Case = {
     "48-jähriger Patient mit starken epigastrischen Schmerzen mit Ausstrahlung in den Rücken, Übelkeit und Erbrechen kommt in die Notaufnahme. Beginn vor ca. 6 Stunden, Symptomatik progredient. Anamnestisch regelmäßiger Alkoholkonsum.",
   specialty: "Innere Medizin",
   subspecialty: "Gastroenterologie",
+  pseudonym: "Bauchschmerz 002",
+  leadSymptom: "Bauchschmerz",
 
   difficulty: 3,
   tags: ["Pankreatitis", "Bauchschmerz", "Oberbauchschmerz"],

@@ -275,10 +275,10 @@ export default function ExamPage() {
         points: totalPoints,
         progressPct,
         caseText: c.vignette,
-        transcript: current.map((t) => ({
-          role: t.role === "prof" ? "examiner" : "student",
-          text: t.text,
-        })),
+        transcript: current.map((t): { role: "examiner" | "student"; text: string } => ({
+         role: t.role === "prof" ? "examiner" : "student",
+         text: t.text,
+          })),
         outline: [],
         style,
         objectives: c.objectives ?? [],

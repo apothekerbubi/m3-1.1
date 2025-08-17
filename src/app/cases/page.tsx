@@ -1,137 +1,148 @@
-// src/app/cases/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { ArrowRightIcon, ChevronRightIcon, FolderIcon } from "@heroicons/react/24/outline";
 import { CASES } from "@/data/cases";
-import MiniProgress from "@/components/MiniProgress";
-import { CheckCircleIcon } from "@heroicons/react/24/solid";
+import type { Case } from "@/lib/types";
 
-type ProgressRow = {
-  case_id: string;
-  score: number;
-  max_score: number;
-  completed: boolean;
-};
+// neutrale Labels, falls kein pseudonym vorhanden
+function neutralLabel(idx: number) {
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  if (idx < 26) return `Fall ${letters[idx]}`;
+  const a = Math.floor(idx / 26) - 1;
+  const b = idx % 26;
+  return `Fall ${letters[a]}${letters[b]}`;
+}
 
-export default function CasesPage() {
-  const [prog, setProg] = useState<Record<string, ProgressRow>>({});
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const MIN_SKELETON_MS = 100; // min. Anzeigedauer für Skeleton
-    const started = Date.now();
-
-    (async () => {
-      try {
-        const res = await fetch("/api/progress/list", { cache: "no-store" });
-        const json = await res.json();
-        const map: Record<string, ProgressRow> = {};
-        for (const it of json.items || []) {
-          map[it.case_id] = it as ProgressRow;
-        }
-        setProg(map);
-      } catch {
-        setProg({});
-      } finally {
-        const elapsed = Date.now() - started;
-        const rest = Math.max(0, MIN_SKELETON_MS - elapsed);
-        const t = setTimeout(() => setLoading(false), rest);
-        return () => clearTimeout(t);
-      }
-    })();
+export default function SymptomsPage() {
+  // 1) Symptome + Mapping
+  const { symptoms, casesBySymptom } = useMemo(() => {
+    const map = new Map<string, Case[]>();
+    for (const c of CASES) {
+      const s = (c.leadSymptom ?? "Sonstige").trim();
+      if (!map.has(s)) map.set(s, []);
+      map.get(s)!.push(c);
+    }
+    // sortiere innerhalb des Symptoms nach pseudonym (oder id als Fallback)
+    for (const [k, arr] of map) {
+      map.set(
+        k,
+        [...arr].sort((a, b) => (a.pseudonym ?? a.id).localeCompare(b.pseudonym ?? b.id, "de"))
+      );
+    }
+    const syms = [...map.keys()].sort((a, b) => a.localeCompare(b, "de"));
+    return { symptoms: syms, casesBySymptom: map };
   }, []);
 
-  if (loading) {
-    // Skeleton-Ansicht
-    return (
-      <main className="p-6" aria-busy="true" aria-live="polite">
-        <h1 className="mb-4 text-2xl font-semibold">Fälle</h1>
+  // 2) Auswahl (ohne useSearchParams → keine Suspense-Warnung)
+  const [activeSymptom, setActiveSymptom] = useState<string>("");
 
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: Math.min(9, Math.max(6, CASES.length)) }).map((_, i) => (
-            <li
-              key={i}
-              className="rounded-xl border border-black/10 bg-white p-4 shadow-sm animate-pulse"
-            >
-              <div className="flex items-start gap-2">
-                <div className="flex-1">
-                  <div className="h-4 w-56 rounded bg-gray-200" />
-                  <div className="mt-2 h-3 w-32 rounded bg-gray-100" />
-                </div>
-                <div className="h-6 w-16 rounded-md border border-gray-200 bg-gray-50" />
-              </div>
+  useEffect(() => {
+    const sp = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const fromUrl = sp?.get("s") ?? "";
+    const initial = fromUrl && symptoms.includes(fromUrl) ? fromUrl : symptoms[0] ?? "";
+    setActiveSymptom(initial);
+  }, [symptoms]);
 
-              <div className="mt-3">
-                <div className="h-2 w-40 rounded bg-gray-100" />
-                <div className="mt-1 h-3 w-44 rounded bg-gray-100" />
-              </div>
-
-              <div className="mt-3 h-8 w-20 rounded-md border border-black/10 bg-gray-100" />
-            </li>
-          ))}
-        </ul>
-      </main>
-    );
+  function setSymptom(s: string) {
+    setActiveSymptom(s);
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      sp.set("s", s);
+      window.history.replaceState(null, "", `${window.location.pathname}?${sp.toString()}`);
+    }
   }
 
+  const activeCases = useMemo(
+    () => casesBySymptom.get(activeSymptom) ?? [],
+    [casesBySymptom, activeSymptom]
+  );
+
   return (
-    <main className="p-6">
-      <h1 className="mb-4 text-2xl font-semibold">Fälle</h1>
+    <main className="p-0">
+      <h1 className="mb-4 text-3xl font-semibold tracking-tight">Leitsymptome</h1>
 
-      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {CASES.map((c) => {
-          const p = prog[c.id];
-          const pct = p ? Math.round((p.score / Math.max(1, p.max_score)) * 100) : 0;
-          return (
-            <li key={c.id} className="rounded-xl border border-black/10 bg-white p-4 shadow-sm transition">
-              <div className="flex items-start gap-2">
-                <div className="flex-1">
-                  <Link href={`/cases/${c.id}`} className="font-medium hover:underline">
-                    {c.title}
-                  </Link>
-                  <div className="text-xs text-gray-500">{c.subject}</div>
-                </div>
-                {/* Abgehaktes Kästchen bei completed */}
-                <div
-                  className={`inline-flex items-center justify-center rounded-md border px-2 py-1 text-xs ${
-                    p?.completed
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border-gray-200 bg-gray-50 text-gray-500"
-                  }`}
-                  title={p?.completed ? "Abgeschlossen" : "Noch offen"}
-                >
-                  {p?.completed ? (
-                    <span className="inline-flex items-center gap-1">
-                      <CheckCircleIcon className="h-4 w-4" />
-                      Fertig
-                    </span>
-                  ) : (
-                    <span className="inline-block w-3 h-3 rounded-sm border border-gray-300 bg-white" />
-                  )}
-                </div>
-              </div>
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3 items-start">
+        {/* Spalte 1: Symptome */}
+        <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
+          <h2 className="mb-3 text-xl font-semibold">Symptome</h2>
+          {symptoms.length === 0 ? (
+            <div className="text-sm text-gray-600">Noch keine Leitsymptome hinterlegt.</div>
+          ) : (
+            <ul className="divide-y divide-black/5">
+              {symptoms.map((s) => {
+                const count = casesBySymptom.get(s)?.length ?? 0;
+                const active = s === activeSymptom;
+                return (
+                  <li key={s}>
+                    <button
+                      type="button"
+                      onClick={() => setSymptom(s)}
+                      className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 text-left hover:bg-black/[.03] ${
+                        active ? "bg-black/[.03]" : ""
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-black/[.05]">
+                          <FolderIcon className="h-5 w-5 text-gray-700" />
+                        </span>
+                        <span className="font-medium">{s}</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-xs text-gray-600">
+                        {count}
+                        <ChevronRightIcon className="h-4 w-4" />
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
 
-              {/* Mini-Scorebar */}
-              <div className="mt-3">
-                <MiniProgress value={pct} />
-                <div className="mt-1 text-[11px] text-gray-600">
-                  {p ? `${p.score}/${p.max_score} Punkte · ${pct}%` : "Noch kein Fortschritt"}
-                </div>
-              </div>
+        {/* Spalten 2–3: Fälle zu aktivem Symptom (Diagnose bleibt verborgen) */}
+        <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm md:col-span-1 xl:col-span-2">
+          <h2 className="mb-3 text-xl font-semibold">
+            {activeSymptom ? `Fälle: ${activeSymptom}` : "Fälle"}
+          </h2>
 
-              <div className="mt-3">
-                <Link
-                  href={`/exam/${c.id}`}
-                  className="inline-flex items-center rounded-md border border-black/10 bg-white px-2.5 py-1.5 text-sm text-gray-900 hover:bg-black/[.04]"
-                >
-                  Üben
-                </Link>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+          {!activeSymptom ? (
+            <div className="text-sm text-gray-600">Wähle links ein Leitsymptom.</div>
+          ) : activeCases.length === 0 ? (
+            <div className="text-sm text-gray-600">Keine Fälle zu diesem Symptom.</div>
+          ) : (
+            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {activeCases.map((c, i) => {
+                const label = c.pseudonym?.replace(/[_-]/g, " ") || neutralLabel(i);
+                return (
+                  <li
+                    key={c.id}
+                    className="group flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white/80 px-3 py-2 shadow-sm hover:shadow-md"
+                  >
+                    <div className="min-w-0">
+                      {/* bewusst KEIN c.title */}
+                      <div className="truncate font-medium capitalize">{label}</div>
+                      <div className="text-[11px] text-gray-600">
+                        {(c.subject ?? c.specialty) || "Fach"}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Link
+                        href={`/exam/${c.id}`}
+                        className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-sm text-white hover:bg-blue-700"
+                        title="Fall im Prüfungsmodus starten"
+                      >
+                        Starten <ArrowRightIcon className="h-4 w-4" />
+                      </Link>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      </div>
     </main>
   );
 }

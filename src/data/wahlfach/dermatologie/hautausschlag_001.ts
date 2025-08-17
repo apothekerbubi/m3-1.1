@@ -8,6 +8,8 @@ export const hautausschlag_001: Case = {
   shortTitle: "Ausschlag",
   vignette: "35-jährige Patientin mit juckendem, rötlichem Hautausschlag seit 3 Tagen. Keine neuen Medikamente, keine bekannten Allergien.",
   tags: ["Dermatologie", "Exanthem"],
+  leadSymptom: "Ausschlag",
+  pseudonym: "Ausschlag 001",
   difficulty: 1,
   steps: [
     { order: 1, prompt: "Differentialdiagnosen?", hint: "Allergisch, infektiös, autoimmun" },

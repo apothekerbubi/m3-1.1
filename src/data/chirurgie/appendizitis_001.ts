@@ -8,6 +8,8 @@ export const appendizitis_001: Case = {
   shortTitle: "Appendizitis 1",
   vignette: "22-jähriger Patient mit seit 12 Stunden zunehmenden Schmerzen im rechten Unterbauch...",
   tags: ["Appendizitis", "Akutes Abdomen"],
+  pseudonym: "Bauchschmerz 003",
+  leadSymptom: "Bauchschmerz",
   difficulty: 1,
   steps: [
     { order: 1, prompt: "Wahrscheinlichste Diagnose?", hint: "Entzündung des Appendix" },

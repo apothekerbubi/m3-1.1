@@ -10,6 +10,8 @@ export const hypertonie_001: Case = {
   // ✅ nur diese beiden für die Bibliothek verwenden:
   specialty: "Innere Medizin",
   subspecialty: "Kardiologie",
+  pseudonym: "Kopfschmerz 001",
+  leadSymptom: "Kopfschmerz",
 
   difficulty: 2,
   tags: ["Hypertonie", "Kardiologie", "Anamnese", "Basismaßnahmen", "Sekundäre Hypertonie"],

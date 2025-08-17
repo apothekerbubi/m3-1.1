@@ -8,6 +8,8 @@ export const anaemie_001: Case = {
   shortTitle: "Anämie",
   vignette: "78-jährige Patientin mit zunehmender Müdigkeit, Blässe und Leistungsminderung...",
   tags: ["Anämie", "Hämatologie"],
+  pseudonym: "Dyspnoe 001",
+  leadSymptom: "Dyspnoe",
   difficulty: 1,
   steps: [
     { order: 1, prompt: "Differentialdiagnosen?", hint: "Eisenmangel, chronische Erkrankung, Knochenmarkserkrankung" },

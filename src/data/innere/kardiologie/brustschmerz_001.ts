@@ -7,6 +7,8 @@ export const brustschmerz_001: Case = {
   title: "Brustschmerz mit Dyspnoe",
   shortTitle: "Brustschmerz 1",
   vignette: "65-jähriger Patient mit akuter Dyspnoe und Thoraxschmerz seit 3 Stunden...",
+  leadSymptom: "Brustschmerz",
+  pseudonym: "Brustschmerz 001",
   tags: ["Dyspnoe", "KHK", "Notfall"],
   difficulty: 2,
   steps: [
