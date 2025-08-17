@@ -530,7 +530,7 @@ function pushStudent(step: number, text: string) {
         <h2 className="flex-1 text-2xl font-semibold tracking-tight">Prüfung: {c.title}</h2>
         <ScorePill points={totalPoints} maxPoints={maxPoints} last={lastCorrectness} />
         <div className="hidden w-56 sm:block">
-          <ProgressBar value={ended ? 100 : progressPct} label="Fortschritt" />
+          <ProgressBar value={ended ? 100 : progressPct} />
         </div>
         <label className="text-xs text-gray-600">Stil</label>
         <select
