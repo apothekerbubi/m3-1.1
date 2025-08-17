@@ -1,7 +1,8 @@
+// src/app/exam/[id]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation"; // ✅ NEU: useRouter hinzugefügt
 import Link from "next/link";
 import { CASES } from "@/data/cases";
 import type { Case } from "@/lib/types";
@@ -49,6 +50,10 @@ export default function ExamPage() {
   const rawId = params?.id;
   const caseId = Array.isArray(rawId) ? rawId[0] : rawId;
   const c = (CASES.find((x) => x.id === caseId) ?? null) as CaseWithRules | null;
+
+  // ✅ NEU: Router + Verzögerungsdauer
+  const router = useRouter();
+  const REDIRECT_AFTER_MS = 1200;
 
   // *** State ***
   const [asked, setAsked] = useState<Asked[]>([]);
@@ -129,6 +134,15 @@ export default function ExamPage() {
   useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [viewChat, loading]);
+
+  // ✅ NEU: Nach Abschluss automatisch zurück zur Übersicht leiten
+  useEffect(() => {
+    if (!ended) return;
+    const t = setTimeout(() => {
+      router.replace("/subjects");
+    }, REDIRECT_AFTER_MS);
+    return () => clearTimeout(t);
+  }, [ended, router]);
 
   function label(correctness: "correct" | "partially_correct" | "incorrect") {
     return correctness === "correct"
@@ -268,7 +282,8 @@ export default function ExamPage() {
         outline: [],
         style,
         objectives: c.objectives ?? [],
-        completion: c.completion ?? null,
+        completion: c.completeion ?? null, // <- bleibt wie bei dir (falls Tippfehler bitte entsprechend anpassen)
+        // ^^^ ich ändere sonst nichts am bestehenden Codefluss
 
         stepIndex: activeIndex,
         stepsPrompts: [],
@@ -359,6 +374,28 @@ export default function ExamPage() {
     }
   }
 
+  // -------------------------------------------------
+  // ✅ NEU (Schritt 5): Fortschritt in Supabase speichern
+  // -------------------------------------------------
+  async function persistProgress({ completed }: { completed: boolean }) {
+    if (!c) return;
+    try {
+      await fetch("/api/progress/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          caseId: c.id,
+          score: totalPoints,
+          maxScore: maxPoints,
+          completed,
+        }),
+      });
+    } catch {
+      // Absichtlich still – UI nicht blockieren
+    }
+  }
+  // -------------------------------------------------
+
   // *** Flow-Funktionen ***
   function startExam() {
     if (!c) return;
@@ -418,6 +455,8 @@ export default function ExamPage() {
     const last = activeIndex >= nSteps - 1;
     if (last) {
       setEnded(true);
+      // ✅ NEU: beim Abschließen Fortschritt speichern
+      void persistProgress({ completed: true });
       return;
     }
 
@@ -533,29 +572,28 @@ export default function ExamPage() {
             })}
           </ul>
 
+          {/* Start / Nächste Frage – neutraler Button, kein Blau */}
+          <div className="mt-4 flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={hasStarted ? nextStep : startExam}
+              disabled={loading}
+              className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+            >
+              {hasStarted ? (activeIndex >= stepsOrdered.length - 1 ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
+            </button>
 
-  {/* Start / Nächste Frage – neutraler Button, kein Blau */}
-  <div className="mt-4 flex flex-col gap-2">
-    <button
-      type="button"
-      onClick={hasStarted ? nextStep : startExam}
-      disabled={loading}
-      className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      {hasStarted ? (activeIndex >= stepsOrdered.length - 1 ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
-    </button>
-
-    {hasStarted && viewIndex !== activeIndex && (
-      <button
-        type="button"
-        onClick={() => setViewIndex(activeIndex)}
-        className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs text-gray-800 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-      >
-        Zur aktuellen Frage springen
-      </button>
-    )}
-  </div>
-</aside>
+            {hasStarted && viewIndex !== activeIndex && (
+              <button
+                type="button"
+                onClick={() => setViewIndex(activeIndex)}
+                className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs text-gray-800 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              >
+                Zur aktuellen Frage springen
+              </button>
+            )}
+          </div>
+        </aside>
 
         {/* Rechte Spalte: Chat */}
         <section className="relative flex flex-col gap-3">

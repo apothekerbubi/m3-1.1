@@ -33,18 +33,60 @@ body {
 ::selection { background: #bfdbfe; color: inherit; }
 ::-moz-selection { background: #bfdbfe; color: inherit; }
 
-/* Buttons – immer kontrastreich */
-button, 
-a[role="button"], 
+/* Outline-Buttons global */
+button,
+a[role="button"],
 input[type="submit"] {
-  color: #fff !important;
-  background-color: var(--ring) !important;
+  color: #2563eb !important;                 /* blue-600 (Text) */
+  background-color: #fff !important;          /* weiße Füllung */
+  border: 1px solid #3b82f6 !important;       /* blue-500 (Umrandung) */
+  border-radius: 10px !important;
+  padding: 0.5rem 0.75rem !important;
+  font-weight: 600 !important;
+  transition: background-color .2s, box-shadow .2s, color .2s !important;
 }
 
-button:hover, 
-a[role="button"]:hover, 
+/* Outline-Buttons global – blauer Rand/Text, hellblauer Hintergrund */
+button,
+a[role="button"],
+input[type="submit"] {
+  color: #2563eb !important;                 /* blue-600 (Text) */
+  background-color: #eff6ff !important;      /* blue-50 (leichter Blau-Hintergrund) */
+  border: 1px solid #3b82f6 !important;      /* blue-500 (Umrandung) */
+  border-radius: 10px !important;
+  padding: 0.5rem 0.75rem !important;
+  font-weight: 600 !important;
+  transition: background-color .2s, box-shadow .2s, color .2s !important;
+}
+
+button:hover,
+a[role="button"]:hover,
 input[type="submit"]:hover {
-  background-color: #3b82f6 !important; /* dunkleres Blau */
+  background-color: #dbeafe !important;      /* blue-100 */
+  color: #1d4ed8 !important;                 /* blue-700 */
+  box-shadow: 0 1px 6px rgba(37, 99, 235, .15) !important;
+}
+
+button:active,
+a[role="button"]:active,
+input[type="submit"]:active {
+  background-color: #bfdbfe !important;      /* blue-200 */
+  color: #1e40af !important;                 /* blue-800 */
+}
+
+button:focus-visible,
+a[role="button"]:focus-visible,
+input[type="submit"]:focus-visible {
+  outline: none !important;
+  box-shadow: 0 0 0 3px #93c5fd !important;  /* blue-300 focus ring */
+}
+
+button:disabled,
+a[role="button"][aria-disabled="true"],
+input[type="submit"]:disabled {
+  opacity: .55 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
 }
 
 /* ---------- Breitere Screens ---------- */

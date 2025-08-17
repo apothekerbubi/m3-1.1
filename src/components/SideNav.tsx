@@ -1,4 +1,3 @@
-// src/components/SideNav.tsx
 "use client";
 
 import Link from "next/link";
@@ -10,7 +9,11 @@ import {
   UserCircleIcon,
   InformationCircleIcon,
   ShoppingBagIcon,
+  ChartBarIcon,
+  BookOpenIcon,
+  ClipboardDocumentListIcon // ⬅️ NEU
 } from "@heroicons/react/24/outline";
+import { BuildingLibraryIcon } from "@heroicons/react/16/solid";
 
 type Item = {
   href: string;
@@ -18,9 +21,12 @@ type Item = {
   icon: (props: React.SVGProps<SVGSVGElement>) => React.ReactNode;
 };
 
+// ⬇️ „Übersicht“ neu hinzugefügt (führt zur /overview Seite)
 const NAV: Item[] = [
-  { href: "/subjects", label: "Übersicht", icon: HomeIcon },
-  { href: "/cases", label: "Examenssimulation", icon: AcademicCapIcon },
+  { href: "/overview", label: "Übersicht", icon: HomeIcon }, // ⬅️ NEU
+  { href: "/subjects", label: "Bibliothek", icon: BookOpenIcon },
+  { href: "/cases", label: "Leitsymptome", icon: ClipboardDocumentListIcon },
+  { href: "/simulate", label: "Examenssimulation", icon: AcademicCapIcon },
   { href: "/account", label: "Account", icon: UserCircleIcon },
   { href: "/info", label: "Kontakt & Info", icon: InformationCircleIcon },
   { href: "/shop", label: "Shop", icon: ShoppingBagIcon },
@@ -47,7 +53,6 @@ export default function SideNav() {
                   active ? "bg-black/[.04] text-gray-900" : "text-gray-700"
                 )}
               >
-                {/* dezente aktive Leiste links, aber OHNE overflow */}
                 <span
                   aria-hidden
                   className={clsx(

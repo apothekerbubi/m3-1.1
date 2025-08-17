@@ -1,12 +1,14 @@
+// src/app/subjects/subjects-inner.tsx
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { FolderIcon, ArrowRightIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+import { FolderIcon, ArrowRightIcon, ChevronRightIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 import type { Case } from "@/lib/types";
 import { CASES } from "@/data/cases";
 
+/* ---------- Utils ---------- */
 function shortName(c: Case) {
   const s = c.shortTitle?.trim();
   if (s) return s;
@@ -16,18 +18,66 @@ function shortName(c: Case) {
 
 const SUBJECT_ORDER: ReadonlyArray<string> = ["Innere Medizin", "Chirurgie", "Wahlfach"];
 
+/* Mini-Progressbar für die Fallliste (grün + Prozent rechts) */
+function MiniBar({ pct }: { pct: number }) {
+  const v = Math.max(0, Math.min(100, Math.round(pct || 0)));
+  return (
+    <div className="mt-1 flex items-center gap-2">
+      <div className="h-1.5 w-32 rounded-full bg-gray-200" aria-label={`Fortschritt ${v}%`}>
+        <div
+          className="h-1.5 rounded-full bg-emerald-600 transition-[width] duration-300"
+          style={{ width: `${v}%` }}
+        />
+      </div>
+      <span className="text-[11px] tabular-nums text-gray-600">{v}%</span>
+    </div>
+  );
+}
+
+/* Großflächiges Skeleton für diese Seite */
+function SubjectsSkeleton() {
+  return (
+    <main className="p-0 animate-pulse">
+      <div className="h-8 w-48 rounded bg-gray-200 mb-4" />
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3 items-start">
+        {[0, 1, 2].map((col) => (
+          <section key={col} className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
+            <div className="h-6 w-40 rounded bg-gray-200 mb-3" />
+            <ul className="space-y-2">
+              {[0, 1, 2, 3].map((i) => (
+                <li key={i} className="rounded-xl border border-black/10 bg-white/90 px-3 py-3">
+                  <div className="h-4 w-3/4 rounded bg-gray-200 mb-2" />
+                  <div className="h-3 w-1/3 rounded bg-gray-200" />
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </main>
+  );
+}
+
+type ProgressItem = {
+  case_id: string;
+  score?: number | null;
+  max_score?: number | null;
+  finished?: boolean | null;
+  progress_pct?: number | null; // server kann auch direkt Prozent liefern
+};
+
 export default function SubjectsPageInner() {
   const search = useSearchParams();
   const router = useRouter();
 
-  // 1) Fächer → Kategorien → Cases aus CASES bauen
+  /* -------- 1) Fächer/Kategorien/Mapping aus CASES bauen -------- */
   const { subjects, catsBySubject, casesByKey } = useMemo(() => {
     const catsMap = new Map<string, Set<string>>();
     const casesMap = new Map<string, Case[]>();
 
     for (const c of CASES) {
       const subj = (c.subject ?? c.specialty ?? "Sonstiges").trim();
-      const cat  = (c.category ?? c.subspecialty ?? "Allgemein").trim();
+      const cat = (c.category ?? c.subspecialty ?? "Allgemein").trim();
 
       if (!catsMap.has(subj)) catsMap.set(subj, new Set());
       catsMap.get(subj)!.add(cat);
@@ -53,11 +103,11 @@ export default function SubjectsPageInner() {
     return { subjects: ordered, catsBySubject: catsBySubjectObj, casesByKey: casesMap };
   }, []);
 
-  // 2) Auswahl aus URL oder Defaults
+  /* -------- 2) Auswahl aus URL oder Defaults -------- */
   const sParam = search.get("s") || subjects[0] || "";
   const subParam = search.get("sub") || (sParam && catsBySubject[sParam]?.[0]) || "";
 
-  // 3) URL-Setter (ohne reload)
+  /* -------- 3) URL Setter -------- */
   function setSubject(s: string) {
     const firstCat = catsBySubject[s]?.[0] || "";
     const params = new URLSearchParams(search.toString());
@@ -72,13 +122,62 @@ export default function SubjectsPageInner() {
     router.replace(`/subjects?${params.toString()}`);
   }
 
-  // 4) Fälle für rechte Spalte
+  /* -------- 4) Nutzer-Fortschritt laden (clientseitig) -------- */
+  const [progByCase, setProgByCase] = useState<Record<string, { pct: number; done: boolean }>>({});
+  const [loadingProg, setLoadingProg] = useState(true);
+
+  // 👉 Mindestdauer für das Skeleton (in ms)
+  const MIN_SKELETON_MS = 200;
+
+  useEffect(() => {
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const started = Date.now();
+
+    (async () => {
+      try {
+        const res = await fetch("/api/progress/list", { cache: "no-store" });
+        const json = (await res.json()) as { items?: ProgressItem[] } | ProgressItem[];
+        const items = Array.isArray(json) ? json : json.items ?? [];
+        const map: Record<string, { pct: number; done: boolean }> = {};
+        for (const it of items) {
+          const pct =
+            typeof it.progress_pct === "number"
+              ? it.progress_pct
+              : typeof it.score === "number" && typeof it.max_score === "number" && it.max_score > 0
+              ? Math.round((it.score / it.max_score) * 100)
+              : 0;
+          map[it.case_id] = { pct: Math.max(0, Math.min(100, pct)), done: Boolean(it.finished) };
+        }
+        if (alive) setProgByCase(map);
+      } catch {
+        if (alive) setProgByCase({});
+      } finally {
+        const elapsed = Date.now() - started;
+        const rest = Math.max(0, MIN_SKELETON_MS - elapsed);
+        if (alive) {
+          timer = setTimeout(() => setLoadingProg(false), rest);
+        }
+      }
+    })();
+
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
+
+  /* -------- 5) Fälle für rechte Spalte -------- */
   const activeCases = useMemo(() => {
     const key = `${sParam}::${subParam}`;
     const list = casesByKey.get(key) || [];
     return [...list].sort((a, b) => shortName(a).localeCompare(shortName(b), "de"));
   }, [casesByKey, sParam, subParam]);
 
+  /* ---------- Während der Progress lädt: großes Skeleton ---------- */
+  if (loadingProg) return <SubjectsSkeleton />;
+
+  /* ---------- Render ---------- */
   return (
     <main className="p-0">
       <h1 className="mb-4 text-3xl font-semibold tracking-tight">Bibliothek</h1>
@@ -153,7 +252,7 @@ export default function SubjectsPageInner() {
           )}
         </section>
 
-        {/* Spalte 3: Fälle */}
+        {/* Spalte 3: Fälle mit Progress */}
         <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
           <h2 className="mb-3 text-xl font-semibold">{subParam || "Fälle"}</h2>
           {!subParam ? (
@@ -162,32 +261,41 @@ export default function SubjectsPageInner() {
             <div className="text-sm text-gray-600">Keine Fälle in diesem Subfach.</div>
           ) : (
             <ul className="space-y-2">
-              {activeCases.map((c) => (
-                <li
-                  key={c.id}
-                  className="group flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white/80 px-3 py-2 shadow-sm hover:shadow-md"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate font-medium">{shortName(c)}</div>
-                    <div className="text-xs text-gray-600">{c.tags?.slice(0, 2).join(" · ")}</div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <Link
-                      href={`/cases/${c.id}`}
-                      className="hidden sm:inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-black/[.04]"
-                    >
-                      Details
-                    </Link>
-                    <Link
-                      href={`/exam/${c.id}`}
-                      className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-sm text-white hover:bg-blue-700"
-                      title="Prüfungsmodus"
-                    >
-                      Prüfen <ArrowRightIcon className="h-4 w-4" />
-                    </Link>
-                  </div>
-                </li>
-              ))}
+              {activeCases.map((c) => {
+                const p = progByCase[c.id];
+                const done = p?.done ?? false;
+                const pct = p?.pct ?? 0;
+                return (
+                  <li
+                    key={c.id}
+                    className="group flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white/80 px-3 py-2 shadow-sm hover:shadow-md"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <div className="truncate font-medium">{shortName(c)}</div>
+                        {done && <CheckCircleIcon className="h-4 w-4 text-emerald-600" aria-hidden />}
+                      </div>
+                      <div className="text-xs text-gray-600">{c.tags?.slice(0, 2).join(" · ")}</div>
+                      <MiniBar pct={pct} />
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Link
+                        href={`/cases/${c.id}`}
+                        className="hidden sm:inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-black/[.04]"
+                      >
+                        Details
+                      </Link>
+                      <Link
+                        href={`/exam/${c.id}`}
+                        className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-sm text-white hover:bg-blue-700"
+                        title="Prüfungsmodus"
+                      >
+                        Prüfen <ArrowRightIcon className="h-4 w-4" />
+                      </Link>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
