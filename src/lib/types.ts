@@ -130,3 +130,24 @@ export type Case = {
   objectives: LearningObjective[];
   completion: CompletionConfig;
 };
+
+// ---------- Versuche / Feedback ----------
+export type AttemptSection = {
+  name: string;
+  got: number;
+  max: number;
+  missing: string[]; // fehlende Keywords (dedupliziert)
+};
+
+export type AttemptResult = {
+  total: number;
+  sections: AttemptSection[];
+};
+
+export type Attempt = {
+  id: string;        // interne ID des Versuchs (z. B. UUID)
+  caseId: string;
+  caseTitle: string;
+  dateISO: string;   // ISO-String des Zeitpunkts
+  result: AttemptResult;
+};
