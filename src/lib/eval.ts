@@ -248,7 +248,10 @@ export function evaluateAnswer(answer: string, rule?: StepRule): EvalResult {
   if (!rule) return { correctness: "correct" };
   const a = normalizeDe(answer);
 
-  switch (rule.mode) {
+  // Wichtig: nicht direkt auf das enge Union switchen → generischen Mode extrahieren
+  const mode = (rule as { mode: string }).mode;
+
+  switch (mode) {
     case "categories":
       return evalCategories(a, rule as CategoriesRuleX);
     case "allOf":
@@ -256,7 +259,6 @@ export function evaluateAnswer(answer: string, rule?: StepRule): EvalResult {
     case "anyOf":
       return evalAnyOf(a, rule as AnyOfRuleX);
     case "exact":
-      // wird nur erreicht, wenn du solche Regeln tatsächlich übergibst
       return evalExact(a, rule as unknown as ExactRule);
     case "numeric":
       return evalNumeric(a, rule as unknown as NumericRule);
