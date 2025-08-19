@@ -1,45 +1,80 @@
+// src/app/feedback/[id]/page.tsx
 "use client";
 
-import type { Attempt } from "@/lib/types";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { getAttempt } from "@/lib/storage";
+import type { Attempt, AttemptSection } from "@/lib/types";
 
-const KEY = "m3_attempts_v1";
+export default function FeedbackPage() {
+  const params = useParams<{ id: string }>();
+  const id = params?.id ?? "";
+  const a: Attempt | null = id ? getAttempt(id) : null;
 
-// Alle Versuche laden
-function readAll(): Attempt[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    // Type Guard: sicherstellen, dass es wirklich ein Array ist
-    return Array.isArray(parsed) ? (parsed as Attempt[]) : [];
-  } catch {
-    return [];
+  if (!a) {
+    return (
+      <main className="mx-auto max-w-3xl p-6">
+        <h2 className="mb-2 text-xl font-semibold">Feedback</h2>
+        <p className="mb-4 text-sm text-gray-600">
+          Versuch nicht gefunden. Hast du die Simulation gerade erst neu geladen?
+        </p>
+        <div className="flex gap-2">
+          <Link href="/cases" className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50">
+            Zu den Fällen
+          </Link>
+        </div>
+      </main>
+    );
   }
-}
 
-// Alle Versuche schreiben
-function writeAll(list: Attempt[]) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(list));
-  } catch {
-    // Fails silently (z. B. wenn Speicher voll)
-  }
-}
+  return (
+    <main className="mx-auto max-w-3xl p-6">
+      <h2 className="mb-2 text-xl font-semibold">Feedback: {a.caseTitle}</h2>
+      <p className="mb-4 text-sm text-gray-600">
+        Versuch vom {new Date(a.dateISO).toLocaleString()}
+      </p>
 
-// Neuen Versuch speichern (max 200 in History)
-export function saveAttempt(a: Attempt) {
-  const list = readAll();
-  list.unshift(a);
-  writeAll(list.slice(0, 200));
-}
+      <div className="mb-4 rounded-lg border bg-gray-50 p-4">
+        <p>
+          Gesamtpunkte: <b>{a.result.total}</b>
+        </p>
+      </div>
 
-// Einzelnen Versuch finden
-export function getAttempt(id: string): Attempt | null {
-  return readAll().find((x) => x.id === id) ?? null;
-}
+      <ul className="space-y-2">
+        {a.result.sections.map((s: AttemptSection) => (
+          <li key={s.name} className="rounded-md border bg-white p-3">
+            <div className="flex items-center justify-between">
+              <span className="font-medium">{s.name}</span>
+              <span className="text-sm text-gray-600">
+                {s.got} / {s.max}
+              </span>
+            </div>
 
-// Alle bisherigen Versuche auflisten
-export function listAttempts(): Attempt[] {
-  return readAll();
+            {s.missing.length > 0 && (
+              <div className="mt-2 text-sm">
+                <span className="text-gray-600">Es fehlte:</span>
+                <ul className="ml-5 list-disc">
+                  {s.missing.map((m) => (
+                    <li key={m}>{m}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-6 flex gap-2">
+        <Link href="/cases" className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50">
+          Weitere Fälle
+        </Link>
+        <Link
+          href={`/simulate/${a.caseId}`}
+          className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50"
+        >
+          Nochmal üben
+        </Link>
+      </div>
+    </main>
+  );
 }
