@@ -16,14 +16,13 @@ type CategoriesRuleX = Extract<StepRule, { mode: "categories" }>;
 type AllOfRuleX     = Extract<StepRule, { mode: "allOf" }>;
 type AnyOfRuleX     = Extract<StepRule, { mode: "anyOf" }>;
 
-// Optional unterstützte Modi (sind evtl. NICHT im globalen StepRule enthalten)
+// Optional unterstützte Modi (falls außerhalb von StepRule verwendet)
 type ExactRule  = { mode: "exact"; expected?: string[]; synonyms?: SynonymsMap; forbidden?: string[] };
 type NumericCfg = { min?: number; max?: number; equals?: number };
 type NumericRule = { mode: "numeric"; numeric?: NumericCfg };
 type RegexRule = { mode: "regex"; regex?: string };
 
 // ---------- Normalisierung & Helpers ----------
-/** Deutsche Normalisierung: kleinschreibung, diakritika raus, Umlaute/ß vereinheitlichen */
 export function normalizeDe(s: string): string {
   const x = (s || "")
     .toLowerCase()
@@ -39,7 +38,6 @@ export function normalizeDe(s: string): string {
   return x;
 }
 
-/** prüft substring-match im normalisierten text */
 function includesNorm(hayNorm: string, needleRaw: string): boolean {
   if (!needleRaw) return false;
   const n = normalizeDe(needleRaw);
@@ -47,7 +45,6 @@ function includesNorm(hayNorm: string, needleRaw: string): boolean {
   return hayNorm.includes(n);
 }
 
-/** erweitert eine Liste um Synonyme aus rule.synonyms (inkl. kanonischer Key selbst) */
 function expandWithSynonyms(list: string[] | undefined, synonyms: Record<string, string[]> | undefined): string[] {
   if (!list || list.length === 0) return [];
   const out = new Set<string>();
@@ -62,7 +59,6 @@ function expandWithSynonyms(list: string[] | undefined, synonyms: Record<string,
   return Array.from(out);
 }
 
-/** bildet aus required-Liste eine Liste von Synonym-Sets (OR-Gruppen) */
 function requiredGroups(required: string[] | undefined, synonyms: Record<string, string[]> | undefined): string[][] {
   if (!required || required.length === 0) return [];
   return required.map((r) => {
@@ -73,7 +69,6 @@ function requiredGroups(required: string[] | undefined, synonyms: Record<string,
   });
 }
 
-/** zählt, wie viele OR-Gruppen getroffen wurden; liefert auch die getroffenen kanonischen Keys */
 function countRequiredHits(
   hayNorm: string,
   groups: string[][],
@@ -91,7 +86,6 @@ function countRequiredHits(
   return { hitCount, hitCanonicals: hitCanon.filter(Boolean) };
 }
 
-/** anyOf/expected → zählt Treffer (inkl. Synonyme) */
 function countExpectedHits(hayNorm: string, expected: string[], synonyms: Record<string, string[]> | undefined) {
   const expanded: Array<{ canonical: string; needle: string }> = [];
   expected.forEach((e) => {
@@ -107,7 +101,6 @@ function countExpectedHits(hayNorm: string, expected: string[], synonyms: Record
   return Array.from(hitCanon);
 }
 
-/** forbidden → prüft mit Synonym-Erweiterung */
 function findForbidden(hayNorm: string, forbidden: string[] | undefined, synonyms: Record<string, string[]> | undefined) {
   if (!forbidden || forbidden.length === 0) return [];
   const all = expandWithSynonyms(forbidden, synonyms);
@@ -115,7 +108,6 @@ function findForbidden(hayNorm: string, forbidden: string[] | undefined, synonym
 }
 
 // ---------- Evaluatoren ----------
-/** Kategorien-Bewertung */
 function evalCategories(hayNorm: string, rule: CategoriesRuleX): EvalResult {
   const cats = rule.categories ?? {};
   const minCats = typeof rule.minCategories === "number" ? rule.minCategories : 1;
@@ -138,11 +130,8 @@ function evalCategories(hayNorm: string, rule: CategoriesRuleX): EvalResult {
 
   const nCatsHit = Object.keys(categoriesHit).length;
 
-  // vorher
-const forb = findForbidden(hayNorm, rule.forbidden, rule.synonyms);
-
-// nachher
-const forb = findForbidden(hayNorm, rule.forbidden, undefined);
+  // CategoriesRule besitzt kein synonyms-Feld → undefined übergeben
+  const forb = findForbidden(hayNorm, rule.forbidden, undefined);
 
   const catsOk = nCatsHit >= minCats;
   const hitsOk = minHits > 0 ? totalItemsHit >= minHits : totalItemsHit > 0;
@@ -159,7 +148,6 @@ const forb = findForbidden(hayNorm, rule.forbidden, undefined);
   return { correctness, categoriesHit, forbidden: forb };
 }
 
-/** allOf-Bewertung (required mit OR-Sets via Synonyme); minHits ermöglicht Teilpunkte */
 function evalAllOf(hayNorm: string, rule: AllOfRuleX): EvalResult {
   const required = rule.required ?? [];
   const minHits = typeof rule.minHits === "number" ? rule.minHits : required.length;
@@ -182,7 +170,6 @@ function evalAllOf(hayNorm: string, rule: AllOfRuleX): EvalResult {
   return { correctness, hits: hitCanonicals, missing, forbidden: forb };
 }
 
-/** anyOf-Bewertung (expected, optional minHits) */
 function evalAnyOf(hayNorm: string, rule: AnyOfRuleX): EvalResult {
   const expected = rule.expected ?? [];
   const minHits = typeof rule.minHits === "number" ? rule.minHits : 1;
@@ -206,7 +193,6 @@ function evalAnyOf(hayNorm: string, rule: AnyOfRuleX): EvalResult {
   return { correctness, hits: hitCanonicals, missing, forbidden: forb };
 }
 
-/** exact-Bewertung: alle expected müssen vorkommen (Synonyme erlaubt) */
 function evalExact(hayNorm: string, rule: ExactRule): EvalResult {
   const expected = rule.expected ?? [];
   if (expected.length === 0) return { correctness: "correct" };
@@ -229,7 +215,6 @@ function evalExact(hayNorm: string, rule: ExactRule): EvalResult {
   return { correctness, hits: hitCanonicals, missing, forbidden: forb };
 }
 
-/** numeric-Bewertung: passt der Wert in die Range? */
 function evalNumeric(answerNorm: string, rule: NumericRule): EvalResult {
   const num = rule.numeric ?? {};
   const m = answerNorm.match(/-?\d+(?:[.,]\d+)?/);
@@ -247,7 +232,6 @@ function evalNumeric(answerNorm: string, rule: NumericRule): EvalResult {
   return { correctness: ok ? "correct" : "incorrect" };
 }
 
-/** regex-Bewertung */
 function evalRegex(answerNorm: string, rule: RegexRule): EvalResult {
   const pattern = rule.regex;
   if (!pattern) return { correctness: "incorrect" };
@@ -261,7 +245,7 @@ function evalRegex(answerNorm: string, rule: RegexRule): EvalResult {
 
 // ---------- Öffentliche Hauptfunktion ----------
 export function evaluateAnswer(answer: string, rule?: StepRule): EvalResult {
-  if (!rule) return { correctness: "correct" }; // Fallback, wenn keine Regel
+  if (!rule) return { correctness: "correct" };
   const a = normalizeDe(answer);
 
   switch (rule.mode) {
