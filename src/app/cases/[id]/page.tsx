@@ -1,9 +1,11 @@
+// src/app/cases/[id]/page.tsx
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { CASES } from "@/data/cases";
 import type { Case } from "@/lib/types";
+import CaseImagePublic from "@/components/CaseImagePublic"; // ✅ Bild-Komponente einbinden
 
 type ExtendedCase = Case & {
   specialty?: string;     // Fach (legacy-kompatibel)
@@ -24,7 +26,7 @@ export default function CaseDetail() {
   if (!c) {
     return (
       <main className="mx-auto max-w-3xl p-6">
-        <h2 className="text-xl font-semibold mb-2">Fall nicht gefunden</h2>
+        <h2 className="mb-2 text-xl font-semibold">Fall nicht gefunden</h2>
         <Link href="/subjects" className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50">
           Zur Bibliothek
         </Link>
@@ -69,25 +71,36 @@ export default function CaseDetail() {
 
       {/* Meta-Badges */}
       <div className="mb-6 flex flex-wrap items-center gap-2">
-        <span className="text-xs rounded-full border px-2 py-1">
+        <span className="rounded-full border px-2 py-1 text-xs">
           {subject}{subspecialty ? ` · ${subspecialty}` : ""}
         </span>
         {difficulty !== null && (
-          <span className="text-xs rounded-full border px-2 py-1">Schwierigkeit {difficulty}</span>
+          <span className="rounded-full border px-2 py-1 text-xs">Schwierigkeit {difficulty}</span>
         )}
         {tags.map((t) => (
-          <span key={t} className="text-xs rounded-full border px-2 py-1">{t}</span>
+          <span key={t} className="rounded-full border px-2 py-1 text-xs">{t}</span>
         ))}
       </div>
 
       {/* Schritte */}
       <section className="rounded-xl border border-black/10 bg-white/80 p-4">
         <h2 className="mb-2 font-medium">Prüfungs‑Schritte</h2>
-        <ol className="list-decimal space-y-1 pl-5 text-sm">
+        <ol className="list-decimal space-y-4 pl-5 text-sm">
           {steps.map((s) => (
             <li key={`${s.order}-${s.prompt}`}>
-              <span className="font-medium">{s.prompt}</span>
-              {s.hint && <span className="text-gray-600"> – {s.hint}</span>}
+              <div className="font-medium">{s.prompt}</div>
+              {s.hint && <div className="text-gray-600">– {s.hint}</div>}
+
+              {/* ✅ Bild pro Schritt rendern, wenn vorhanden */}
+              {s.image && (
+                <div className="mt-2">
+                  <CaseImagePublic
+                    path={s.image.path}
+                    alt={s.image.alt}
+                    caption={s.image.caption}
+                  />
+                </div>
+              )}
             </li>
           ))}
         </ol>

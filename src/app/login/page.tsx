@@ -101,22 +101,27 @@ export default function LoginPage() {
     }
   }
 
-  async function onMagicLink() {
+  // ✅ Passwort-Reset per E-Mail
+  async function onForgotPassword() {
+    if (!email) {
+      setError("Bitte gib zuerst deine E‑Mail-Adresse ein.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
-
     try {
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo:
-            typeof window !== "undefined" ? `${window.location.origin}/subjects` : undefined,
-        },
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo:
+          typeof window !== "undefined"
+            ? `${window.location.origin}/reset-password`
+            : undefined,
       });
-      if (otpError) throw otpError;
-      alert("Magic Link gesendet – bitte E‑Mail prüfen.");
+      if (resetError) throw resetError;
+      alert("Wir haben dir einen Link zum Zurücksetzen des Passworts geschickt.");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Senden des Magic Links fehlgeschlagen.");
+      setError(
+        err instanceof Error ? err.message : "Senden des Reset‑Links ist fehlgeschlagen."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -244,12 +249,12 @@ export default function LoginPage() {
         {mode === "login" && (
           <button
             type="button"
-            onClick={onMagicLink}
+            onClick={onForgotPassword}
             disabled={submitting || !email}
             className="w-full rounded-md border px-3 py-2 text-sm"
-            title="Login per Magic Link"
+            title="Passwort zurücksetzen"
           >
-            Magic Link senden
+            Passwort vergessen?
           </button>
         )}
 

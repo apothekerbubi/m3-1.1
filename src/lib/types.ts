@@ -1,59 +1,56 @@
 // src/lib/types.ts
 
-// ---------- Scoring/Ergebnisse ----------
-export type SectionScore = {
-  name: string;
-  got: number;
-  max: number;
-  missing: string[]; // fehlende Keywords (dedupliziert)
+// ---------- Hilfstypen ----------
+export type SynonymsMap = Record<string, string[]>;
+export type CategoriesMap = Record<string, string[]>;
+
+// ---------- Medien ----------
+export type StepImage = {
+  path: string;          // Pfad innerhalb des (öffentlichen) Buckets, z. B. "Roentgen/Spannungspneumothorax.png"
+  alt: string;           // Barrierefreier Alternativtext
+  caption?: string;      // optionale Bildunterschrift
 };
 
-export type ScoreResult = {
-  total: number;
-  sections: SectionScore[];
+// ---------- Regeln (Auswertung) ----------
+export type CategoriesRule = {
+  mode: "categories";
+  categories: CategoriesMap;
+  minCategories: number; // mind. so viele Kategorien müssen getroffen werden
+  minHits: number;       // mind. so viele Gesamt‑Treffer
+  forbidden?: string[];
+  hint_general?: string;
 };
 
-// ---------- Regeln / Auswertung ----------
-export type EvalMode = "exact" | "anyOf" | "allOf" | "categories" | "numeric" | "regex";
-
-export type StepRule = {
-  mode: EvalMode;
-
-  // Textbasierte Checks
-  expected?: string[];                 // exakte Ziele / Kanon
-  synonyms?: Record<string, string[]>; // "pankreatitis": ["akute pankreatitis", ...]
-  required?: string[];                 // müssen vorkommen (beliebige Reihenfolge)
-  optional?: string[];                 // nice-to-have
-  forbidden?: string[];                // sollte NICHT vorkommen
-  minHits?: number;                    // wie viele expected/required mind. genannt werden müssen
-
-  // Kategoriensets (für DD)
-  categories?: { [catName: string]: string[] }; // z.B. "gastrointestinal": [...]
-  minCategories?: number;                        // z.B. >=2 Kategorien nennen
-
-  // Numeric / Ranges (Labore, Skalen)
-  numeric?: { min?: number; max?: number; equals?: number };
-
-  // Regex-Fälle (z.B. ICD-10 Codes)
-  regex?: string;
-
-  // Scoring-Gewichte
-  weights?: { required?: number; optional?: number; forbidden?: number; category?: number };
-
-  // Hints ohne Spoiler
-  hint_general?: string; // kurzer, spoilerfreier Tipp
+export type AllOfRule = {
+  mode: "allOf";
+  required: string[];        // müssen vorkommen
+  optional?: string[];       // nice-to-have
+  synonyms?: SynonymsMap;    // Normalisierung (z. B. "MI" -> "myokardinfarkt")
+  forbidden?: string[];
+  minHits?: number;          // wie viele Nennungen insgesamt (required+optional) mind. nötig sind
+  hint_general?: string;
 };
 
-// ---------- Reveal (Befunde/Zusatzinfos) ----------
+export type AnyOfRule = {
+  mode: "anyOf";
+  expected: string[];        // irgendeine dieser Nennungen reicht
+  synonyms?: SynonymsMap;
+  forbidden?: string[];
+  minHits?: number;          // wie viele davon mind. nötig sind
+  hint_general?: string;
+};
+
+// Union über alle Regelvarianten:
+export type StepRule = CategoriesRule | AllOfRule | AnyOfRule;
+
+// ---------- Reveal (Befundpakete/Zusatzinfos) ----------
 export type StepRevealWhen =
-  | "on_enter"       // direkt beim Öffnen des Schritts
-  | "always"         // immer anzeigen
-  | "after_answer"   // nach irgendeiner Bewertung/Lösung
-  | "after_full"     // nur bei "correct"
-  | "after_partial"; // bei "partially_correct" oder "correct"
+  | "on_enter"      // beim Öffnen des Schritts
+  | "on_submit"     // nach Abgabe/Eingabe
+  | "always";       // immer sichtbar
 
 export type StepRevealVitals = {
-  rr?: string;
+  rr?: string;                       // z. B. "120/70 mmHg"
   puls?: number | string;
   temp?: number | string;
   spo2?: number | string;
@@ -61,10 +58,15 @@ export type StepRevealVitals = {
 
 export type StepRevealLabEntry =
   | { wert?: number | string; einheit?: string; referenz?: string }
-  | string
-  | number;
+  | number
+  | string;
 
-export type StepRevealImaging = { ultraschall?: string; ct?: string; mrt?: string };
+export type StepRevealImaging = {
+  lungensonografie?: string;
+  roentgen?: string;
+  ct?: string;
+  mrt?: string;
+};
 
 export type StepRevealContent = {
   befundpaketTitel?: string;
@@ -72,7 +74,8 @@ export type StepRevealContent = {
   labor?: Record<string, StepRevealLabEntry>;
   bildgebung?: StepRevealImaging;
   interpretationKurz?: string;
-  [k: string]: unknown; // tolerant für zukünftige Felder
+  // offen für zukünftige Felder:
+  [k: string]: unknown;
 };
 
 export type StepReveal = {
@@ -80,75 +83,50 @@ export type StepReveal = {
   content?: StepRevealContent;
 };
 
-// ---------- Fälle / Schritte ----------
-export type CaseStep = {
-  order: number;
-  prompt: string;
-  hint?: string;
-  id?: string;
-
-  // Bewertung
-  rule?: StepRule;
-
-  // Punkte/Reveal (optional)
-  points?: number;
-  reveal?: StepReveal | null;
+// ---------- Schritt / Lernziel / Abschluss ----------
+export type Step = {
+  order: number;          // 1..n
+  points: number;         // Punktzahl für den Schritt
+  prompt: string;         // Aufgabenstellung
+  hint?: string;          // optionaler Hinweis (spoilerfrei)
+  rule: StepRule;         // Bewertungslogik
+  image?: StepImage;      // optionales Bild zum Schritt
+  reveal?: StepReveal;    // optionale Zusatzinfos
 };
 
-export type Objective = {
-  id: string;            // z.B. "ddx", "workup", "initial_tx"
-  label: string;         // z.B. "2–3 plausible DD nennen"
-  description?: string;
+export type LearningObjective = {
+  id: string;             // z. B. "ddx", "therapie"
+  label: string;          // UI‑Text
+  description?: string;   // optional
 };
 
-export type CompletionRules = {
-  minObjectives: number;
-  maxLLMTurns?: number;
-  hardStopTurns?: number;
+export type CompletionConfig = {
+  minObjectives: number;  // wie viele Lernziele mind. erreicht sein sollen
+  maxLLMTurns: number;    // optionales Limit für Interaktionen
+  hardStopTurns: number;  // absoluter Stopp
 };
 
-// Rubriken (optional)
-export type RubricSectionSimple = { name: string; points: number; keywords: string[] };
-export type RubricSimple = { sections: RubricSectionSimple[] };
-
-export type RubricItem = { id?: string; text: string; points: number; keywords: string[] };
-export type RubricSectionDetailed = { id?: string; name: string; maxPoints: number; items: RubricItem[] };
-export type RubricDetailed = { sections: RubricSectionDetailed[] };
-export type Rubric = RubricSimple | RubricDetailed;
-
-// ---------- Case ----------
-export type Subject = "Innere Medizin" | "Chirurgie" | "Wahlfach";
-
+// ---------- Fall ----------
 export type Case = {
-  id: string;
-  title: string;
-  vignette: string;
-  steps: CaseStep[];
+  id: string;                 // z. B. "spannungspneumothorax_001"
+  title: string;              // Volltitel
+  shortTitle?: string;        // Kurztitel (optional)
+  vignette: string;           // Einleitende Fallvignette
 
-  // optionale Metadaten
-  tags?: string[];
-  difficulty?: string | number;
-  specialty?: string;
-  subspecialty?: string;
-  category?: string;
-  subject?: Subject;
-  shortTitle?: string;
-  leadSymptom?: string;   // z. B. "Bauchschmerz", "Dyspnoe", ...
-  pseudonym?: string;     // z. B. "bauchschmerz_001"
-  // optionale LLM-Regeln
-  objectives?: Objective[];
-  completion?: CompletionRules | null;
+  // Klassifikation/Metadaten
+  specialty: string;          // Fach (z. B. "Notfallmedizin")
+  subspecialty?: string;      // Subfach (optional)
+  subject?: string;           // legacy/alternativ
+  category?: string;          // legacy/alternativ
+  leadSymptom?: string;       // z. B. "Akute Dyspnoe"
+  pseudonym?: string;         // interne Bezeichnung
+  difficulty: number;         // 1..5 oder ähnlich
+  tags: string[];             // Freitags
 
-  // optional: Rubrik (für Simulation/Scoring)
-  rubric?: Rubric;
-};
+  // Inhalt
+  steps: Step[];              // die einzelnen Prüfungs‑/Lernschritte
 
-// ---------- Versuche/History ----------
-export type Attempt = {
-  id: string;
-  caseId: string;
-  caseTitle: string;
-  dateISO: string;
-  answers: string[];
-  result: ScoreResult;
+  // Lernziele/Abschluss
+  objectives: LearningObjective[];
+  completion: CompletionConfig;
 };

@@ -2,28 +2,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation"; // ✅ NEU: useRouter hinzugefügt
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { CASES } from "@/data/cases";
-import type { Case } from "@/lib/types";
+import type { Case, Step, StepReveal } from "@/lib/types";
 import ProgressBar from "@/components/ProgressBar";
 import ScorePill from "@/components/ScorePill";
-
-/** ---- Zusatttypen für optionale Step-Infos ---- */
-type RevealWhen = "on_enter" | "always" | "after_answer" | "after_full" | "after_partial";
-
-type RevealConfig = {
-  when: RevealWhen;
-  content?: unknown;
-};
-
-type CaseStepExtra = {
-  prompt: string;
-  order: number;
-  rule?: unknown;
-  points?: number;
-  reveal?: RevealConfig | null;
-};
+import CaseImagePublic from "@/components/CaseImagePublic";
 
 // ---- Lokale UI-Typen ----
 type Turn = { role: "prof" | "student"; text: string };
@@ -51,7 +36,7 @@ export default function ExamPage() {
   const caseId = Array.isArray(rawId) ? rawId[0] : rawId;
   const c = (CASES.find((x) => x.id === caseId) ?? null) as CaseWithRules | null;
 
-  // ✅ NEU: Router + Verzögerungsdauer
+  // Router + Verzögerungsdauer
   const router = useRouter();
   const REDIRECT_AFTER_MS = 1200;
 
@@ -69,6 +54,10 @@ export default function ExamPage() {
   const [chats, setChats] = useState<Turn[][]>([]);
   const listRef = useRef<HTMLDivElement | null>(null);
 
+  // 🔽 Sidebar: Container + letztes Item für Auto-Scroll
+  const sidebarRef = useRef<HTMLDivElement | null>(null);
+  const lastAskedRef = useRef<HTMLLIElement | null>(null);
+
   // Punkte pro Schritt (Bestwert)
   const [perStepScores, setPerStepScores] = useState<number[]>([]);
   const [lastCorrectness, setLastCorrectness] =
@@ -80,19 +69,9 @@ export default function ExamPage() {
   const [input, setInput] = useState("");
 
   // *** Abgeleitete Daten ***
-  const stepsOrdered = useMemo<CaseStepExtra[]>(
-    () =>
-      c
-        ? [...c.steps]
-            .sort((a, b) => a.order - b.order)
-            .map((s) => ({
-              prompt: (s as unknown as { prompt: string }).prompt,
-              order: (s as unknown as { order: number }).order,
-              rule: (s as Partial<CaseStepExtra>).rule,
-              points: (s as Partial<CaseStepExtra>).points,
-              reveal: (s as Partial<CaseStepExtra>).reveal ?? null,
-            }))
-        : [],
+  // WICHTIG: echte Step-Objekte verwenden, damit .image erhalten bleibt
+  const stepsOrdered = useMemo<Step[]>(
+    () => (c ? [...c.steps].sort((a, b) => a.order - b.order) : []),
     [c]
   );
 
@@ -106,12 +85,11 @@ export default function ExamPage() {
     return typeof p === "number" ? p : 2;
   }, [stepsOrdered, activeIndex]);
 
-  const stepReveal: RevealConfig | null = stepsOrdered[activeIndex]?.reveal ?? null;
+  const stepReveal: StepReveal | null = (stepsOrdered[activeIndex]?.reveal ?? null) as StepReveal | null;
 
-  // ❗ Hier wird die maximale Punktzahl der Case Study berechnet
+  // ❗ maximale Punktzahl
   const maxPoints = useMemo<number>(
-    () =>
-      stepsOrdered.reduce((acc, s) => acc + (typeof s.points === "number" ? s.points : 2), 0),
+    () => stepsOrdered.reduce((acc, s) => acc + (typeof s.points === "number" ? s.points : 2), 0),
     [stepsOrdered]
   );
 
@@ -119,9 +97,9 @@ export default function ExamPage() {
     () => perStepScores.reduce((a, b) => a + (b || 0), 0),
     [perStepScores]
   );
-  const totalPoints = Math.min(Math.round(totalPointsRaw * 10) / 10, maxPoints); // clamp ≤ 100%
+  const totalPoints = Math.min(Math.round(totalPointsRaw * 10) / 10, maxPoints);
 
-  // Fortschritt = erledigte Schritte (Status != pending) / alle Schritte
+  // Fortschritt = erledigte Schritte / alle Schritte
   const progressPct = useMemo<number>(() => {
     const total = Math.max(1, nSteps);
     const done = asked.filter((a) => a.status !== "pending").length;
@@ -135,7 +113,14 @@ export default function ExamPage() {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [viewChat, loading]);
 
-  // ✅ NEU: Nach Abschluss automatisch zurück zur Übersicht leiten
+  // 🔽 Sidebar Auto-Scroll: immer zum letzten freigeschalteten Eintrag
+  useEffect(() => {
+    if (lastAskedRef.current) {
+      lastAskedRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [asked.length, activeIndex]);
+
+  // Nach Abschluss automatisch zurück zur Übersicht
   useEffect(() => {
     if (!ended) return;
     const t = setTimeout(() => {
@@ -154,43 +139,52 @@ export default function ExamPage() {
   const normalize = (s: string) =>
     s.toLowerCase().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "").trim();
 
-  function pushProf(step: number, text?: string | null) {
-  if (!text || !text.trim()) return;
-  const t = text.trim();
-  setChats((prev) => {
-    const copy: Turn[][] = prev.map((x) => [...x]);
-    const arr: Turn[] = (copy[step] ?? []) as Turn[];
-    const lastProf = [...arr].reverse().find((x) => x.role === "prof");
-    if (!lastProf || normalize(lastProf.text) !== normalize(t)) {
-      const next: Turn[] = [...arr, { role: "prof" as const, text: t }];
-      copy[step] = next;
+  // 🔒 Immer anonyme Überschrift
+  function anonymousTitle(caseObj: CaseWithRules | null) {
+    if (!caseObj) return "Prüfung";
+    const pseudo = (caseObj as any).pseudonym as string | undefined;
+    if (pseudo && pseudo.trim()) {
+      return pseudo.replace(/[_-]+/g, " ").replace(/\p{L}+/gu, (w) => w[0].toUpperCase() + w.slice(1));
     }
-    return copy;
-  });
-}
+    const sym = (caseObj as any).leadSymptom as string | undefined;
+    if (sym && sym.trim()) return sym;
+    return "Prüfung";
+  }
 
-function pushStudent(step: number, text: string) {
-  setChats((prev) => {
-    const copy: Turn[][] = prev.map((x) => [...x]);
-    const arr: Turn[] = (copy[step] ?? []) as Turn[];
-    copy[step] = [...arr, { role: "student" as const, text }];
-    return copy;
-  });
-}
+  function pushProf(step: number, text?: string | null) {
+    if (!text || !text.trim()) return;
+    const t = text.trim();
+    setChats((prev) => {
+      const copy: Turn[][] = prev.map((x) => [...x]);
+      const arr: Turn[] = (copy[step] ?? []) as Turn[];
+      const lastProf = [...arr].reverse().find((x) => x.role === "prof");
+      if (!lastProf || normalize(lastProf.text) !== normalize(t)) {
+        const next: Turn[] = [...arr, { role: "prof" as const, text: t }];
+        copy[step] = next;
+      }
+      return copy;
+    });
+  }
+
+  function pushStudent(step: number, text: string) {
+    setChats((prev) => {
+      const copy: Turn[][] = prev.map((x) => [...x]);
+      const arr: Turn[] = (copy[step] ?? []) as Turn[];
+      copy[step] = [...arr, { role: "student" as const, text }];
+      return copy;
+    });
+  }
 
   function shouldReveal(
-    now: RevealConfig | null,
+    now: StepReveal | null,
     evaluation: ApiReply["evaluation"] | null,
     hadSolution: boolean
   ): boolean {
     if (!now) return false;
     const w = now.when;
     if (w === "always") return true;
-    if (w === "after_answer") return Boolean(evaluation) || hadSolution;
-    if (w === "after_full") return evaluation?.correctness === "correct";
-    if (w === "after_partial")
-      return evaluation?.correctness === "partially_correct" || evaluation?.correctness === "correct";
-    // "on_enter" behandeln wir separat beim Öffnen des Schritts
+    if (w === "on_enter") return false; // separat in maybeRevealOnEnter behandelt
+    if (w === "on_submit") return Boolean(evaluation) || hadSolution;
     return false;
   }
 
@@ -240,8 +234,21 @@ function pushStudent(step: number, text: string) {
         c && typeof c.bildgebung === "object" && c.bildgebung !== null
           ? (c.bildgebung as Record<string, unknown>)
           : null;
-      const sono = bild && typeof bild.ultraschall === "string" ? (bild.ultraschall as string) : null;
+
+      // In deinen Daten vorhandene Schlüssel unterstützen
+      const sono =
+        (typeof bild?.lungensonografie === "string" ? (bild?.lungensonografie as string) : null) ??
+        (typeof bild?.ultraschall === "string" ? (bild?.ultraschall as string) : null);
       if (sono) parts.push(`Sono: ${sono}`);
+
+      const rx = typeof bild?.roentgen === "string" ? (bild?.roentgen as string) : null;
+      if (rx) parts.push(`Röntgen: ${rx}`);
+
+      const ct = typeof bild?.ct === "string" ? (bild?.ct as string) : null;
+      if (ct) parts.push(`CT: ${ct}`);
+
+      const mrt = typeof bild?.mrt === "string" ? (bild?.mrt as string) : null;
+      if (mrt) parts.push(`MRT: ${mrt}`);
 
       const kurz = c && typeof c.interpretationKurz === "string" ? (c.interpretationKurz as string) : null;
       if (kurz) parts.push(`Kurzinterpretation: ${kurz}`);
@@ -257,7 +264,7 @@ function pushStudent(step: number, text: string) {
   }
 
   function maybeRevealOnEnter(idx: number) {
-    const rv = stepsOrdered[idx]?.reveal;
+    const rv = stepsOrdered[idx]?.reveal as StepReveal | undefined;
     if (rv && rv.when === "on_enter") {
       pushProf(idx, formatReveal(rv.content));
     }
@@ -277,14 +284,13 @@ function pushStudent(step: number, text: string) {
         progressPct,
         caseText: c.vignette,
         transcript: current.map((t): { role: "examiner" | "student"; text: string } => ({
-         role: t.role === "prof" ? "examiner" : "student",
-         text: t.text,
-          })),
+          role: t.role === "prof" ? "examiner" : "student",
+          text: t.text,
+        })),
         outline: [],
         style,
         objectives: c.objectives ?? [],
-        completion: c.completion ?? null, // <- bleibt wie bei dir (falls Tippfehler bitte entsprechend anpassen)
-        // ^^^ ich ändere sonst nichts am bestehenden Codefluss
+        completion: c.completion ?? null,
 
         stepIndex: activeIndex,
         stepsPrompts: [],
@@ -376,7 +382,7 @@ function pushStudent(step: number, text: string) {
   }
 
   // -------------------------------------------------
-  // ✅ NEU (Schritt 5): Fortschritt in Supabase speichern
+  // Fortschritt in Supabase speichern
   // -------------------------------------------------
   async function persistProgress({ completed }: { completed: boolean }) {
     if (!c) return;
@@ -427,25 +433,24 @@ function pushStudent(step: number, text: string) {
   }
 
   function onSend() {
-  if (!c || loading || ended) return;
-  if (viewIndex !== activeIndex) return;
+    if (!c || loading || ended) return;
+    if (viewIndex !== activeIndex) return;
 
-  const text = input.trim();
-  if (!text) return;
+    const text = input.trim();
+    if (!text) return;
 
-  pushStudent(activeIndex, text);
-  setInput("");
+    pushStudent(activeIndex, text);
+    setInput("");
 
-  setAttemptCount((n) => (n >= 2 ? 2 : n + 1));
+    setAttemptCount((n) => (n >= 2 ? 2 : n + 1));
 
-  // 👉 hier typisieren & Literal fixen
-  const current: Turn[] = [
-    ...(((chats[activeIndex] ?? []) as Turn[])),
-    { role: "student" as const, text },
-  ];
+    const current: Turn[] = [
+      ...(((chats[activeIndex] ?? []) as Turn[])),
+      { role: "student" as const, text },
+    ];
 
-  void callExamAPI(current, { mode: "answer" });
-}
+    void callExamAPI(current, { mode: "answer" });
+  }
 
   function goToStep(idx: number) {
     if (!c) return;
@@ -461,7 +466,7 @@ function pushStudent(step: number, text: string) {
     const last = activeIndex >= nSteps - 1;
     if (last) {
       setEnded(true);
-      // ✅ NEU: beim Abschließen Fortschritt speichern
+      // beim Abschließen Fortschritt speichern
       void persistProgress({ completed: true });
       return;
     }
@@ -523,11 +528,16 @@ function pushStudent(step: number, text: string) {
   const isLastStep = activeIndex >= nSteps - 1;
   const viewingPast = viewIndex !== activeIndex;
 
+  // Bild des gerade betrachteten Schritts (für Chat-Panel)
+  const stepImg = stepsOrdered[viewIndex]?.image;
+
   return (
     <main className="p-0">
       {/* Kopfzeile */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h2 className="flex-1 text-2xl font-semibold tracking-tight">Prüfung: {c.title}</h2>
+        <h2 className="flex-1 text-2xl font-semibold tracking-tight">
+          Prüfung: {anonymousTitle(c)}
+        </h2>
         <ScorePill points={totalPoints} maxPoints={maxPoints} last={lastCorrectness} />
         <div className="hidden w-56 sm:block">
           <ProgressBar value={ended ? 100 : progressPct} />
@@ -546,10 +556,14 @@ function pushStudent(step: number, text: string) {
       {/* Zwei Spalten */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[var(--steps-w,260px)_1fr]">
         {/* Linke Spalte */}
-        <aside className="h-fit rounded-xl border border-black/10 bg-white/70 p-3 md:sticky md:top-20">
+        <aside
+          ref={sidebarRef}
+          className="rounded-xl border border-black/10 bg-white/70 p-3 md:sticky md:top-20
+                     overflow-y-auto max-h-[calc(100vh-120px)]"
+        >
           <div className="mb-2 text-xs font-medium text-gray-700">Fragenfolge</div>
           <ul className="space-y-2">
-            {asked.map((a) => {
+            {asked.map((a, i) => {
               const dot =
                 a.status === "pending"
                   ? "bg-gray-300"
@@ -558,17 +572,25 @@ function pushStudent(step: number, text: string) {
                   : a.status === "partial"
                   ? "bg-yellow-400"
                   : "bg-red-500";
+              const isView = a.index === viewIndex;
+              const isActive = a.index === activeIndex;
+
               return (
-                <li key={a.index} className="flex items-start gap-2 text-sm leading-snug">
-                  <span className={`mt-1 inline-block h-3 w-3 rounded-full ${dot}`} />
+                <li
+                  key={a.index}
+                  ref={i === asked.length - 1 ? lastAskedRef : null}
+                  className="grid grid-cols-[12px_1fr] items-start gap-2"
+                >
+                  <span className={`h-2.5 w-2.5 rounded-full self-start mt-2 flex-none ${dot}`} aria-hidden />
                   <button
                     type="button"
                     onClick={() => setViewIndex(a.index)}
-                    // harter Reset: nur Text + Hover-Unterstrich + explizite Textfarbe
-                    className={`[all:unset] cursor-pointer select-none text-[13px] leading-snug
-                      ${a.index === viewIndex ? "font-semibold underline" : ""}
-                      ${a.index === activeIndex ? "!text-gray-900" : "!text-gray-800"}
-                      hover:underline focus-visible:underline !bg-transparent !shadow-none !ring-0 !outline-none`}
+                    className={[
+                      "block w-full rounded-2xl border px-3 py-2 text-left text-[13px] leading-snug",
+                      "hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400",
+                      isView ? "border-blue-400 bg-blue-50 ring-1 ring-blue-300" : "border-blue-200 bg-white",
+                      isActive ? "text-gray-900" : "text-gray-800",
+                    ].join(" ")}
                     title="Frage ansehen"
                   >
                     {a.text}
@@ -578,7 +600,7 @@ function pushStudent(step: number, text: string) {
             })}
           </ul>
 
-          {/* Start / Nächste Frage – neutraler Button, kein Blau */}
+          {/* Start / Nächste Frage */}
           <div className="mt-4 flex flex-col gap-2">
             <button
               type="button"
@@ -607,13 +629,24 @@ function pushStudent(step: number, text: string) {
             ref={listRef}
             className="relative z-10 h-[58vh] overflow-y-auto rounded-2xl border border-black/10 bg-white p-4 shadow-card text-gray-900"
           >
+            {/* ✅ Bild nur anzeigen, wenn gestartet & aktueller Schritt aktiv ist */}
+            {hasStarted && viewIndex === activeIndex && stepImg && (
+              <div className="mb-3">
+                <CaseImagePublic
+                  path={stepImg.path}
+                  alt={stepImg.alt}
+                  caption={stepImg.caption}
+                  zoomable
+                  thumbMaxHeight={220}
+                />
+              </div>
+            )}
+
             {viewChat.map((t, i) => (
               <div key={i} className={`mb-3 ${t.role === "prof" ? "" : "text-right"}`}>
                 <div
                   className={`inline-block max-w-[80%] rounded-2xl px-3 py-2 shadow-sm ${
-                    t.role === "prof"
-                      ? "border border-black/10 bg-white text-gray-900"
-                      : "bg-blue-600 text-white"
+                    t.role === "prof" ? "border border-black/10 bg-white text-gray-900" : "bg-blue-600 text-white"
                   }`}
                 >
                   <span className="text-sm leading-relaxed">
