@@ -138,7 +138,11 @@ function evalCategories(hayNorm: string, rule: CategoriesRuleX): EvalResult {
 
   const nCatsHit = Object.keys(categoriesHit).length;
 
-  const forb = findForbidden(hayNorm, rule.forbidden, rule.synonyms);
+  // vorher
+const forb = findForbidden(hayNorm, rule.forbidden, rule.synonyms);
+
+// nachher
+const forb = findForbidden(hayNorm, rule.forbidden, undefined);
 
   const catsOk = nCatsHit >= minCats;
   const hitsOk = minHits > 0 ? totalItemsHit >= minHits : totalItemsHit > 0;
