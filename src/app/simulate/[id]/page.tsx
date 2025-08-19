@@ -7,20 +7,16 @@ import Link from "next/link";
 import { CASES } from "@/data/cases";
 import type { Case } from "@/lib/types";
 import { scoreAnswer } from "@/lib/scoring";
-
-// --- Lokale, minimale Typen für diese Page ---
-type ScoreSection = { name: string; got: number; max: number; missing?: string[] };
-type ScoreResult = { total: number; sections: ScoreSection[] };
-
-// Das Rubrik-Objekt wird nur durchgereicht; hier reicht ein flexibler Typ:
-type Rubric = Record<string, unknown>;
+import type { Rubric, ScoreResult } from "@/lib/scoring";
 
 // Case um optionale Rubrik erweitern
 type CaseWithRubric = Case & { rubric?: Rubric };
 
 export default function SimulatePage() {
-  const params = useParams<{ id: string }>();
-  const caseId = params?.id ?? "";
+  // params kann bei Next ein string ODER string[] sein -> sicher extrahieren
+  const params = useParams<{ id: string | string[] }>();
+  const rawId = params?.id;
+  const caseId = Array.isArray(rawId) ? rawId[0] : rawId ?? "";
 
   const c = useMemo<CaseWithRubric | undefined>(
     () => (CASES.find((x) => x.id === caseId) as CaseWithRubric | undefined) ?? undefined,
@@ -31,8 +27,8 @@ export default function SimulatePage() {
   const [result, setResult] = useState<ScoreResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Dummy-Eingabe: ein großes Textfeld; du kannst hier auch mehrere Felder pro Schritt rendern
-  const [text, setText] = useState("");
+  // Dummy-Freitextfeld
+  const [text, setText] = useState<string>("");
 
   function onAdd() {
     if (!text.trim()) return;
@@ -52,14 +48,14 @@ export default function SimulatePage() {
       return;
     }
     const all = answers.join(" ");
-    const r = scoreAnswer(all, c.rubric) as ScoreResult; // Ergebnis passend typisieren
+    const r: ScoreResult = scoreAnswer(all, c.rubric);
     setResult(r);
   }
 
   if (!c) {
     return (
       <main className="mx-auto max-w-3xl p-6">
-        <h2 className="text-xl font-semibold mb-2">Fall nicht gefunden</h2>
+        <h2 className="mb-2 text-xl font-semibold">Fall nicht gefunden</h2>
         <Link href="/cases" className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50">
           Zur Fallliste
         </Link>
@@ -71,7 +67,10 @@ export default function SimulatePage() {
     <main className="mx-auto max-w-3xl p-6">
       <div className="mb-4 flex items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Simulation: {c.title}</h1>
-        <Link href={`/exam/${c.id}`} className="ml-auto rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50">
+        <Link
+          href={`/exam/${c.id}`}
+          className="ml-auto rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
+        >
           Zum Prüfungsmodus
         </Link>
       </div>
@@ -124,7 +123,7 @@ export default function SimulatePage() {
                   <div className="font-medium">
                     {s.name}: {s.got}/{s.max}
                   </div>
-                  {s.missing?.length ? (
+                  {s.missing && s.missing.length > 0 ? (
                     <div className="text-xs text-gray-600">
                       Fehlende Punkte: {s.missing.join(", ")}
                     </div>
