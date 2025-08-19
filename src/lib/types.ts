@@ -61,6 +61,9 @@ export type StepRevealLabEntry =
   | number
   | string;
 
+// ✅ NEU: Gruppen erlauben (z. B. bga: { ph: {...}, pco2: {...} })
+export type StepRevealLabGroup = Record<string, StepRevealLabEntry>;
+
 export type StepRevealImaging = {
   lungensonografie?: string;
   roentgen?: string;
@@ -71,7 +74,11 @@ export type StepRevealImaging = {
 export type StepRevealContent = {
   befundpaketTitel?: string;
   vitalparameter?: StepRevealVitals;
-  labor?: Record<string, StepRevealLabEntry>;
+
+  // ⬇️ vorher: Record<string, StepRevealLabEntry>
+  // ⬇️ jetzt: einzelne Werte ODER Gruppen sind erlaubt
+  labor?: Record<string, StepRevealLabEntry | StepRevealLabGroup>;
+
   bildgebung?: StepRevealImaging;
   interpretationKurz?: string;
   // offen für zukünftige Felder:
