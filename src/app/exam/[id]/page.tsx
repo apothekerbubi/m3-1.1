@@ -140,16 +140,21 @@ export default function ExamPage() {
     s.toLowerCase().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "").trim();
 
   // 🔒 Immer anonyme Überschrift
-  function anonymousTitle(caseObj: CaseWithRules | null) {
-    if (!caseObj) return "Prüfung";
-    const pseudo = (caseObj as any).pseudonym as string | undefined;
-    if (pseudo && pseudo.trim()) {
-      return pseudo.replace(/[_-]+/g, " ").replace(/\p{L}+/gu, (w) => w[0].toUpperCase() + w.slice(1));
-    }
-    const sym = (caseObj as any).leadSymptom as string | undefined;
-    if (sym && sym.trim()) return sym;
-    return "Prüfung";
+function anonymousTitle(caseObj: CaseWithRules | null): string {
+  if (!caseObj) return "Prüfung";
+
+  const pseudo = caseObj.pseudonym;
+  if (pseudo && pseudo.trim()) {
+    return pseudo
+      .replace(/[_-]+/g, " ")
+      .replace(/\p{L}+/gu, (w) => w[0].toUpperCase() + w.slice(1));
   }
+
+  const sym = caseObj.leadSymptom;
+  if (sym && sym.trim()) return sym;
+
+  return "Prüfung";
+}
 
   function pushProf(step: number, text?: string | null) {
     if (!text || !text.trim()) return;
