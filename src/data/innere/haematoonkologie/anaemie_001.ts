@@ -1,3 +1,4 @@
+// src/data/innere/haematoonkologie/anaemie_001.ts
 import type { Case } from "@/lib/types";
 
 export const anaemie_001: Case = {
@@ -12,19 +13,65 @@ export const anaemie_001: Case = {
   leadSymptom: "Dyspnoe",
   difficulty: 1,
   steps: [
-    { order: 1, prompt: "Differentialdiagnosen?", hint: "Eisenmangel, chronische Erkrankung, Knochenmarkserkrankung" },
-    { order: 2, prompt: "Diagnostik?", hint: "BB, Ferritin, CRP, Retis" },
+    {
+      order: 1,
+      points: 2,
+      prompt: "Differentialdiagnosen?",
+      hint: "Eisenmangel, chronische Erkrankung, Knochenmarkserkrankung",
+      rule: {
+        mode: "anyOf",
+        expected: [
+          "eisenmangel",
+          "eisenmangelanämie",
+          "anämie bei chronischer erkrankung",
+          "acd",
+          "renal",
+          "b12 mangel",
+          "folatmangel",
+          "hämolyse",
+          "myelodysplastisches syndrom",
+          "mds",
+          "knochenmarkserkrankung",
+          "blutung",
+        ],
+        minHits: 2,
+      },
+    },
+    {
+      order: 2,
+      points: 2,
+      prompt: "Diagnostik?",
+      hint: "BB, Ferritin, CRP, Retis",
+      rule: {
+        mode: "anyOf",
+        expected: [
+          "blutbild",
+          "bb",
+          "retikulozyten",
+          "retis",
+          "ferritin",
+          "transferrinsättigung",
+          "eisen",
+          "crp",
+          "entzündungsparameter",
+          "vitamin b12",
+          "holotranscobalamin",
+          "folat",
+          "ldh",
+          "bilirubin",
+          "haptoglobin",
+          "stuhlokkultes blut",
+          "hämoccult",
+          "kreatinin",
+          "egfr",
+        ],
+        minHits: 4,
+      },
+    },
   ],
-  rubric: {
-    sections: [
-      {
-        name: "Labor",
-        maxPoints: 2,
-        items: [
-          { text: "BB", points: 1, keywords: ["blutbild", "bb"] },
-          { text: "Ferritin", points: 1, keywords: ["ferritin"] }
-        ]
-      }
-    ]
-  }
+  objectives: [
+    { id: "ddx", label: "Differenzialdiagnosen der Anämie strukturieren" },
+    { id: "diagnostik", label: "Sinnvolle Basisdiagnostik benennen" },
+  ],
+  completion: { minObjectives: 2, maxLLMTurns: 12, hardStopTurns: 14 },
 };
