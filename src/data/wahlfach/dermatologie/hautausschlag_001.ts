@@ -1,3 +1,4 @@
+// src/data/wahlfach/dermatologie/hautausschlag_001.ts
 import type { Case } from "@/lib/types";
 
 export const hautausschlag_001: Case = {
@@ -6,35 +7,113 @@ export const hautausschlag_001: Case = {
   subspecialty: "Dermatologie",
   title: "Akuter Hautausschlag",
   shortTitle: "Ausschlag",
-  vignette: "35-jährige Patientin mit juckendem, rötlichem Hautausschlag seit 3 Tagen. Keine neuen Medikamente, keine bekannten Allergien.",
+  vignette:
+    "35-jährige Patientin mit juckendem, rötlichem Hautausschlag seit 3 Tagen. Keine neuen Medikamente, keine bekannten Allergien.",
   tags: ["Dermatologie", "Exanthem"],
   leadSymptom: "Ausschlag",
   pseudonym: "Ausschlag 001",
   difficulty: 1,
+
   steps: [
-    { order: 1, prompt: "Differentialdiagnosen?", hint: "Allergisch, infektiös, autoimmun" },
-    { order: 2, prompt: "Wichtige Anamnese-Fragen?", hint: "Medikamente, Kontakte, Begleitsymptome" },
-    { order: 3, prompt: "Therapie?", hint: "Symptomatisch oder gezielt je nach Ursache" },
-  ],
-  rubric: {
-    sections: [
-      {
-        name: "Anamnese",
-        maxPoints: 3,
-        items: [
-          { text: "Medikamentenanamnese", points: 1, keywords: ["medikament"] },
-          { text: "Infektanamnese", points: 1, keywords: ["infekt"] },
-          { text: "Allergieanamnese", points: 1, keywords: ["allergie"] },
-        ]
+    {
+      order: 1,
+      points: 2,
+      prompt: "Differentialdiagnosen?",
+      hint: "Allergisch, infektiös, autoimmun",
+      rule: {
+        mode: "anyOf",
+        expected: [
+          "urtikaria",
+          "kontaktdermatitis",
+          "allergische kontaktdermatitis",
+          "atopische dermatitis",
+          "eczema",
+          "toxidermie",
+          "arzneimittelexanthem",
+          "viral",
+          "infektiös",
+          "varizellen",
+          "herpes zoster",
+          "scabies",
+          "psoriasis",
+          "pityriasis rosea",
+          "autoimmun",
+          "vasculitis",
+          "pilzinfektion",
+          "tinea",
+        ],
+        minHits: 3,
       },
-      {
-        name: "Körperliche Untersuchung",
-        maxPoints: 2,
-        items: [
-          { text: "Beschreibung des Exanthems", points: 1, keywords: ["exanthem", "ausschlag"] },
-          { text: "Verteilung dokumentieren", points: 1, keywords: ["verteilung", "lokalisation"] },
-        ]
-      }
-    ]
-  }
+    },
+    {
+      order: 2,
+      points: 2,
+      prompt: "Wichtige Anamnese‑Fragen?",
+      hint: "Medikamente, Kontakte, Begleitsymptome",
+      rule: {
+        mode: "anyOf",
+        expected: [
+          "neue medikamente",
+          "medikamentenanamnese",
+          "antibiotika",
+          "nsar",
+          "kontakt zu erkrankten",
+          "reiseanamnese",
+          "tierkontakt",
+          "berufliche exposi tion",
+          "kosmetika",
+          "waschmittel",
+          "juckreiz",
+          "fieber",
+          "schmerzen",
+          "mukosabeteiligung",
+          "beginn und verlauf",
+          "vorerkrankungen",
+          "allergien",
+          "ähnliche episoden in der vergangenheit",
+        ],
+        minHits: 4,
+      },
+    },
+    {
+      order: 3,
+      points: 2,
+      prompt: "Therapie?",
+      hint: "Symptomatisch oder gezielt je nach Ursache",
+      rule: {
+        mode: "anyOf",
+        expected: [
+          "allergen meiden",
+          "auslöser meiden",
+          "topische glukokortikoide",
+          "kortison creme",
+          "antihistaminika",
+          "kühlung",
+          "pflege",
+          "harnstoff creme",
+          "antimykotikum",
+          "antibiotikum",
+          "antivirale therapie",
+          "skabies therapie",
+          "permethrin",
+          "systemische steroide",
+          "dermatologie vorstellung",
+          "hautpflege",
+        ],
+        minHits: 3,
+      },
+    },
+  ],
+
+  objectives: [
+    { id: "ddx", label: "DD bei akutem Exanthem strukturieren" },
+    { id: "hx", label: "Gezielte Anamnese erheben" },
+    { id: "tx", label: "Therapieoptionen (symptomatisch/ursächlich) nennen" },
+  ],
+
+  completion: {
+    minObjectives: 2,
+    maxLLMTurns: 10,
+    hardStopTurns: 12,
+  },
 };
