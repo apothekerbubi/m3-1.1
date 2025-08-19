@@ -113,7 +113,7 @@ function scoreDetailed(answerNorm: string, rubric: DetailedRubric): ScoreResult 
 // --------- Public API ---------
 /**
  * Scort eine Freitext-Antwort gegen eine Rubrik (einfach oder detailliert).
- * Gibt immer ein ScoreResult zurück.
+ * Gibt immer ein ScoreResult zurücck.
  */
 export function scoreAnswer(answer: string, rubric: Rubric): ScoreResult {
   const aNorm = normalizeDe(answer);
