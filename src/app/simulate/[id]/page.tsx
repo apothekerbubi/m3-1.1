@@ -7,13 +7,19 @@ import Link from "next/link";
 import { CASES } from "@/data/cases";
 import type { Case } from "@/lib/types";
 import { scoreAnswer } from "@/lib/scoring";
-import type { Rubric, ScoreResult } from "@/lib/scoring";
+
+// --- Lokale Minimal-Typen (unabhängig von scoring.ts) ---
+type ScoreSection = { name: string; got: number; max: number; missing?: string[] };
+type ScoreResult = { total: number; sections: ScoreSection[] };
+
+// Rubric nur als flexibles Objekt – Struktur übernimmt scoreAnswer intern
+type Rubric = Record<string, unknown>;
 
 // Case um optionale Rubrik erweitern
 type CaseWithRubric = Case & { rubric?: Rubric };
 
 export default function SimulatePage() {
-  // params kann bei Next ein string ODER string[] sein -> sicher extrahieren
+  // params kann string ODER string[] sein -> sicher extrahieren
   const params = useParams<{ id: string | string[] }>();
   const rawId = params?.id;
   const caseId = Array.isArray(rawId) ? rawId[0] : rawId ?? "";
@@ -27,7 +33,6 @@ export default function SimulatePage() {
   const [result, setResult] = useState<ScoreResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Dummy-Freitextfeld
   const [text, setText] = useState<string>("");
 
   function onAdd() {
@@ -48,14 +53,14 @@ export default function SimulatePage() {
       return;
     }
     const all = answers.join(" ");
-    const r: ScoreResult = scoreAnswer(all, c.rubric);
+    const r = scoreAnswer(all, c.rubric) as ScoreResult; // Ergebnis passend typisieren
     setResult(r);
   }
 
   if (!c) {
     return (
       <main className="mx-auto max-w-3xl p-6">
-        <h2 className="mb-2 text-xl font-semibold">Fall nicht gefunden</h2>
+        <h2 className="text-xl font-semibold mb-2">Fall nicht gefunden</h2>
         <Link href="/cases" className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50">
           Zur Fallliste
         </Link>
@@ -123,7 +128,7 @@ export default function SimulatePage() {
                   <div className="font-medium">
                     {s.name}: {s.got}/{s.max}
                   </div>
-                  {s.missing && s.missing.length > 0 ? (
+                  {s.missing?.length ? (
                     <div className="text-xs text-gray-600">
                       Fehlende Punkte: {s.missing.join(", ")}
                     </div>
