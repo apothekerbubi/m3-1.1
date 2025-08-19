@@ -1,3 +1,4 @@
+// src/data/innere/kardiologie/brustschmerz_001.ts
 import type { Case } from "@/lib/types";
 
 export const brustschmerz_001: Case = {
@@ -12,21 +13,79 @@ export const brustschmerz_001: Case = {
   tags: ["Dyspnoe", "KHK", "Notfall"],
   difficulty: 2,
   steps: [
-    { order: 1, prompt: "Erstverdacht?", hint: "ACS in Betracht ziehen" },
-    { order: 2, prompt: "Welche Diagnostik?", hint: "EKG, Troponin, Echo" },
-    { order: 3, prompt: "Therapie?", hint: "MONA, ggf. PCI" },
+    {
+      order: 1,
+      points: 2,
+      prompt: "Erstverdacht?",
+      hint: "ACS in Betracht ziehen",
+      rule: {
+        mode: "anyOf",
+        expected: [
+          "acs",
+          "akutes koronares syndrom",
+          "myokardinfarkt",
+          "stemi",
+          "nstemi",
+          "instabile angina",
+        ],
+        minHits: 1,
+      },
+    },
+    {
+      order: 2,
+      points: 2,
+      prompt: "Welche Diagnostik?",
+      hint: "EKG, Troponin, Echo",
+      rule: {
+        mode: "anyOf",
+        expected: [
+          "ekg",
+          "troponin",
+          "hs-troponin",
+          "echo",
+          "echokardiographie",
+          "röntgen thorax",
+          "blutbild",
+          "crp",
+          "d-dimer",
+        ],
+        minHits: 2,
+      },
+    },
+    {
+      order: 3,
+      points: 2,
+      prompt: "Therapie?",
+      hint: "MONA, ggf. PCI",
+      rule: {
+        mode: "anyOf",
+        expected: [
+          "mona",
+          "morphin",
+          "oxygen",
+          "sauerstoff",
+          "nitrate",
+          "nitro",
+          "ass",
+          "aspirin",
+          "p2y12",
+          "clopidogrel",
+          "ticagrelor",
+          "prasugrel",
+          "heparin",
+          "antikoagulation",
+          "pci",
+          "katheter",
+          "reperfusion",
+        ],
+        minHits: 2,
+      },
+    },
   ],
-  rubric: {
-    sections: [
-      {
-        name: "Diagnostik",
-        maxPoints: 3,
-        items: [
-          { text: "EKG", points: 1, keywords: ["ekg"] },
-          { text: "Troponin", points: 1, keywords: ["troponin"] },
-          { text: "Echokardiographie", points: 1, keywords: ["echo", "echokardiographie"] },
-        ]
-      }
-    ]
-  }
+  objectives: [
+    { id: "erstverdacht", label: "Akutes Koronarsyndrom als Erstverdacht erkennen" },
+    { id: "diagnostik", label: "Basisdiagnostik (EKG, Troponin, Echo) benennen" },
+    { id: "therapie", label: "Akuttherapie (MONA/PCI) skizzieren" },
+  ],
+  completion: { minObjectives: 2, maxLLMTurns: 12, hardStopTurns: 14 },
 };

@@ -7,43 +7,146 @@ export const hypertonie_001: Case = {
   shortTitle: "Hypertonie",
   vignette:
     "54-jähriger Patient, wiederholt erhöhte Praxiswerte bis 160/95 mmHg. Gelegentlich Kopfdruck morgens, BMI 30 kg/m²; sitzt viel im Büro. Keine bekannten Vorerkrankungen. Familienanamnese: Vater Schlaganfall mit 62.",
-  // ✅ nur diese beiden für die Bibliothek verwenden:
   specialty: "Innere Medizin",
   subspecialty: "Kardiologie",
   pseudonym: "Kopfschmerz 001",
   leadSymptom: "Kopfschmerz",
-
   difficulty: 2,
   tags: ["Hypertonie", "Kardiologie", "Anamnese", "Basismaßnahmen", "Sekundäre Hypertonie"],
 
   steps: [
     {
       order: 1,
+      points: 2,
       prompt:
         "Wie definieren Sie die arterielle Hypertonie im deutschsprachigen/europäischen Raum? Und wie unterscheidet sich das von US-Definitionen?",
       hint: "ESC/ESH vs. AHA/ACC (140/90 vs. 130/80).",
+      rule: {
+        mode: "anyOf",
+        expected: [
+          "140/90",
+          "140 / 90",
+          "praxis 140/90",
+          "ambulant 135/85",
+          "24h 130/80",
+          "esh",
+          "esc",
+          "europäisch",
+          "aha",
+          "acc",
+          "130/80",
+          "us definition",
+        ],
+        minHits: 2,
+      },
     },
     {
       order: 2,
+      points: 2,
       prompt: "Nennen Sie häufige Ursachen einer sekundären Hypertonie.",
       hint: "Renal, endokrin (Hyperaldosteronismus), Schlafapnoe, Medikamente …",
+      rule: {
+        mode: "anyOf",
+        expected: [
+          "renovaskulär",
+          "nierenarterienstenose",
+          "chronische niereninsuffizienz",
+          "hyperaldosteronismus",
+          "conn",
+          "cushing",
+          "phäochromozytom",
+          "schilddrüse",
+          "hypothyreose",
+          "hyperthyreose",
+          "schlafapnoe",
+          "osa",
+          "medikamente",
+          "nsar",
+          "orale kontrazeptiva",
+          "lakritze",
+        ],
+        minHits: 3,
+      },
     },
     {
       order: 3,
+      points: 2,
       prompt: "Welche Fehlerquellen bei der Blutdruckmessung kennen Sie?",
       hint: "Manschettengröße, Ruhezeit, Herzhöhe, Wiederholungen …",
+      rule: {
+        mode: "anyOf",
+        expected: [
+          "falsche manschettengröße",
+          "zu kleine manschette",
+          "keine ruhezeit",
+          "keine 5 minuten ruhe",
+          "beine überkreuzt",
+          "arm nicht auf herzhöhe",
+          "reden während der messung",
+          "voller blase",
+          "nur eine messung",
+          "keine mehrfachmessungen",
+          "white coat",
+          "fehlende kalibrierung",
+        ],
+        minHits: 3,
+      },
     },
     {
       order: 4,
+      points: 2,
       prompt:
         "Welche Basismaßnahmen sollten VOR Einleitung einer medikamentösen Therapie erfolgen?",
       hint: "Lebensstil, Monitoring, Endorganschäden screenen …",
+      rule: {
+        mode: "anyOf",
+        expected: [
+          "gewichtsreduktion",
+          "salzreduktion",
+          "kochsalzreduktion",
+          "dash-diät",
+          "ausdauertraining",
+          "körperliche aktivität",
+          "alkoholreduktion",
+          "rauchstopp",
+          "schlafapnoe-therapie",
+          "blutdruck-tagebuch",
+          "selbstmessung",
+          "ambulantes 24h-monitoring",
+        ],
+        minHits: 3,
+      },
     },
     {
       order: 5,
+      points: 2,
       prompt:
         "Welche Organsysteme können in welcher Weise von Komplikationen der Hypertonie betroffen sein?",
       hint: "Herz, Hirn, Niere, Auge, Gefäße.",
+      rule: {
+        mode: "anyOf",
+        expected: [
+          "herz",
+          "lvh",
+          "linksherzhypertrophie",
+          "herzinsuffizienz",
+          "koronare herzkrankheit",
+          "hirn",
+          "schlaganfall",
+          "tia",
+          "niere",
+          "nephropathie",
+          "eiweißurie",
+          "albuminurie",
+          "auge",
+          "retinopathie",
+          "gefäße",
+          "pavk",
+          "aortenaneurysma",
+          "dissektion",
+        ],
+        minHits: 3,
+      },
     },
   ],
 
@@ -56,8 +159,8 @@ export const hypertonie_001: Case = {
   ],
 
   completion: {
-    minObjectives: 3,      // ab 3 erfüllten Zielen darf der Fall enden
-    maxLLMTurns: 8,        // weiches Limit
-    hardStopTurns: 10,     // absolutes Limit
+    minObjectives: 3,
+    maxLLMTurns: 8,
+    hardStopTurns: 10,
   },
 };
