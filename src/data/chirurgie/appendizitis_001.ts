@@ -1,32 +1,62 @@
+// src/data/chirurgie/appendizitis_001.ts
 import type { Case } from "@/lib/types";
 
 export const appendizitis_001: Case = {
   id: "appendizitis_001",
+  title: "Rechter Unterbauchschmerz",
+  shortTitle: "Appendizitis",
+  vignette:
+    "19-jährige Person mit zunehmenden Schmerzen im rechten Unterbauch, Übelkeit und leichtem Fieber.",
   specialty: "Chirurgie",
   subspecialty: "Allgemeinchirurgie",
-  title: "Akute Appendizitis",
-  shortTitle: "Appendizitis 1",
-  vignette: "22-jähriger Patient mit seit 12 Stunden zunehmenden Schmerzen im rechten Unterbauch...",
-  tags: ["Appendizitis", "Akutes Abdomen"],
-  pseudonym: "Bauchschmerz 003",
-  leadSymptom: "Bauchschmerz",
   difficulty: 1,
+  tags: ["Appendizitis", "RUQ/RLQ", "Akutes Abdomen"],
   steps: [
-    { order: 1, prompt: "Wahrscheinlichste Diagnose?", hint: "Entzündung des Appendix" },
-    { order: 2, prompt: "Wichtige klinische Zeichen?", hint: "McBurney, Loslassschmerz, Rovsing" },
-    { order: 3, prompt: "Therapie?", hint: "Operativ, Appendektomie" },
+    {
+      order: 1,
+      points: 2,
+      prompt: "Wahrscheinlichste Diagnose?",
+      hint: "Entzündung des Appendix",
+      rule: {
+        mode: "anyOf",
+        expected: ["appendizitis", "appendicitis", "blinddarmentzündung"],
+        minHits: 1,
+      },
+    },
+    {
+      order: 2,
+      points: 2,
+      prompt: "Wichtige klinische Zeichen?",
+      hint: "McBurney, Loslassschmerz, Rovsing",
+      rule: {
+        mode: "anyOf",
+        expected: [
+          "mcburney",
+          "loslassschmerz",
+          "rovsing",
+          "psoas",
+          "obturator",
+          "druckschmerz rechter unterbauch",
+        ],
+        minHits: 2,
+      },
+    },
+    {
+      order: 3,
+      points: 2,
+      prompt: "Therapie?",
+      hint: "Operativ, Appendektomie",
+      rule: {
+        mode: "anyOf",
+        expected: ["appendektomie", "operation", "chirurgisch", "antibiotika"],
+        minHits: 1,
+      },
+    },
   ],
-  rubric: {
-    sections: [
-      {
-        name: "Klinische Untersuchung",
-        maxPoints: 3,
-        items: [
-          { text: "McBurney-Zeichen", points: 1, keywords: ["mcburney"] },
-          { text: "Loslassschmerz", points: 1, keywords: ["loslass"] },
-          { text: "Rovsing-Zeichen", points: 1, keywords: ["rovsing"] },
-        ]
-      }
-    ]
-  }
+  objectives: [
+    { id: "diagnose", label: "Appendizitis erkennen" },
+    { id: "zeichen", label: "Klinische Zeichen benennen" },
+    { id: "therapie", label: "Therapieoptionen kennen" },
+  ],
+  completion: { minObjectives: 2, maxLLMTurns: 12, hardStopTurns: 14 },
 };
