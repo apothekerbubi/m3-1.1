@@ -97,7 +97,7 @@ export const pankreatitis_001: Case = {
         hint_general: "≥2 der 3 Diagnostikkriterien erfüllt.",
       },
       reveal: {
-        when: "on_enter", // ⬅️ NEU: beim Öffnen von Frage 3 anzeigen
+        when: "on_enter",
         content: {
           befundpaketTitel: "Ergebnis der initialen Diagnostik",
           vitalparameter: { rr: "135/82 mmHg", puls: 98, temp: 37.9, spo2: "97%" },
@@ -112,7 +112,8 @@ export const pankreatitis_001: Case = {
             ggt: { wert: 180, einheit: "U/L", referenz: "<60" },
           },
           bildgebung: {
-            ultraschall:
+            // 🔧 FIX: Schlüssel muss 'lungensonografie' heißen (nicht 'ultraschall')
+            lungensonografie:
               "Vergrößertes, echoarmes Pankreas; peripankreatische Flüssigkeit; kein DHC-Stein, keine dilatierten Gallenwege.",
           },
           interpretationKurz:
