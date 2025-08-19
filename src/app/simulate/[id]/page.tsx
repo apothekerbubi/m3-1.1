@@ -1,144 +1,129 @@
-// src/app/simulate/[id]/page.tsx
-"use client";
+// src/lib/scoring.ts
 
-import { useMemo, useState } from "react";
-import { useParams } from "next/navigation";
-import Link from "next/link";
-import { CASES } from "@/data/cases";
-import type { Case } from "@/lib/types";
-import { scoreAnswer } from "@/lib/scoring";
+// --------- Lokale, eigenständige Typen (kein Import aus "@/lib/types") ---------
+export type ScoreSection = {
+  name: string;
+  got: number;
+  max: number;
+  missing?: string[];
+};
 
-// --- Lokale Minimal-Typen (unabhängig von scoring.ts) ---
-type ScoreSection = { name: string; got: number; max: number; missing?: string[] };
-type ScoreResult = { total: number; sections: ScoreSection[] };
+export type ScoreResult = {
+  total: number;
+  sections: ScoreSection[];
+};
 
-// Rubric nur als flexibles Objekt – Struktur übernimmt scoreAnswer intern
-type Rubric = Record<string, unknown>;
+// Einfache Rubrik (flach)
+type SimpleSection = {
+  name: string;
+  points: number;
+  keywords: string[];
+};
+type SimpleRubric = { sections: SimpleSection[] };
 
-// Case um optionale Rubrik erweitern
-type CaseWithRubric = Case & { rubric?: Rubric };
+// Detaillierte Rubrik (mit Items)
+type DetailedItem = {
+  id?: string;
+  text: string;
+  points: number;
+  keywords: string[];
+};
+type DetailedSection = {
+  id?: string;
+  name: string;
+  maxPoints: number;
+  items: DetailedItem[];
+};
+type DetailedRubric = { sections: DetailedSection[] };
 
-export default function SimulatePage() {
-  // params kann string ODER string[] sein -> sicher extrahieren
-  const params = useParams<{ id: string | string[] }>();
-  const rawId = params?.id;
-  const caseId = Array.isArray(rawId) ? rawId[0] : rawId ?? "";
+// Vereinheitlichter Rubrik-Typ
+export type Rubric = SimpleRubric | DetailedRubric;
 
-  const c = useMemo<CaseWithRubric | undefined>(
-    () => (CASES.find((x) => x.id === caseId) as CaseWithRubric | undefined) ?? undefined,
-    [caseId]
-  );
+// --------- Utilities ---------
+function normalizeDe(s: string): string {
+  return (s || "")
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}+/gu, "")
+    .replace(/[^\p{L}\p{N}\s%+./-]/gu, " ") // nur sinnvolle Zeichen
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  const [answers, setAnswers] = useState<string[]>([]);
-  const [result, setResult] = useState<ScoreResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const [text, setText] = useState<string>("");
-
-  function onAdd() {
-    if (!text.trim()) return;
-    setAnswers((prev) => [...prev, text.trim()]);
-    setText("");
+function includesAny(hayNorm: string, needles: string[]): boolean {
+  for (const n of needles) {
+    const nn = normalizeDe(n);
+    if (nn && hayNorm.includes(nn)) return true;
   }
+  return false;
+}
 
-  function onScore() {
-    setError(null);
-    setResult(null);
-    if (!c) {
-      setError("Fall nicht gefunden.");
-      return;
+// --------- Scoring für einfache Rubrik ---------
+function scoreSimple(answerNorm: string, rubric: SimpleRubric): ScoreResult {
+  const sections: ScoreSection[] = rubric.sections.map((sec) => {
+    const hit = includesAny(answerNorm, sec.keywords);
+    const got = hit ? sec.points : 0;
+    const max = sec.points;
+
+    const missing = hit ? [] : sec.keywords.slice(0, 3); // optional: erste paar als Hinweis
+
+    return { name: sec.name, got, max, missing };
+  });
+
+  const total = sections.reduce((a, s) => a + s.got, 0);
+  return { total, sections };
+}
+
+// --------- Scoring für detaillierte Rubrik ---------
+function scoreDetailed(answerNorm: string, rubric: DetailedRubric): ScoreResult {
+  const sections: ScoreSection[] = rubric.sections.map((sec) => {
+    let got = 0;
+    const max = sec.maxPoints;
+    const missingLabels: string[] = [];
+
+    for (const it of sec.items) {
+      const hit = includesAny(answerNorm, it.keywords);
+      if (hit) {
+        got += it.points;
+      } else {
+        // Als “fehlend” werten wir die Item-Beschreibung
+        if (it.text) missingLabels.push(it.text);
+      }
     }
-    if (!c.rubric) {
-      setError("Für diesen Fall ist (noch) kein Bewertungsraster hinterlegt.");
-      return;
-    }
-    const all = answers.join(" ");
-    const r = scoreAnswer(all, c.rubric) as ScoreResult; // Ergebnis passend typisieren
-    setResult(r);
+
+    // Hart auf max deckeln
+    got = Math.min(got, max);
+
+    return {
+      name: sec.name,
+      got,
+      max,
+      missing: missingLabels,
+    };
+  });
+
+  const total = sections.reduce((a, s) => a + s.got, 0);
+  return { total, sections };
+}
+
+// --------- Public API ---------
+/**
+ * Scort eine Freitext-Antwort gegen eine Rubrik (einfach oder detailliert).
+ * Gibt immer ein ScoreResult zurück.
+ */
+export function scoreAnswer(answer: string, rubric: Rubric): ScoreResult {
+  const aNorm = normalizeDe(answer);
+
+  // Heuristik: Wenn das erste Section-Objekt "items" hat, ist es die detaillierte Rubrik
+  const first = (rubric as DetailedRubric).sections?.[0] as DetailedSection | undefined;
+  const isDetailed = first && Array.isArray(first.items);
+
+  if (isDetailed) {
+    return scoreDetailed(aNorm, rubric as DetailedRubric);
   }
-
-  if (!c) {
-    return (
-      <main className="mx-auto max-w-3xl p-6">
-        <h2 className="text-xl font-semibold mb-2">Fall nicht gefunden</h2>
-        <Link href="/cases" className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50">
-          Zur Fallliste
-        </Link>
-      </main>
-    );
-  }
-
-  return (
-    <main className="mx-auto max-w-3xl p-6">
-      <div className="mb-4 flex items-center gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Simulation: {c.title}</h1>
-        <Link
-          href={`/exam/${c.id}`}
-          className="ml-auto rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
-        >
-          Zum Prüfungsmodus
-        </Link>
-      </div>
-
-      <p className="mb-4 text-sm text-gray-600">{c.vignette}</p>
-
-      <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
-        <label className="mb-1 block text-sm font-medium">Deine Antwort (frei):</label>
-        <textarea
-          className="w-full rounded-md border px-3 py-2 text-sm"
-          rows={5}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Argumentiere frei. Füge einzelne Punkte hinzu und werte danach."
-        />
-        <div className="mt-2 flex gap-2">
-          <button
-            onClick={onAdd}
-            className="rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
-          >
-            Punkt hinzufügen
-          </button>
-          <button
-            onClick={onScore}
-            className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
-          >
-            Auswerten
-          </button>
-        </div>
-
-        {answers.length > 0 && (
-          <div className="mt-3">
-            <div className="mb-1 text-xs font-medium text-gray-700">Gesammelte Punkte:</div>
-            <ul className="space-y-1 list-disc pl-5 text-sm">
-              {answers.map((a, i) => (
-                <li key={i}>{a}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
-
-        {result && (
-          <div className="mt-4 rounded-lg border border-black/10 bg-black/[.03] p-3">
-            <div className="text-sm font-medium">Gesamtscore: {result.total}</div>
-            <ul className="mt-2 space-y-2">
-              {result.sections.map((s) => (
-                <li key={s.name} className="text-sm">
-                  <div className="font-medium">
-                    {s.name}: {s.got}/{s.max}
-                  </div>
-                  {s.missing?.length ? (
-                    <div className="text-xs text-gray-600">
-                      Fehlende Punkte: {s.missing.join(", ")}
-                    </div>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-    </main>
-  );
+  return scoreSimple(aNorm, rubric as SimpleRubric);
 }
