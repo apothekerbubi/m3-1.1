@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { CASES } from "@/data/cases";
-import { scoreAnswer, type Rubric } from "@/lib/scoring";
+import { scoreAnswer } from "@/lib/scoring";
 import type {
   Case,
   Step,
@@ -14,6 +14,7 @@ import type {
   AllOfRule,
   AnyOfRule,
   SynonymsMap,
+  Rubric,
 } from "@/lib/types";
 
 /** kleine Utils */
