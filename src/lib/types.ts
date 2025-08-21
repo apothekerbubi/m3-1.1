@@ -1,5 +1,4 @@
 // src/lib/types.ts
-
 // ---------- Hilfstypen ----------
 export type SynonymsMap = Record<string, string[]>;
 export type CategoriesMap = Record<string, string[]>;
@@ -16,7 +15,7 @@ export type CategoriesRule = {
   mode: "categories";
   categories: CategoriesMap;
   minCategories: number; // mind. so viele Kategorien müssen getroffen werden
-  minHits: number;       // mind. so viele Gesamt‑Treffer
+  minHits: number;       // mind. so viele Gesamt-Treffer
   forbidden?: string[];
   hint_general?: string;
 };
@@ -75,8 +74,7 @@ export type StepRevealContent = {
   befundpaketTitel?: string;
   vitalparameter?: StepRevealVitals;
 
-  // ⬇️ vorher: Record<string, StepRevealLabEntry>
-  // ⬇️ jetzt: einzelne Werte ODER Gruppen sind erlaubt
+  // einzelne Werte ODER Gruppen sind erlaubt
   labor?: Record<string, StepRevealLabEntry | StepRevealLabGroup>;
 
   bildgebung?: StepRevealImaging;
@@ -103,7 +101,7 @@ export type Step = {
 
 export type LearningObjective = {
   id: string;             // z. B. "ddx", "therapie"
-  label: string;          // UI‑Text
+  label: string;          // UI-Text
   description?: string;   // optional
 };
 
@@ -131,7 +129,7 @@ export type Case = {
   tags: string[];             // Freitags
 
   // Inhalt
-  steps: Step[];              // die einzelnen Prüfungs‑/Lernschritte
+  steps: Step[];              // die einzelnen Prüfungs-/Lernschritte
 
   // Lernziele/Abschluss
   objectives: LearningObjective[];
@@ -158,3 +156,35 @@ export type Attempt = {
   dateISO: string;   // ISO-String des Zeitpunkts
   result: AttemptResult;
 };
+
+// ---------- Scoring / Rubrics ----------
+export type RubricSimpleSection = {
+  name: string;
+  points: number;
+  keywords: string[];
+};
+
+export type RubricDetailedItem = {
+  text: string;
+  points: number;
+  keywords: string[];
+};
+
+export type RubricDetailedSection = {
+  id?: string;
+  name: string;
+  maxPoints: number;
+  items: RubricDetailedItem[];
+};
+
+/**
+ * Eine Rubrik ist entweder "einfach" (sections: SimpleSection[])
+ * oder "detailliert" (sections: DetailedSection[]).
+ */
+export type Rubric =
+  | { sections: RubricSimpleSection[] }
+  | { sections: RubricDetailedSection[] };
+
+/** Ergebnisstruktur fürs Scoring (Alias zu AttemptResult) */
+export type ScoreSection = AttemptSection;
+export type ScoreResult = AttemptResult;
