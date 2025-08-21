@@ -1,5 +1,6 @@
 // src/lib/types.ts
 // ---------- Hilfstypen ----------
+export type Subject = string; 
 export type SynonymsMap = Record<string, string[]>;
 export type CategoriesMap = Record<string, string[]>;
 
