@@ -1,129 +1,221 @@
-// src/lib/scoring.ts
+// src/app/simulate/[id]/page.tsx
+"use client";
 
-// --------- Lokale, eigenständige Typen (kein Import aus "@/lib/types") ---------
-export type ScoreSection = {
-  name: string;
-  got: number;
-  max: number;
-  missing?: string[];
-};
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
+import Link from "next/link";
+import { CASES } from "@/data/cases";
+import { scoreAnswer, type Rubric } from "@/lib/scoring";
+import type {
+  Case,
+  Step,
+  StepRule,
+  CategoriesRule,
+  AllOfRule,
+  AnyOfRule,
+  SynonymsMap,
+} from "@/lib/types";
 
-export type ScoreResult = {
-  total: number;
-  sections: ScoreSection[];
-};
+/** kleine Utils */
+const uniq = <T,>(arr: T[]) => Array.from(new Set(arr));
+const asArray = (v: unknown) => (Array.isArray(v) ? v : v ? [v] : []);
 
-// Einfache Rubrik (flach)
-type SimpleSection = {
-  name: string;
-  points: number;
-  keywords: string[];
-};
-type SimpleRubric = { sections: SimpleSection[] };
+/** Aus einem StepRule-Objekt Keywords extrahieren (mit Synonymen, falls vorhanden) */
+function buildItemsFromRule(step: Step): { text: string; keywords: string[] }[] {
+  const rule = step.rule as StepRule;
 
-// Detaillierte Rubrik (mit Items)
-type DetailedItem = {
-  id?: string;
-  text: string;
-  points: number;
-  keywords: string[];
-};
-type DetailedSection = {
-  id?: string;
-  name: string;
-  maxPoints: number;
-  items: DetailedItem[];
-};
-type DetailedRubric = { sections: DetailedSection[] };
-
-// Vereinheitlichter Rubrik-Typ
-export type Rubric = SimpleRubric | DetailedRubric;
-
-// --------- Utilities ---------
-function normalizeDe(s: string): string {
-  return (s || "")
-    .toLowerCase()
-    .replace(/ä/g, "ae")
-    .replace(/ö/g, "oe")
-    .replace(/ü/g, "ue")
-    .replace(/ß/g, "ss")
-    .normalize("NFD")
-    .replace(/\p{Diacritic}+/gu, "")
-    .replace(/[^\p{L}\p{N}\s%+./-]/gu, " ") // nur sinnvolle Zeichen
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function includesAny(hayNorm: string, needles: string[]): boolean {
-  for (const n of needles) {
-    const nn = normalizeDe(n);
-    if (nn && hayNorm.includes(nn)) return true;
+  // AnyOf
+  if ((rule as AnyOfRule).mode === "anyOf") {
+    const r = rule as AnyOfRule;
+    const exp = asArray(r.expected).map((s) => String(s).toLowerCase());
+    const syn: SynonymsMap | undefined = r.synonyms;
+    return exp.map((term) => ({
+      text: term,
+      keywords: uniq([term, ...(syn?.[term] ?? [])].map((s) => s.toLowerCase())),
+    }));
   }
-  return false;
-}
 
-// --------- Scoring für einfache Rubrik ---------
-function scoreSimple(answerNorm: string, rubric: SimpleRubric): ScoreResult {
-  const sections: ScoreSection[] = rubric.sections.map((sec) => {
-    const hit = includesAny(answerNorm, sec.keywords);
-    const got = hit ? sec.points : 0;
-    const max = sec.points;
+  // AllOf
+  if ((rule as AllOfRule).mode === "allOf") {
+    const r = rule as AllOfRule;
+    const syn: SynonymsMap | undefined = r.synonyms;
 
-    const missing = hit ? [] : sec.keywords.slice(0, 3); // optional: erste paar als Hinweis
+    const req = asArray(r.required).map((s) => String(s).toLowerCase());
+    const opt = asArray(r.optional).map((s) => String(s).toLowerCase());
 
-    return { name: sec.name, got, max, missing };
-  });
+    const itemsReq = req.map((term) => ({
+      text: term,
+      keywords: uniq([term, ...(syn?.[term] ?? [])].map((s) => s.toLowerCase())),
+    }));
+    const itemsOpt = opt.map((term) => ({
+      text: term,
+      keywords: uniq([term, ...(syn?.[term] ?? [])].map((s) => s.toLowerCase())),
+    }));
 
-  const total = sections.reduce((a, s) => a + s.got, 0);
-  return { total, sections };
-}
-
-// --------- Scoring für detaillierte Rubrik ---------
-function scoreDetailed(answerNorm: string, rubric: DetailedRubric): ScoreResult {
-  const sections: ScoreSection[] = rubric.sections.map((sec) => {
-    let got = 0;
-    const max = sec.maxPoints;
-    const missingLabels: string[] = [];
-
-    for (const it of sec.items) {
-      const hit = includesAny(answerNorm, it.keywords);
-      if (hit) {
-        got += it.points;
-      } else {
-        // Als “fehlend” werten wir die Item-Beschreibung
-        if (it.text) missingLabels.push(it.text);
-      }
-    }
-
-    // Hart auf max deckeln
-    got = Math.min(got, max);
-
-    return {
-      name: sec.name,
-      got,
-      max,
-      missing: missingLabels,
-    };
-  });
-
-  const total = sections.reduce((a, s) => a + s.got, 0);
-  return { total, sections };
-}
-
-// --------- Public API ---------
-/**
- * Scort eine Freitext-Antwort gegen eine Rubrik (einfach oder detailliert).
- * Gibt immer ein ScoreResult zurücck.
- */
-export function scoreAnswer(answer: string, rubric: Rubric): ScoreResult {
-  const aNorm = normalizeDe(answer);
-
-  // Heuristik: Wenn das erste Section-Objekt "items" hat, ist es die detaillierte Rubrik
-  const first = (rubric as DetailedRubric).sections?.[0] as DetailedSection | undefined;
-  const isDetailed = first && Array.isArray(first.items);
-
-  if (isDetailed) {
-    return scoreDetailed(aNorm, rubric as DetailedRubric);
+    return [...itemsReq, ...itemsOpt];
   }
-  return scoreSimple(aNorm, rubric as SimpleRubric);
+
+  // Categories
+  if ((rule as CategoriesRule).mode === "categories") {
+    const r = rule as CategoriesRule;
+    const flat = Object.values(r.categories ?? {}).flat();
+    const keywords = uniq(flat.map((s) => String(s).toLowerCase()));
+    return keywords.map((k) => ({ text: k, keywords: [k] }));
+  }
+
+  // Fallback: nichts
+  return [];
+}
+
+/** Baut eine Detailed-Rubric aus allen Steps des Falls */
+function buildRubricFromCase(c: Case): Rubric {
+  const sections = [...c.steps]
+    .sort((a, b) => a.order - b.order)
+    .map((step) => {
+      const itemsRaw = buildItemsFromRule(step);
+      const items = itemsRaw.length > 0 ? itemsRaw : [{ text: step.prompt, keywords: [] }];
+
+      // Punkte gleichmäßig auf Items verteilen, danach hart auf step.points deckeln
+      const perItem = items.length > 0 ? step.points / items.length : 0;
+
+      return {
+        id: String(step.order),
+        name: `Frage ${step.order}`,
+        maxPoints: step.points,
+        items: items.map((it) => ({
+          text: it.text,
+          points: perItem,
+          keywords: it.keywords,
+        })),
+      };
+    });
+
+  return { sections };
+}
+
+export default function SimulatePage() {
+  const params = useParams<{ id: string | string[] }>();
+  const rawId = params?.id;
+  const id = Array.isArray(rawId) ? rawId[0] : rawId;
+
+  const c = (CASES.find((x) => x.id === id) ?? null) as Case | null;
+
+  // Steps und Rubrik vorbereiten
+  const steps = useMemo<Step[]>(
+    () => (c ? [...c.steps].sort((a, b) => a.order - b.order) : []),
+    [c]
+  );
+
+  const rubric = useMemo<Rubric | null>(() => (c ? buildRubricFromCase(c) : null), [c]);
+
+  const [idx, setIdx] = useState(0);
+  const [answers, setAnswers] = useState<string[]>(() => steps.map(() => ""));
+  const [showHint, setShowHint] = useState(false);
+  const [result, setResult] = useState<ReturnType<typeof scoreAnswer> | null>(null);
+
+  // Reset, wenn Fall/Steps wechseln
+  useEffect(() => {
+    setIdx(0);
+    setAnswers(steps.map(() => ""));
+    setShowHint(false);
+    setResult(null);
+  }, [id, steps]); // wichtig: auf Steps reagieren (Länge & Inhalte)
+
+  function updateAnswer(v: string) {
+    setAnswers((arr) => {
+      const copy = [...arr];
+      copy[idx] = v;
+      return copy;
+    });
+  }
+
+  function evaluate() {
+    if (!c || !rubric) return;
+    const all = answers.join(" ");
+    const r = scoreAnswer(all, rubric);
+    setResult(r);
+  }
+
+  if (!c) {
+    return (
+      <main className="mx-auto max-w-3xl p-6">
+        <h2 className="text-xl font-semibold mb-2">Fall nicht gefunden</h2>
+        <Link href="/cases" className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50">
+          Zur Fallliste
+        </Link>
+      </main>
+    );
+  }
+
+  const step = steps[idx];
+
+  return (
+    <main className="mx-auto max-w-3xl p-6">
+      <h2 className="text-xl font-semibold mb-2">{c.title}</h2>
+      <p className="mb-4 text-sm text-gray-600">{c.vignette}</p>
+
+      <div className="mb-3 text-sm text-gray-700">
+        Schritt {idx + 1} / {steps.length}: {step?.prompt}
+      </div>
+
+      <textarea
+        className="w-full rounded-md border p-3 text-sm"
+        rows={5}
+        value={answers[idx] || ""}
+        onChange={(e) => updateAnswer(e.target.value)}
+        placeholder="Deine Antwort…"
+      />
+
+      <div className="mt-2 flex gap-2">
+        <button
+          onClick={() => setShowHint((s) => !s)}
+          className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50"
+        >
+          Hinweis
+        </button>
+        <button
+          onClick={() => setIdx((i) => Math.max(0, i - 1))}
+          disabled={idx === 0}
+          className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
+        >
+          Zurück
+        </button>
+        <button
+          onClick={() => setIdx((i) => Math.min(steps.length - 1, i + 1))}
+          disabled={idx >= steps.length - 1}
+          className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
+        >
+          Weiter
+        </button>
+        <button
+          onClick={evaluate}
+          className="ml-auto rounded-md border px-3 py-1 text-sm hover:bg-gray-50"
+        >
+          Bewerten
+        </button>
+      </div>
+
+      {showHint && step?.hint && (
+        <div className="mt-3 rounded-md border bg-yellow-50 p-3 text-sm">
+          <b>Tipp:</b> {step.hint}
+        </div>
+      )}
+
+      {result && (
+        <div className="mt-4 rounded-md border p-3 text-sm">
+          <div className="mb-1 font-medium">Punktzahl: {Math.round(result.total * 100) / 100}</div>
+          <ul className="list-disc pl-5">
+            {result.sections.map((s) => (
+              <li key={s.name}>
+                {s.name}: {Math.round(s.got * 100) / 100}/{Math.round(s.max * 100) / 100} —{" "}
+                {s.missing && s.missing.length
+                  ? `Fehlt: ${s.missing.join(", ")}`
+                  : "vollständig"}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </main>
+  );
 }
