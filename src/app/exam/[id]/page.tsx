@@ -38,7 +38,29 @@ export default function ExamPage() {
 
   // Router + Verzögerungsdauer
   const router = useRouter();
-  const REDIRECT_AFTER_MS = 1200;
+  const REDIRECT_AFTER_MS = 900;
+
+  // -------- Serie (aus Query ?s=...,&i=...) – OHNE useSearchParams --------
+  function readSeriesFromLocation() {
+    if (typeof window === "undefined") return { ids: [] as string[], idx: 0 };
+    const sp = new URLSearchParams(window.location.search);
+    const s = sp.get("s");
+    const ids = s ? s.split(",").map((x) => x.trim()).filter(Boolean) : [];
+    const iRaw = sp.get("i");
+    const i = Number.parseInt(iRaw ?? "0", 10);
+    return { ids, idx: Number.isFinite(i) && i >= 0 ? i : 0 };
+  }
+
+  const [{ ids: seriesIds, idx: seriesIdx }, setSeries] = useState(() => readSeriesFromLocation());
+
+  // Neu einlesen, wenn die Route (Fall) wechselt
+  useEffect(() => {
+    setSeries(readSeriesFromLocation());
+  }, [caseId]);
+
+  const seriesTotal = seriesIds.length;
+  const seriesDone = Math.min(seriesIdx + 0, Math.max(0, seriesTotal ? seriesIdx : 0)); // während des Falls = bereits abgeschlossene Fälle
+  const seriesPct = seriesTotal > 0 ? Math.round((seriesDone / seriesTotal) * 100) : 0;
 
   // *** State ***
   const [asked, setAsked] = useState<Asked[]>([]);
@@ -69,7 +91,6 @@ export default function ExamPage() {
   const [input, setInput] = useState("");
 
   // *** Abgeleitete Daten ***
-  // WICHTIG: echte Step-Objekte verwenden, damit .image erhalten bleibt
   const stepsOrdered = useMemo<Step[]>(
     () => (c ? [...c.steps].sort((a, b) => a.order - b.order) : []),
     [c]
@@ -113,21 +134,29 @@ export default function ExamPage() {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [viewChat, loading]);
 
-  // 🔽 Sidebar Auto-Scroll: immer zum letzten freigeschalteten Eintrag
+  // 🔽 Sidebar Auto-Scroll
   useEffect(() => {
     if (lastAskedRef.current) {
       lastAskedRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
     }
   }, [asked.length, activeIndex]);
 
-  // Nach Abschluss automatisch zurück zur Übersicht
+  // ✅ Nach Abschluss: entweder nächster Fall der Serie, sonst zurück
   useEffect(() => {
     if (!ended) return;
     const t = setTimeout(() => {
-      router.replace("/subjects");
+      // Serie vorhanden & noch nicht am Ende?
+      if (seriesTotal > 0 && seriesIdx < seriesTotal - 1) {
+        const nextIdx = seriesIdx + 1;
+        const nextId = seriesIds[nextIdx];
+        const q = `?s=${encodeURIComponent(seriesIds.join(","))}&i=${nextIdx}`;
+        router.replace(`/exam/${nextId}${q}`);
+      } else {
+        router.replace("/subjects");
+      }
     }, REDIRECT_AFTER_MS);
     return () => clearTimeout(t);
-  }, [ended, router]);
+  }, [ended, seriesIdx, seriesIds, seriesTotal, router]);
 
   function label(correctness: "correct" | "partially_correct" | "incorrect") {
     return correctness === "correct"
@@ -140,21 +169,16 @@ export default function ExamPage() {
     s.toLowerCase().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "").trim();
 
   // 🔒 Immer anonyme Überschrift
-function anonymousTitle(caseObj: CaseWithRules | null): string {
-  if (!caseObj) return "Prüfung";
-
-  const pseudo = caseObj.pseudonym;
-  if (pseudo && pseudo.trim()) {
-    return pseudo
-      .replace(/[_-]+/g, " ")
-      .replace(/\p{L}+/gu, (w) => w[0].toUpperCase() + w.slice(1));
+  function anonymousTitle(caseObj: CaseWithRules | null): string {
+    if (!caseObj) return "Prüfung";
+    const pseudo = caseObj.pseudonym;
+    if (pseudo && pseudo.trim()) {
+      return pseudo.replace(/[_-]+/g, " ").replace(/\p{L}+/gu, (w) => w[0].toUpperCase() + w.slice(1));
+    }
+    const sym = caseObj.leadSymptom;
+    if (sym && sym.trim()) return sym;
+    return "Prüfung";
   }
-
-  const sym = caseObj.leadSymptom;
-  if (sym && sym.trim()) return sym;
-
-  return "Prüfung";
-}
 
   function pushProf(step: number, text?: string | null) {
     if (!text || !text.trim()) return;
@@ -188,7 +212,7 @@ function anonymousTitle(caseObj: CaseWithRules | null): string {
     if (!now) return false;
     const w = now.when;
     if (w === "always") return true;
-    if (w === "on_enter") return false; // separat in maybeRevealOnEnter behandelt
+    if (w === "on_enter") return false;
     if (w === "on_submit") return Boolean(evaluation) || hadSolution;
     return false;
   }
@@ -240,7 +264,6 @@ function anonymousTitle(caseObj: CaseWithRules | null): string {
           ? (c.bildgebung as Record<string, unknown>)
           : null;
 
-      // In deinen Daten vorhandene Schlüssel unterstützen
       const sono =
         (typeof bild?.lungensonografie === "string" ? (bild?.lungensonografie as string) : null) ??
         (typeof bild?.ultraschall === "string" ? (bild?.ultraschall as string) : null);
@@ -543,10 +566,21 @@ function anonymousTitle(caseObj: CaseWithRules | null): string {
         <h2 className="flex-1 text-2xl font-semibold tracking-tight">
           Prüfung: {anonymousTitle(c)}
         </h2>
+
+        {/* Serien-Progressbar (falls Serie vorhanden) */}
+        {seriesTotal > 0 && (
+          <div className="w-48">
+            <ProgressBar value={ended ? Math.round(((seriesIdx + 1) / seriesTotal) * 100) : seriesPct} label={`Serie ${seriesIdx + 1}/${seriesTotal}`} />
+          </div>
+        )}
+
         <ScorePill points={totalPoints} maxPoints={maxPoints} last={lastCorrectness} />
+
+        {/* Schritt-Progressbar */}
         <div className="hidden w-56 sm:block">
-          <ProgressBar value={ended ? 100 : progressPct} />
+          <ProgressBar value={ended ? 100 : progressPct} label="Fortschritt" />
         </div>
+
         <label className="text-xs text-gray-600">Stil</label>
         <select
           className="rounded-md border px-2 py-1 text-sm"
@@ -634,7 +668,7 @@ function anonymousTitle(caseObj: CaseWithRules | null): string {
             ref={listRef}
             className="relative z-10 h-[58vh] overflow-y-auto rounded-2xl border border-black/10 bg-white p-4 shadow-card text-gray-900"
           >
-            {/* ✅ Bild nur anzeigen, wenn gestartet & aktueller Schritt aktiv ist */}
+            {/* Bild nur anzeigen, wenn gestartet & aktueller Schritt aktiv ist */}
             {hasStarted && viewIndex === activeIndex && stepImg && (
               <div className="mb-3">
                 <CaseImagePublic
