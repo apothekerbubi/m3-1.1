@@ -582,9 +582,10 @@ export default function ExamPage() {
         <ScorePill points={totalPoints} maxPoints={maxPoints} last={lastCorrectness} />
 
         {/* Schritt-Progressbar */}
-        <div className="hidden w-56 sm:block">
-          <ProgressBar value={ended ? 100 : progressPct} label="Fortschritt" />
-        </div>
+<div className="hidden w-56 sm:block">
+  <div className="mb-1 text-[11px] text-gray-600">Fortschritt</div>
+  <ProgressBar value={ended ? 100 : progressPct} />
+</div>
 
         <label className="text-xs text-gray-600">Stil</label>
         <select
