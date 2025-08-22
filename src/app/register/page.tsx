@@ -1,11 +1,12 @@
-// src/app/register/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 
 export default function RegisterPage() {
-  const supabase = createBrowserSupabase();
+  // Supabase-Client stabil halten
+  const supabaseRef = useRef<ReturnType<typeof createBrowserSupabase> | null>(null);
+  supabaseRef.current = createBrowserSupabase();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -28,11 +29,15 @@ export default function RegisterPage() {
     setError(null);
 
     try {
-      const origin =
-        typeof window !== "undefined" ? window.location.origin : "";
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+
+      const sb = supabaseRef.current;
+      if (!sb) {
+        throw new Error("Supabase nicht konfiguriert.");
+      }
 
       // Zusätzliche Felder in user_metadata mitgeben
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { error: signUpError } = await sb.auth.signUp({
         email,
         password,
         options: {
@@ -61,9 +66,9 @@ export default function RegisterPage() {
   if (done) {
     return (
       <main className="mx-auto max-w-md p-6">
-        <h1 className="mb-2 text-xl font-semibold">Bestätige deine E‑Mail</h1>
+        <h1 className="mb-2 text-xl font-semibold">Bestätige deine E-Mail</h1>
         <p className="text-sm text-gray-700">
-          Wir haben dir eine E‑Mail geschickt. <b>Bitte bestätige deine Registrierung</b>.
+          Wir haben dir eine E-Mail geschickt. <b>Bitte bestätige deine Registrierung</b>.
           Danach kannst du dich ganz normal einloggen.
         </p>
       </main>
@@ -75,7 +80,7 @@ export default function RegisterPage() {
       <h1 className="mb-4 text-2xl font-semibold">Registrieren</h1>
 
       <div className="mb-3 rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
-        Nach der Registrierung erhältst du eine <b>Bestätigungs‑E‑Mail</b>.
+        Nach der Registrierung erhältst du eine <b>Bestätigungs-E-Mail</b>.
         Erst danach kannst du dich anmelden.
       </div>
 
@@ -122,7 +127,7 @@ export default function RegisterPage() {
         </div>
 
         <div>
-          <label className="block text-xs text-gray-600">PJ‑Wahlfach</label>
+          <label className="block text-xs text-gray-600">PJ-Wahlfach</label>
           <input
             className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
             placeholder="z. B. Kardiologie"
@@ -133,7 +138,7 @@ export default function RegisterPage() {
 
         <div>
           <label className="block text-xs text-gray-600">Prüfungsdatum</label>
-        <input
+          <input
             type="date"
             className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
             value={examDate}
@@ -142,7 +147,7 @@ export default function RegisterPage() {
         </div>
 
         <div className="pt-1">
-          <label className="block text-xs text-gray-600">E‑Mail</label>
+          <label className="block text-xs text-gray-600">E-Mail</label>
           <input
             type="email"
             className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
