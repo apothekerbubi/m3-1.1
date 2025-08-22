@@ -18,7 +18,8 @@ type AccountInitial = {
 type PgError = { message?: string; details?: string; hint?: string };
 
 export default function AccountForm({ initial }: { initial: AccountInitial }) {
-  const supabase = createBrowserSupabase();
+  // ❌ supabase NICHT mehr hier oben holen (könnte null sein und TS meckert später)
+  // const supabase = createBrowserSupabase();
 
   const [firstName, setFirstName] = useState(initial.first_name);
   const [lastName, setLastName] = useState(initial.last_name);
@@ -47,6 +48,14 @@ export default function AccountForm({ initial }: { initial: AccountInitial }) {
     setMsg(null);
     setErr(null);
     try {
+      // ✅ Supabase-Client erst hier holen und auf null prüfen
+      const supabase = createBrowserSupabase();
+      if (!supabase) {
+        throw new Error(
+          "Supabase ist nicht konfiguriert (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY fehlen)."
+        );
+      }
+
       const { error } = await supabase.from("profiles").upsert(
         {
           id: initial.id,
@@ -88,7 +97,7 @@ export default function AccountForm({ initial }: { initial: AccountInitial }) {
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-xs text-gray-600">E‑Mail</label>
+          <label className="mb-1 block text-xs text-gray-600">E-Mail</label>
           <input
             value={initial.email}
             readOnly
@@ -131,7 +140,7 @@ export default function AccountForm({ initial }: { initial: AccountInitial }) {
           <input
             value={semester}
             onChange={(e) => setSemester(e.target.value)}
-            placeholder="z. B. 9. Semester"
+            placeholder="z. B. 9. Semester"
             className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm"
           />
         </div>
@@ -141,17 +150,17 @@ export default function AccountForm({ initial }: { initial: AccountInitial }) {
           <input
             value={homeUni}
             onChange={(e) => setHomeUni(e.target.value)}
-            placeholder="z. B. LMU München"
+            placeholder="z. B. LMU München"
             className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm"
           />
         </div>
 
         <div className="sm:col-span-2">
-          <label className="mb-1 block text-xs text-gray-600">PJ‑Wahlfach</label>
+          <label className="mb-1 block text-xs text-gray-600">PJ-Wahlfach</label>
           <input
             value={pjWahlfach}
             onChange={(e) => setPjWahlfach(e.target.value)}
-            placeholder="z. B. Kardiologie"
+            placeholder="z. B. Kardiologie"
             className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm"
           />
         </div>
