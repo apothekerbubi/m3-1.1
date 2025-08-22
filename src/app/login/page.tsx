@@ -1,7 +1,7 @@
 // src/app/login/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 
@@ -9,7 +9,9 @@ type Mode = "login" | "register";
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createBrowserSupabase();
+
+  // Supabase-Client sicher in einem Ref halten (kann null sein)
+  const supabaseRef = useRef<ReturnType<typeof createBrowserSupabase> | null>(null);
 
   // Redirect-Ziel ohne useSearchParams (vermeidet Suspense-Warnung)
   const [nextUrl, setNextUrl] = useState("/subjects");
@@ -36,16 +38,34 @@ export default function LoginPage() {
   const [pjTrack, setPjTrack] = useState("");
   const [examDate, setExamDate] = useState(""); // yyyy-mm-dd
 
+  // Supabase initialisieren + „bereits eingeloggt?” prüfen
   useEffect(() => {
-    // Bereits eingeloggt? -> weiter
+    let alive = true;
+
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
+      supabaseRef.current = createBrowserSupabase();
+      const sb = supabaseRef.current;
+
+      // Falls ENV fehlen / Client nicht erstellt werden kann → UI-Hinweis
+      if (!sb) {
+        if (alive) {
+          setError("Login momentan nicht verfügbar (Konfiguration fehlt).");
+        }
+        return;
+      }
+
+      const { data, error: sessErr } = await sb.auth.getSession();
+      if (!alive) return;
+
+      if (!sessErr && data?.session) {
         router.replace(nextUrl);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nextUrl]);
+
+    return () => {
+      alive = false;
+    };
+  }, [router, nextUrl]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -53,8 +73,13 @@ export default function LoginPage() {
     setError(null);
 
     try {
+      const sb = supabaseRef.current;
+      if (!sb) {
+        throw new Error("Login/Registrierung nicht möglich (Konfiguration fehlt).");
+      }
+
       if (mode === "login") {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
+        const { error: signInError } = await sb.auth.signInWithPassword({
           email,
           password,
         });
@@ -69,17 +94,14 @@ export default function LoginPage() {
       }
 
       // mode === "register"
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { error: signUpError } = await sb.auth.signUp({
         email,
         password,
         options: {
-          // Bestätigungslink führt zurück auf /login, danach normal einloggen
           emailRedirectTo:
             typeof window !== "undefined"
               ? `${window.location.origin}/login?next=${encodeURIComponent(nextUrl)}`
               : undefined,
-          // user_metadata – konsistent zu deiner profiles-Table:
-          // home_uni, pj_wahlfach
           data: {
             first_name: firstName,
             last_name: lastName,
@@ -92,7 +114,7 @@ export default function LoginPage() {
       });
       if (signUpError) throw signUpError;
 
-      alert("Registrierung erfolgreich! Bitte bestätige die E‑Mail und melde dich dann an.");
+      alert("Registrierung erfolgreich! Bitte bestätige die E-Mail und melde dich dann an.");
       setMode("login");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Vorgang fehlgeschlagen.");
@@ -101,16 +123,16 @@ export default function LoginPage() {
     }
   }
 
-  // ✅ Passwort-Reset per E-Mail
+  // Passwort-Reset per E-Mail
   async function onForgotPassword() {
-    if (!email) {
-      setError("Bitte gib zuerst deine E‑Mail-Adresse ein.");
-      return;
-    }
     setSubmitting(true);
     setError(null);
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+      const sb = supabaseRef.current;
+      if (!sb) throw new Error("Passwort-Reset nicht möglich (Konfiguration fehlt).");
+      if (!email) throw new Error("Bitte gib zuerst deine E-Mail-Adresse ein.");
+
+      const { error: resetError } = await sb.auth.resetPasswordForEmail(email, {
         redirectTo:
           typeof window !== "undefined"
             ? `${window.location.origin}/reset-password`
@@ -120,7 +142,7 @@ export default function LoginPage() {
       alert("Wir haben dir einen Link zum Zurücksetzen des Passworts geschickt.");
     } catch (err: unknown) {
       setError(
-        err instanceof Error ? err.message : "Senden des Reset‑Links ist fehlgeschlagen."
+        err instanceof Error ? err.message : "Senden des Reset-Links ist fehlgeschlagen."
       );
     } finally {
       setSubmitting(false);
@@ -135,12 +157,12 @@ export default function LoginPage() {
 
       {mode === "login" ? (
         <div className="mb-3 rounded-md border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800">
-          Nach erstmaliger Registrierung <b>bitte deine E‑Mail bestätigen</b>. Danach kannst du dich
+          Nach erstmaliger Registrierung <b>bitte deine E-Mail bestätigen</b>. Danach kannst du dich
           hier ganz normal anmelden.
         </div>
       ) : (
         <div className="mb-3 rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
-          Nach der Registrierung schicken wir dir eine <b>Bestätigungs‑E‑Mail</b>. Erst nach Klick
+          Nach der Registrierung schicken wir dir eine <b>Bestätigungs-E-Mail</b>. Erst nach Klick
           auf den Link kannst du dich anmelden.
         </div>
       )}
@@ -148,7 +170,7 @@ export default function LoginPage() {
       <form onSubmit={onSubmit} className="space-y-3">
         {/* E-Mail & Passwort */}
         <div>
-          <label className="block text-xs text-gray-600">E‑Mail</label>
+          <label className="block text-xs text-gray-600">E-Mail</label>
           <input
             type="email"
             className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
@@ -198,7 +220,7 @@ export default function LoginPage() {
               <label className="block text-xs text-gray-600">Semester</label>
               <input
                 className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
-                placeholder="z. B. 10"
+                placeholder="z. B. 10"
                 value={semester}
                 onChange={(e) => setSemester(e.currentTarget.value)}
               />
@@ -208,17 +230,17 @@ export default function LoginPage() {
               <label className="block text-xs text-gray-600">Heimatuni</label>
               <input
                 className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
-                placeholder="z. B. LMU München"
+                placeholder="z. B. LMU München"
                 value={homeUni}
                 onChange={(e) => setHomeUni(e.currentTarget.value)}
               />
             </div>
 
             <div>
-              <label className="block text-xs text-gray-600">PJ‑Wahlfach</label>
+              <label className="block text-xs text-gray-600">PJ-Wahlfach</label>
               <input
                 className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
-                placeholder="z. B. Innere Medizin"
+                placeholder="z. B. Innere Medizin"
                 value={pjTrack}
                 onChange={(e) => setPjTrack(e.currentTarget.value)}
               />
@@ -262,22 +284,14 @@ export default function LoginPage() {
           {mode === "login" ? (
             <>
               Noch kein Konto?{" "}
-              <button
-                type="button"
-                onClick={() => setMode("register")}
-                className="underline"
-              >
+              <button type="button" onClick={() => setMode("register")} className="underline">
                 Jetzt registrieren
               </button>
             </>
           ) : (
             <>
               Schon ein Konto?{" "}
-              <button
-                type="button"
-                onClick={() => setMode("login")}
-                className="underline"
-              >
+              <button type="button" onClick={() => setMode("login")} className="underline">
                 Zur Anmeldung
               </button>
             </>
