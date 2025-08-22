@@ -1,7 +1,6 @@
-// src/components/LogoutButton.tsx
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 
@@ -13,13 +12,18 @@ export default function LogoutButton({
   label?: string;
 }) {
   const router = useRouter();
-  const supabase = createBrowserSupabase();
+  const supabaseRef = useRef<ReturnType<typeof createBrowserSupabase> | null>(null);
+  supabaseRef.current = createBrowserSupabase();
+
   const [loading, setLoading] = useState(false);
 
   async function onLogout() {
+    const sb = supabaseRef.current;
+    if (!sb) return; // falls ENV fehlt
+
     setLoading(true);
     try {
-      await supabase.auth.signOut();
+      await sb.auth.signOut();
       router.replace("/login");
       router.refresh();
     } finally {
