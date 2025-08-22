@@ -1,9 +1,8 @@
-// src/components/Header.tsx
 "use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AcademicCapIcon, MagnifyingGlassIcon, UserCircleIcon } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import { createBrowserSupabase } from "@/lib/supabase/client";
@@ -11,20 +10,23 @@ import LogoutButton from "@/components/LogoutButton";
 
 export default function Header() {
   const router = useRouter();
-  const supabase = createBrowserSupabase();
+  const supabaseRef = useRef<ReturnType<typeof createBrowserSupabase> | null>(null);
+  supabaseRef.current = createBrowserSupabase();
 
   const [q, setQ] = useState("");
   const [hasSession, setHasSession] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
+    const sb = supabaseRef.current;
+    if (!sb) return; // ENV fehlt → kein Client
 
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await sb.auth.getSession();
       if (isMounted) setHasSession(Boolean(session));
     })();
 
-    const { data: authSub } = supabase.auth.onAuthStateChange((_evt, session) => {
+    const { data: authSub } = sb.auth.onAuthStateChange((_evt, session) => {
       setHasSession(Boolean(session));
     });
 
@@ -32,7 +34,7 @@ export default function Header() {
       isMounted = false;
       authSub.subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, []);
 
   function onSearch(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -70,7 +72,7 @@ export default function Header() {
               </div>
             </form>
 
-            {/* Mobile: nur Icon, öffnet /search */}
+            {/* Mobile: nur Icon */}
             <Link
               href="/search"
               className="sm:hidden inline-flex items-center justify-center rounded-md border border-black/10 bg-white/90 p-2"
@@ -80,7 +82,7 @@ export default function Header() {
               <MagnifyingGlassIcon className="h-5 w-5 text-gray-700" />
             </Link>
 
-            {/* Account / Login / Logout */}
+            {/* Account */}
             <Link
               href="/account"
               className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white/90 p-1.5 hover:bg-black/[.04]"
