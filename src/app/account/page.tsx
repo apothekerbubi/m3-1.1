@@ -16,26 +16,33 @@ type Profile = {
 };
 
 export default function AccountPage() {
-  const supabase = createBrowserSupabase();
   const router = useRouter();
   const [email, setEmail] = useState<string>("");
   const [profile, setProfile] = useState<Profile>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    (async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+    let alive = true;
 
-      if (!session) {
+    (async () => {
+      const supabase = createBrowserSupabase();
+      // Falls ENV fehlt oder Client nicht erstellt werden kann → zur Login-Seite
+      if (!supabase) {
         router.replace("/login");
         return;
       }
 
+      const { data, error } = await supabase.auth.getSession();
+      if (!alive) return;
+
+      if (error || !data?.session) {
+        router.replace("/login");
+        return;
+      }
+
+      const session = data.session;
       setEmail(session.user.email || "");
 
-      // user_metadata (falls du das in Supabase bei Registrierung speicherst)
       const md = session.user.user_metadata || {};
       setProfile({
         first_name: md.first_name ?? null,
@@ -48,7 +55,11 @@ export default function AccountPage() {
 
       setLoading(false);
     })();
-  }, [router, supabase]);
+
+    return () => {
+      alive = false;
+    };
+  }, [router]);
 
   if (loading) {
     return <main className="mx-auto max-w-2xl p-6 text-sm text-gray-600">Lade Account…</main>;
@@ -63,7 +74,7 @@ export default function AccountPage() {
 
       <div className="rounded-xl border border-black/10 bg-white p-4">
         <div className="mb-4">
-          <div className="text-xs text-gray-500">E‑Mail</div>
+          <div className="text-xs text-gray-500">E-Mail</div>
           <div className="text-sm font-medium">{email}</div>
         </div>
 
@@ -72,7 +83,7 @@ export default function AccountPage() {
           <Field label="Nachname" value={profile.last_name} />
           <Field label="Semester" value={profile.semester} />
           <Field label="Heimatuni" value={profile.home_uni} />
-          <Field label="PJ‑Wahlfach" value={profile.pj_wahlfach} />
+          <Field label="PJ-Wahlfach" value={profile.pj_wahlfach} />
           <Field label="Prüfungsdatum" value={profile.exam_date} />
         </div>
       </div>
