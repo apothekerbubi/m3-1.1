@@ -569,10 +569,15 @@ export default function ExamPage() {
 
         {/* Serien-Progressbar (falls Serie vorhanden) */}
         {seriesTotal > 0 && (
-          <div className="w-48">
-            <ProgressBar value={ended ? Math.round(((seriesIdx + 1) / seriesTotal) * 100) : seriesPct} label={`Serie ${seriesIdx + 1}/${seriesTotal}`} />
-          </div>
-        )}
+  <div className="w-48">
+    <div className="mb-1 text-[11px] text-gray-600">
+      Serie {seriesIdx + 1}/{seriesTotal}
+    </div>
+    <ProgressBar
+      value={ended ? Math.round(((seriesIdx + 1) / seriesTotal) * 100) : seriesPct}
+    />
+  </div>
+)}
 
         <ScorePill points={totalPoints} maxPoints={maxPoints} last={lastCorrectness} />
 
