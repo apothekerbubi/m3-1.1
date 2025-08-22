@@ -1,6 +1,7 @@
+// src/app/overview/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { CASES } from "@/data/cases";
 import Link from "next/link";
@@ -67,7 +68,10 @@ function OverviewSkeleton() {
 }
 
 export default function OverviewPage() {
-  const supabase = createBrowserSupabase();
+  // Supabase sicher halten (kann null sein, wenn ENV fehlt)
+  const supabaseRef = useRef<ReturnType<typeof createBrowserSupabase> | null>(null);
+  supabaseRef.current = createBrowserSupabase();
+
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<ProgressItem[]>([]);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
@@ -81,24 +85,34 @@ export default function OverviewPage() {
 
   useEffect(() => {
     let alive = true;
+
     (async () => {
       try {
+        // Fortschrittsliste (ohne Supabase)
         const res = await fetch("/api/progress/list", { cache: "no-store" });
         const json = await res.json();
         const arr: ProgressItem[] = Array.isArray(json) ? json : (json.items ?? []);
         if (alive) setItems(arr);
 
-        const { data: userData } = await supabase.auth.getUser();
-        const user = userData?.user;
-        if (user) {
-          const { data } = await supabase
-            .from("profiles")
-            .select("exam_date, first_name")
-            .eq("id", user.id)
-            .maybeSingle();
-          if (alive) setProfile((data as ProfileRow) ?? null);
-        } else {
+        // Optional: Profildaten nur laden, wenn Supabase konfiguriert ist
+        const sb = supabaseRef.current;
+        if (!sb) {
           if (alive) setProfile(null);
+        } else {
+          const { data: userData } = await sb.auth.getUser();
+          const user = userData?.user;
+
+          if (user) {
+            const { data } = await sb
+              .from("profiles")
+              .select("exam_date, first_name")
+              .eq("id", user.id)
+              .maybeSingle();
+
+            if (alive) setProfile((data as ProfileRow) ?? null);
+          } else {
+            if (alive) setProfile(null);
+          }
         }
       } catch {
         if (alive) {
@@ -109,10 +123,12 @@ export default function OverviewPage() {
         if (alive) setLoading(false);
       }
     })();
+
     return () => {
       alive = false;
     };
-  }, [supabase]);
+    // keine Abhängigkeit von supabaseRef – Ref bleibt stabil
+  }, []);
 
   if (loading) return <OverviewSkeleton />;
 
@@ -145,12 +161,16 @@ export default function OverviewPage() {
   }
   const avgPct = nPct > 0 ? Math.round(sumPct / nPct) : 0;
 
-  // Neuer Gesamtfortschritt (bearbeitete Fälle / alle Fälle)
+  // Gesamtfortschritt (bearbeitete Fälle / alle Fälle)
   const overallPct = totalCases > 0 ? Math.round((workedCount / totalCases) * 100) : 0;
 
-  const examDateStr = profile?.exam_date ? new Date(profile.exam_date).toLocaleDateString("de-DE") : "—";
+  const examDateStr = profile?.exam_date
+    ? new Date(profile.exam_date).toLocaleDateString("de-DE")
+    : "—";
   const daysLeft =
-    profile?.exam_date ? Math.max(0, Math.ceil((new Date(profile.exam_date).getTime() - Date.now()) / 86400000)) : null;
+    profile?.exam_date
+      ? Math.max(0, Math.ceil((new Date(profile.exam_date).getTime() - Date.now()) / 86400000))
+      : null;
 
   const recent = [...latestByCase.values()]
     .sort((a, b) => {
@@ -164,7 +184,7 @@ export default function OverviewPage() {
     const s = Number(row.score ?? 0);
     const m = Number(row.max_score ?? 0);
     return m > 0 ? Math.round((s / m) * 100) : 0;
-  }
+    }
 
   return (
     <main className="p-0">
@@ -226,7 +246,9 @@ export default function OverviewPage() {
                   <div className="min-w-0">
                     <div className="truncate font-medium">{title}</div>
                     <div className="text-[11px] text-gray-600">
-                      {r.updated_at ? new Date(r.updated_at).toLocaleString("de-DE") : "Zeitpunkt unbekannt"}
+                      {r.updated_at
+                        ? new Date(r.updated_at).toLocaleString("de-DE")
+                        : "Zeitpunkt unbekannt"}
                     </div>
                   </div>
                   {/* Einheitliche Breite durch shrink-0 + feste Breite in MiniBar */}
