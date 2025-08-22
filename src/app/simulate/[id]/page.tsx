@@ -128,7 +128,6 @@ export default function ExamPage() {
   // ✅ Nach Abschluss: nur dann zur Übersicht, wenn KEINE Serie mehr offen ist
   useEffect(() => {
     if (!ended) return;
-    // wenn Serie aktiv & schon der letzte Fall erledigt, danach zurück
     const goHome = () => router.replace("/subjects");
     const t = setTimeout(goHome, REDIRECT_AFTER_MS);
     return () => clearTimeout(t);
@@ -148,11 +147,11 @@ export default function ExamPage() {
     if (!text || !text.trim()) return;
     const t = text.trim();
     setChats((prev) => {
-      const copy = prev.map((x) => [...x]);
-      const arr = copy[step] ?? [];
+      const copy: Turn[][] = prev.map((x): Turn[] => [...x]);
+      const arr: Turn[] = copy[step] ?? [];
       const lastProf = [...arr].reverse().find((x) => x.role === "prof");
       if (!lastProf || normalize(lastProf.text) !== normalize(t)) {
-        const next = [...arr, { role: "prof", text: t }];
+        const next: Turn[] = [...arr, { role: "prof" as const, text: t }];
         copy[step] = next;
       }
       return copy;
@@ -160,9 +159,9 @@ export default function ExamPage() {
   }
   function pushStudent(step: number, text: string) {
     setChats((prev) => {
-      const copy = prev.map((x) => [...x]);
-      const arr = copy[step] ?? [];
-      copy[step] = [...arr, { role: "student", text }];
+      const copy: Turn[][] = prev.map((x): Turn[] => [...x]);
+      const arr: Turn[] = copy[step] ?? [];
+      copy[step] = [...arr, { role: "student" as const, text }];
       return copy;
     });
   }
@@ -228,7 +227,7 @@ export default function ExamPage() {
         c && typeof c.bildgebung === "object" && c.bildgebung !== null
           ? (c.bildgebung as Record<string, unknown>)
           : null;
-      const sono = bild && typeof bild.ultraschall === "string" ? (bild.ultraschall as string) : null;
+      const sono = bild && typeof c?.ultraschall === "string" ? (bild?.ultraschall as string) : null;
       if (sono) parts.push(`Sono: ${sono}`);
 
       const kurz = c && typeof c.interpretationKurz === "string" ? (c.interpretationKurz as string) : null;
@@ -379,8 +378,8 @@ export default function ExamPage() {
     const initChats: Turn[][] = Array.from({ length: n }, () => []);
     const q0 = stepsOrdered[0]?.prompt ?? "";
     initChats[0] = [
-      { role: "prof", text: `Vignette: ${c.vignette}` },
-      { role: "prof", text: q0 },
+      { role: "prof" as const, text: `Vignette: ${c.vignette}` },
+      { role: "prof" as const, text: q0 },
     ];
     setChats(initChats);
 
@@ -399,7 +398,10 @@ export default function ExamPage() {
     setInput("");
     setAttemptCount((n) => (n >= 2 ? 2 : n + 1));
 
-    const current = [...(chats[activeIndex] ?? []), { role: "student", text }];
+    const current: Turn[] = [
+      ...(((chats[activeIndex] ?? []) as Turn[])),
+      { role: "student" as const, text },
+    ];
     void callExamAPI(current, { mode: "answer" });
   }
 
@@ -438,9 +440,9 @@ export default function ExamPage() {
     });
 
     setChats((prev) => {
-      const copy = prev.map((x) => [...x]);
+      const copy: Turn[][] = prev.map((x): Turn[] => [...x]);
       if (!copy[idx] || copy[idx].length === 0) {
-        copy[idx] = [{ role: "prof", text: q }];
+        copy[idx] = [{ role: "prof" as const, text: q }];
       }
       return copy;
     });
@@ -455,14 +457,14 @@ export default function ExamPage() {
   async function requestTip() {
     if (!c || loading || ended) return;
     if (viewIndex !== activeIndex) return;
-    const current = chats[activeIndex] ?? [];
+    const current = (chats[activeIndex] ?? []) as Turn[];
     await callExamAPI(current, { mode: "tip" });
   }
 
   async function requestExplain() {
     if (!c || loading || ended) return;
     if (viewIndex !== activeIndex) return;
-    const current = chats[activeIndex] ?? [];
+    const current = (chats[activeIndex] ?? []) as Turn[];
     await callExamAPI(current, { mode: "explain" });
   }
 
@@ -491,14 +493,13 @@ export default function ExamPage() {
         {seriesTotal > 0 && (
           <div className="hidden w-48 sm:block">
             <ProgressBar
-              value={Math.round(((seriesIdx) / Math.max(1, seriesTotal)) * 100)}
-              label={`Simulation ${seriesPos}/${seriesTotal}`}
+              value={Math.round((seriesIdx / Math.max(1, seriesTotal)) * 100)}
             />
           </div>
         )}
 
         <div className="hidden w-56 sm:block">
-          <ProgressBar value={ended ? 100 : progressPct} label="Fortschritt" />
+          <ProgressBar value={ended ? 100 : progressPct} />
         </div>
 
         <label className="text-xs text-gray-600">Stil</label>
