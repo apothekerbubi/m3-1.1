@@ -46,13 +46,13 @@ export default function Header() {
     <header className="sticky top-0 z-40 backdrop-blur border-b border-white/20 bg-white/60 dark:bg-[#0f1524]/60">
       <div className="mx-auto max-w-screen-2xl px-6">
         <div className="flex h-14 items-center justify-between gap-3">
-          {/* Logo -> Fächer */}
-          <Link href="/subjects" className="flex items-center gap-2">
+          {/* Logo -> Übersicht */}
+          <Link href="/overview" className="flex items-center gap-2">
             <div className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-100 text-brand-700">
-              <AcademicCapIcon className="h-5 w-5" />
-            </div>
-            <span className="font-semibold tracking-tight">M3 Mentor</span>
-          </Link>
+          <AcademicCapIcon className="h-5 w-5" />
+        </div>
+          <span className="font-semibold tracking-tight">M3 Mentor</span>
+            </Link>
 
           {/* Suche + Account rechts */}
           <div className="flex items-center gap-3">

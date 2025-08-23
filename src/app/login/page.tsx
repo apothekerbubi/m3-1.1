@@ -58,7 +58,8 @@ export default function LoginPage() {
       if (!alive) return;
 
       if (!sessErr && data?.session) {
-        router.replace(nextUrl);
+        router.replace("/overview");
+        router.refresh();
       }
     })();
 
@@ -88,7 +89,7 @@ export default function LoginPage() {
         // Profil sicherstellen (legt profiles an/füllt Metadaten)
         await fetch("/api/profile/ensure", { method: "POST" });
 
-        router.replace(nextUrl);
+       router.replace("/overview");
         router.refresh();
         return;
       }
