@@ -32,13 +32,7 @@ export default function AccountPage() {
 
       const {
         data: { session },
-        error: sessionError,
       } = await supabase.auth.getSession();
-      if (sessionError) {
-        console.error("Session Error:", sessionError);
-        setLoading(false);
-        return;
-      }
 
       if (!session) {
         router.replace("/login");
@@ -51,15 +45,11 @@ export default function AccountPage() {
       const md = session.user.user_metadata || {};
 
       // Profile aus Tabelle laden
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("profiles")
         .select("first_name,last_name,semester,home_uni,pj_wahlfach,exam_date")
         .eq("id", session.user.id)
         .maybeSingle();
-
-      if (error) {
-        console.error("DB Error (load):", error);
-      }
 
       setProfile({
         first_name: data?.first_name ?? md.first_name ?? "",
@@ -82,35 +72,28 @@ export default function AccountPage() {
     try {
       const {
         data: { user },
-        error: userError,
       } = await supabase.auth.getUser();
-      if (userError) throw userError;
       if (!user) {
         router.replace("/login");
         return;
       }
 
       // auth.user_metadata updaten
-      const { error: metaError } = await supabase.auth.updateUser({
+      await supabase.auth.updateUser({
         data: profile,
       });
-      if (metaError) throw metaError;
 
       // Tabelle "profiles" updaten/insert
-      const { error: dbError } = await supabase.from("profiles").upsert(
-        {
-          id: user.id,
-          ...profile,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "id" }
-      );
-      if (dbError) throw dbError;
+      await supabase.from("profiles").upsert({
+        id: user.id,
+        ...profile,
+        updated_at: new Date().toISOString(),
+      });
 
       setMessage("Profil erfolgreich gespeichert ✅");
-    } catch (err: any) {
-      console.error("❌ Fehler beim Speichern:", err);
-      setMessage(err.message || "Fehler beim Speichern ❌");
+    } catch (err) {
+      console.error(err);
+      setMessage("Fehler beim Speichern ❌");
     } finally {
       setSaving(false);
     }
