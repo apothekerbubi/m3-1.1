@@ -1,0 +1,9 @@
+# *
+User-agent: *
+Allow: /
+
+# Host
+Host: https://exasim.de
+
+# Sitemaps
+Sitemap: https://exasim.de/sitemap.xml

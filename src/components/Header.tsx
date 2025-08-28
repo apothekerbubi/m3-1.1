@@ -1,9 +1,12 @@
+// src/components/Header.tsx
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import symptaiLogo from "@/lib/Logo.png"; // <- dein Logo liegt in src/lib/Logo.png
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { AcademicCapIcon, MagnifyingGlassIcon, UserCircleIcon } from "@heroicons/react/24/outline";
+import { MagnifyingGlassIcon, UserCircleIcon } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import LogoutButton from "@/components/LogoutButton";
@@ -19,7 +22,7 @@ export default function Header() {
   useEffect(() => {
     let isMounted = true;
     const sb = supabaseRef.current;
-    if (!sb) return; // ENV fehlt → kein Client
+    if (!sb) return;
 
     (async () => {
       const { data: { session } } = await sb.auth.getSession();
@@ -42,21 +45,35 @@ export default function Header() {
     router.push(query ? `/search?q=${encodeURIComponent(query)}` : "/search");
   }
 
+  // Höhe des Headers (h-14 = 3.5rem) als CSS-Variable bereitstellen
+  const HEADER_H = "3.5rem";
+
   return (
-    <header className="sticky top-0 z-40 backdrop-blur border-b border-white/20 bg-white/60 dark:bg-[#0f1524]/60">
+    <header
+      className="sticky top-0 z-50 border-b bg-white dark:bg-[#0f1524] shadow-sm"
+      style={{ "--header-h": HEADER_H } as React.CSSProperties }
+    >
       <div className="mx-auto max-w-screen-2xl px-6">
         <div className="flex h-14 items-center justify-between gap-3">
-          {/* Logo -> Übersicht */}
-          <Link href="/overview" className="flex items-center gap-2">
-            <div className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-100 text-brand-700">
-          <AcademicCapIcon className="h-5 w-5" />
-        </div>
-          <span className="font-semibold tracking-tight">M3 Mentor</span>
-            </Link>
+          {/* Logo → Übersicht */}
+          <Link
+            href="/overview"
+            className="flex items-center gap-2"
+            aria-label="SymptAI – zur Übersicht"
+            title="SymptAI"
+          >
+            {/* Statischer Import: Next kennt Breite/Höhe automatisch */}
+            <Image
+              src={symptaiLogo}
+              alt="SymptAI"
+              priority
+              className="h-12 w-auto sm:h-12 lg:h-14"  // größer
+            />
+            <span className="sr-only font-semibold tracking-tight">SymptAI</span>
+          </Link>
 
-          {/* Suche + Account rechts */}
+          {/* Suche + Account */}
           <div className="flex items-center gap-3">
-            {/* Suche (mobil kompakter) */}
             <form onSubmit={onSearch} className="hidden sm:block">
               <div className="relative">
                 <MagnifyingGlassIcon className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
