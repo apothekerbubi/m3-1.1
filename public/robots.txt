@@ -3,7 +3,7 @@ User-agent: *
 Allow: /
 
 # Host
-Host: https://exasim.de
+Host: https://www.exasim.de
 
 # Sitemaps
-Sitemap: https://exasim.de/sitemap.xml
+Sitemap: https://www.exasim.de/sitemap.xml
