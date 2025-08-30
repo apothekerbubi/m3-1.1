@@ -30,6 +30,69 @@ type ObjMin = { id: string; label: string };
 type CompletionRules = { minObjectives: number; maxLLMTurns?: number; hardStopTurns?: number };
 type CaseWithRules = Case & { objectives?: ObjMin[]; completion?: CompletionRules | null };
 
+/* ------- Serien-Store für Summary ------- */
+type SeriesResultRow = {
+  title: string;
+  subject: string | null;
+  category: string | null;
+  score: number;
+  maxScore: number;
+  pct: number;
+  completed: boolean;
+};
+type SeriesStore = {
+  seriesId: string;
+  startedAt?: string | null;
+  endedAt?: string | null;
+  caseIds?: string[];
+  results?: Record<string, SeriesResultRow>;
+};
+
+function updateSeriesLocal(
+  sid: string,
+  data: {
+    caseId: string;
+    title: string;
+    subject: string | null;
+    category: string | null;
+    score: number;
+    maxScore: number;
+    completed: boolean;
+  },
+  meta?: { caseIds?: string[]; ended?: boolean }
+): void {
+  if (typeof window === "undefined") return;
+  const key = `series:${sid}`;
+  const now = new Date().toISOString();
+
+  const cur: SeriesStore =
+    JSON.parse(localStorage.getItem(key) || "{}") || ({} as SeriesStore);
+
+  const next: SeriesStore = {
+    seriesId: sid,
+    startedAt: cur.startedAt || now,
+    endedAt: meta?.ended ? now : cur.endedAt || null,
+    caseIds:
+      Array.isArray(meta?.caseIds) && meta?.caseIds.length
+        ? meta.caseIds
+        : cur.caseIds || [],
+    results: {
+      ...(cur.results || {}),
+      [data.caseId]: {
+        title: data.title,
+        subject: data.subject,
+        category: data.category,
+        score: data.score,
+        maxScore: data.maxScore,
+        pct: data.maxScore > 0 ? Math.round((data.score / data.maxScore) * 100) : 0,
+        completed: data.completed,
+      },
+    },
+  };
+
+  localStorage.setItem(key, JSON.stringify(next));
+}
+
 export default function ExamPage() {
   const params = useParams<{ id: string | string[] }>();
   const rawId = params?.id;
@@ -40,18 +103,19 @@ export default function ExamPage() {
   const router = useRouter();
   const REDIRECT_AFTER_MS = 900;
 
-  // -------- Serie (aus Query ?s=...,&i=...) – OHNE useSearchParams --------
+  // -------- Serie (aus Query ?s=...,&i=...,&sid=...) – OHNE useSearchParams --------
   function readSeriesFromLocation() {
-    if (typeof window === "undefined") return { ids: [] as string[], idx: 0 };
+    if (typeof window === "undefined") return { ids: [] as string[], idx: 0, sid: null as string | null };
     const sp = new URLSearchParams(window.location.search);
     const s = sp.get("s");
     const ids = s ? s.split(",").map((x) => x.trim()).filter(Boolean) : [];
     const iRaw = sp.get("i");
     const i = Number.parseInt(iRaw ?? "0", 10);
-    return { ids, idx: Number.isFinite(i) && i >= 0 ? i : 0 };
+    const sid = sp.get("sid");
+    return { ids, idx: Number.isFinite(i) && i >= 0 ? i : 0, sid: sid || null };
   }
 
-  const [{ ids: seriesIds, idx: seriesIdx }, setSeries] = useState(() => readSeriesFromLocation());
+  const [{ ids: seriesIds, idx: seriesIdx, sid: seriesId }, setSeries] = useState(() => readSeriesFromLocation());
 
   // Neu einlesen, wenn die Route (Fall) wechselt
   useEffect(() => {
@@ -141,7 +205,7 @@ export default function ExamPage() {
     }
   }, [asked.length, activeIndex]);
 
-  // ✅ Nach Abschluss: entweder nächster Fall der Serie, sonst zurück
+  // ✅ Nach Abschluss: entweder nächster Fall der Serie, sonst Summary (mit sid) oder zurück
   useEffect(() => {
     if (!ended) return;
     const t = setTimeout(() => {
@@ -149,14 +213,18 @@ export default function ExamPage() {
       if (seriesTotal > 0 && seriesIdx < seriesTotal - 1) {
         const nextIdx = seriesIdx + 1;
         const nextId = seriesIds[nextIdx];
-        const q = `?s=${encodeURIComponent(seriesIds.join(","))}&i=${nextIdx}`;
+        const q = `?s=${encodeURIComponent(seriesIds.join(","))}&i=${nextIdx}${
+          seriesId ? `&sid=${encodeURIComponent(seriesId)}` : ""
+        }`;
         router.replace(`/exam/${nextId}${q}`);
+      } else if (seriesId) {
+        router.replace(`/exam/summary?sid=${encodeURIComponent(seriesId)}`);
       } else {
         router.replace("/subjects");
       }
     }, REDIRECT_AFTER_MS);
     return () => clearTimeout(t);
-  }, [ended, seriesIdx, seriesIds, seriesTotal, router]);
+  }, [ended, seriesIdx, seriesIds, seriesTotal, seriesId, router]);
 
   function label(correctness: "correct" | "partially_correct" | "incorrect") {
     return correctness === "correct"
@@ -433,7 +501,7 @@ async function callExamAPI(
 }
 
   // -------------------------------------------------
-  // Fortschritt in Supabase speichern
+  // Fortschritt in Supabase speichern (+ lokal für Summary)
   // -------------------------------------------------
   async function persistProgress({ completed }: { completed: boolean }) {
     if (!c) return;
@@ -450,6 +518,28 @@ async function callExamAPI(
       });
     } catch {
       // Absichtlich still – UI nicht blockieren
+    } finally {
+      // ➕ NEU: lokale Serien-Resultate für Summary sichern
+      if (seriesId) {
+        const subj = (c.subject ?? c.specialty) ?? null;
+        const cat = (c.category ?? c.subspecialty) ?? null;
+        updateSeriesLocal(
+          seriesId,
+          {
+            caseId: c.id,
+            title: c.title,
+            subject: subj,
+            category: cat,
+            score: totalPoints,
+            maxScore: maxPoints,
+            completed,
+          },
+          {
+            caseIds: seriesIds,
+            ended: true, // wir rufen persistProgress nur beim Abschluss des Falls
+          }
+        );
+      }
     }
   }
   // -------------------------------------------------
@@ -517,7 +607,7 @@ async function callExamAPI(
     const last = activeIndex >= nSteps - 1;
     if (last) {
       setEnded(true);
-      // beim Abschließen Fortschritt speichern
+      // beim Abschließen Fortschritt speichern (+ lokal)
       void persistProgress({ completed: true });
       return;
     }

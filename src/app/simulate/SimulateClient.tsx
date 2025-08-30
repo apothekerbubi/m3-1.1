@@ -1,3 +1,4 @@
+// src/app/simulate/simulateClient.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -16,7 +17,8 @@ function sample<T>(arr: T[], n: number): T[] {
   }
   return copy.slice(0, Math.max(0, Math.min(n, copy.length)));
 }
-const clampInt = (v: number, min = 0, max = 999) => Math.max(min, Math.min(max, Math.round(v)));
+const clampInt = (v: number, min = 0, max = 999) =>
+  Math.max(min, Math.min(max, Math.round(v)));
 
 /* ---------- Skeleton ---------- */
 function SimulateSkeleton({ minRows = 6 }: { minRows?: number }) {
@@ -48,7 +50,10 @@ function SimulateSkeleton({ minRows = 6 }: { minRows?: number }) {
         <div className="h-5 w-40 rounded bg-gray-200 mb-3" />
         <ul className="space-y-2">
           {Array.from({ length: minRows }).map((_, i) => (
-            <li key={i} className="flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white px-3 py-2">
+            <li
+              key={i}
+              className="flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white px-3 py-2"
+            >
               <div className="min-w-0 flex-1">
                 <div className="h-4 w-64 rounded bg-gray-200 mb-2" />
                 <div className="h-3 w-40 rounded bg-gray-100" />
@@ -77,6 +82,14 @@ export default function SimulatePage() {
     return () => clearTimeout(t);
   }, []);
 
+  // Eindeutige Serien-ID für diese Zusammenstellung
+  const [seriesId] = useState(
+    () =>
+      `sid_${Date.now().toString(36)}_${Math.random()
+        .toString(36)
+        .slice(2, 8)}`
+  );
+
   // Pools
   const innerePool = useMemo(
     () => CASES.filter((c) => (c.subject ?? c.specialty) === "Innere Medizin"),
@@ -104,7 +117,9 @@ export default function SimulatePage() {
   // Konfiguration
   const [innerCount, setInnerCount] = useState<number>(2);
   const [chirCount, setChirCount] = useState<number>(2);
-  const [wahlfachSelected, setWahlfachSelected] = useState<string>(() => wahlfachOptions[0] ?? "Allgemein");
+  const [wahlfachSelected, setWahlfachSelected] = useState<string>(
+    () => wahlfachOptions[0] ?? "Allgemein"
+  );
   const [wahlCount, setWahlCount] = useState<number>(2);
   const [seed, setSeed] = useState(0);
 
@@ -112,7 +127,8 @@ export default function SimulatePage() {
   const selected = useMemo(() => {
     void seed; // trigger
     const wahlPool = wahlfachCases.filter(
-      (c) => (c.category ?? c.subspecialty ?? "Allgemein") === wahlfachSelected
+      (c) =>
+        (c.category ?? c.subspecialty ?? "Allgemein") === wahlfachSelected
     );
 
     const pick: Case[] = [
@@ -121,13 +137,26 @@ export default function SimulatePage() {
       ...sample(wahlPool, clampInt(wahlCount, 0, wahlPool.length)),
     ];
     return pick;
-  }, [seed, innerCount, chirCount, wahlCount, innerePool, chirurgiePool, wahlfachCases, wahlfachSelected]);
+  }, [
+    seed,
+    innerCount,
+    chirCount,
+    wahlCount,
+    innerePool,
+    chirurgiePool,
+    wahlfachCases,
+    wahlfachSelected,
+  ]);
 
   if (loading) return <SimulateSkeleton />;
 
-  // 👉 Serie in Query packen
+  // 👉 Serie in Query packen (+ sid)
   const ids = selected.map((c) => c.id);
-  const seriesQuery = ids.length ? `?s=${encodeURIComponent(ids.join(","))}&i=0` : "";
+  const seriesQuery = ids.length
+    ? `?s=${encodeURIComponent(ids.join(","))}&i=0&sid=${encodeURIComponent(
+        seriesId
+      )}`
+    : "";
 
   return (
     <main className="p-0">
@@ -135,7 +164,9 @@ export default function SimulatePage() {
         <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-black/[.05]">
           <AcademicCapIcon className="h-5 w-5 text-gray-700" />
         </span>
-        <h1 className="text-2xl font-semibold tracking-tight">Examenssimulation</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Examenssimulation
+        </h1>
       </div>
 
       {/* Konfiguration */}
@@ -150,10 +181,16 @@ export default function SimulatePage() {
               min={0}
               max={innerePool.length}
               value={innerCount}
-              onChange={(e) => setInnerCount(clampInt(Number(e.target.value), 0, innerePool.length))}
+              onChange={(e) =>
+                setInnerCount(
+                  clampInt(Number(e.target.value), 0, innerePool.length)
+                )
+              }
               className="w-24 rounded-md border border-black/10 bg-white px-2 py-1"
             />
-            <span className="text-xs text-gray-500">max. {innerePool.length}</span>
+            <span className="text-xs text-gray-500">
+              max. {innerePool.length}
+            </span>
           </label>
 
           <label className="flex items-center gap-2 text-sm">
@@ -163,10 +200,16 @@ export default function SimulatePage() {
               min={0}
               max={chirurgiePool.length}
               value={chirCount}
-              onChange={(e) => setChirCount(clampInt(Number(e.target.value), 0, chirurgiePool.length))}
+              onChange={(e) =>
+                setChirCount(
+                  clampInt(Number(e.target.value), 0, chirurgiePool.length)
+                )
+              }
               className="w-24 rounded-md border border-black/10 bg-white px-2 py-1"
             />
-            <span className="text-xs text-gray-500">max. {chirurgiePool.length}</span>
+            <span className="text-xs text-gray-500">
+              max. {chirurgiePool.length}
+            </span>
           </label>
 
           <div className="flex items-center gap-2 text-sm">
@@ -195,13 +238,17 @@ export default function SimulatePage() {
               min={0}
               max={
                 wahlfachCases.filter(
-                  (c) => (c.category ?? c.subspecialty ?? "Allgemein") === wahlfachSelected
+                  (c) =>
+                    (c.category ?? c.subspecialty ?? "Allgemein") ===
+                    wahlfachSelected
                 ).length
               }
               value={wahlCount}
               onChange={(e) => {
                 const maxAvail = wahlfachCases.filter(
-                  (c) => (c.category ?? c.subspecialty ?? "Allgemein") === wahlfachSelected
+                  (c) =>
+                    (c.category ?? c.subspecialty ?? "Allgemein") ===
+                    wahlfachSelected
                 ).length;
                 setWahlCount(clampInt(Number(e.target.value), 0, maxAvail));
               }}
@@ -211,7 +258,9 @@ export default function SimulatePage() {
               max.{" "}
               {
                 wahlfachCases.filter(
-                  (c) => (c.category ?? c.subspecialty ?? "Allgemein") === wahlfachSelected
+                  (c) =>
+                    (c.category ?? c.subspecialty ?? "Allgemein") ===
+                    wahlfachSelected
                 ).length
               }
             </span>
@@ -243,7 +292,9 @@ export default function SimulatePage() {
       <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
         <h2 className="mb-3 text-lg font-semibold">Deine Auswahl</h2>
         {selected.length === 0 ? (
-          <div className="text-sm text-gray-600">Keine passenden Fälle gefunden.</div>
+          <div className="text-sm text-gray-600">
+            Keine passenden Fälle gefunden.
+          </div>
         ) : (
           <ul className="space-y-2">
             {selected.map((c) => (
@@ -254,7 +305,8 @@ export default function SimulatePage() {
                 <div className="min-w-0">
                   <div className="truncate font-medium">{c.title}</div>
                   <div className="text-[11px] text-gray-600">
-                    {(c.subject ?? c.specialty) || "Fach"} · {(c.category ?? c.subspecialty) || "Kategorie"}
+                    {(c.subject ?? c.specialty) || "Fach"} ·{" "}
+                    {(c.category ?? c.subspecialty) || "Kategorie"}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -279,8 +331,9 @@ export default function SimulatePage() {
       </section>
 
       <p className="mt-3 text-xs text-gray-500">
-        Hinweis: „Prüfung starten“ öffnet den ersten Fall deiner Serie. Nach jedem Fall wird automatisch der nächste
-        gestartet, bis alle erledigt sind.
+        Hinweis: „Prüfung starten“ öffnet den ersten Fall deiner Serie. Nach
+        jedem Fall wird automatisch der nächste gestartet, bis alle erledigt
+        sind.
       </p>
     </main>
   );
