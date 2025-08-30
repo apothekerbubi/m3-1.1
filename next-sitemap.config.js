@@ -1,9 +1,8 @@
-// next-sitemap.config.js
+/** @type {import('next-sitemap').IConfig} */
 module.exports = {
-  siteUrl: 'https://www.exasim.de',
-  generateRobotsTxt: true,
-  exclude: ['*'], // ← verhindert, dass automatisch Seiten eingesammelt werden
-  additionalPaths: async (config) => [
-    await config.transform(config, '/'), // ← nur Startseite eintragen
-  ],
+  siteUrl: 'https://www.exasim.de',   // deine Domain, ohne Slash am Ende
+  generateRobotsTxt: true,            // robots.txt automatisch erzeugen
+  changefreq: 'weekly',
+  priority: 0.7,
+  sitemapSize: 5000
 }

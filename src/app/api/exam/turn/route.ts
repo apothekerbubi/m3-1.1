@@ -18,7 +18,7 @@ type ApiOut = {
     | {
         correctness: "correct" | "partially_correct" | "incorrect";
         feedback: string;
-        tips?: string; // bleibt optional für den 💡-Flow
+        tips?: string;
       }
     | null;
   next_question: string | null;
@@ -26,6 +26,22 @@ type ApiOut = {
 };
 
 type ExplainContext = { question?: string; lastAnswer?: string };
+
+/* ---------------------- Rule-Engine ---------------------- */
+
+type RuleJson =
+  | {
+      exact?: { expected?: string[]; forbidden?: string[] };
+      anyOf?: { expected?: string[]; minHits?: number };
+      allOf?: { expected?: string[]; minHits?: number };
+      categories?: Record<string, { items: string[] }> | Array<{ items: string[] }>;
+      numeric?: { min?: number; max?: number };
+      regex?: string;
+      synonyms?: Record<string, string[]>;
+    }
+  | Record<string, unknown>; // fallback, falls extern andere Strukturen kommen
+
+/* ---------------------- Request Body ---------------------- */
 
 type BodyIn = {
   caseText?: string;
@@ -44,15 +60,13 @@ type BodyIn = {
   points?: number;
   progressPct?: number;
 
-  /** Schrittsteuerung */
   stepIndex?: number;
   stepsPrompts?: string[];
-  stepRule?: unknown;
+  stepRule?: RuleJson | null;
 };
 
 /* ---------------------- Utils ---------------------- */
 
-// Markdown/Emoji-Entfärbung
 function stripMd(s: string): string {
   return (s || "")
     .replace(/```[\s\S]*?```/g, "")
@@ -61,11 +75,9 @@ function stripMd(s: string): string {
     .trim();
 }
 
-// Patient:innen-Info-Nachfragen (nur echte Fragen!)
 function looksLikePatientInfoQuery(s: string): boolean {
   const t = (s || "").trim().toLowerCase();
   if (!t) return false;
-
   const kw = [
     "raucht","raucher","rauchverhalten","pack","nikotin",
     "fieber","fieberhöhe","temperatur","frösteln","schüttelfrost",
@@ -87,13 +99,11 @@ function looksLikePatientInfoQuery(s: string): boolean {
     "gibt es","kann ich","können sie","könnten sie","möchte wissen","dürfen wir",
     "kann man","sagen sie mir","teilen sie mir mit"
   ];
-
   const isQuestion = t.endsWith("?") || starts.some(p => t.startsWith(p + " "));
   if (!isQuestion) return false;
   return kw.some(k => t.includes(k));
 }
 
-// Give-up / „nächste frage“
 function looksLikeGiveUp(s: string): boolean {
   const t = (s || "").trim().toLowerCase();
   if (!t) return false;
@@ -106,7 +116,6 @@ function looksLikeGiveUp(s: string): boolean {
   return kw.some(k => t.includes(k));
 }
 
-// Versuche robust aus Transkript ableiten
 function inferAttemptFromTranscript(transcript: TranscriptItem[]): 1|2|3 {
   let lastQIdx = -1;
   for (let i = transcript.length - 1; i >= 0; i--) {
@@ -121,14 +130,100 @@ function inferAttemptFromTranscript(transcript: TranscriptItem[]): 1|2|3 {
   return 3;
 }
 
-// Spoiler-Schutz NUR für falsche/teilweise Antworten in frühen Versuchen
 function sanitizeForEarlyAttempts(txt: string): string {
   let s = (txt || "");
-  // Beispiel-/Listen-Passagen einkürzen, aber KEINE Diagnosen/Begriffe maskieren
   s = s.replace(/\b(z\.?\s?b\.?|u\.a\.|unter anderem|zum beispiel)\b[^.]*\./gi, " (Beispiele weggelassen).");
-  // Präfix "Tipp:" entfernen, falls das Modell doch eins reinschreibt
   s = s.replace(/^\s*tipp:\s*/i, "");
   return s.trim();
+}
+
+function normalizeText(s: string): string {
+  return (s || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9äöüß\s-]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function studentSinceLastExaminerQuestion(transcript: TranscriptItem[]): string[] {
+  let lastQIdx = -1;
+  for (let i = transcript.length - 1; i >= 0; i--) {
+    const t = transcript[i];
+    if (t.role === "examiner" && /\?\s*$/.test((t.text || "").trim())) { lastQIdx = i; break; }
+  }
+  return transcript.slice(lastQIdx + 1).filter(t => t.role === "student").map(t => t.text || "");
+}
+
+function collectCanonAndSynonyms(rule: RuleJson | null): Array<{ canon: string; alts: string[] }> {
+  const out = new Map<string, Set<string>>();
+  const push = (canon: string, alt?: string) => {
+    const c = normalizeText(canon);
+    if (!c) return;
+    if (!out.has(c)) out.set(c, new Set<string>());
+    if (alt) out.get(c)!.add(normalizeText(alt));
+  };
+
+  const walk = (node: unknown): void => {
+    if (!node) return;
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (typeof node === "object") {
+      const obj = node as Record<string, unknown>;
+      for (const key of ["expected", "required", "items"]) {
+        const arr = obj[key];
+        if (Array.isArray(arr)) for (const v of arr) if (typeof v === "string") push(v);
+      }
+      const cats = obj["categories"];
+      if (cats && typeof cats === "object") {
+        if (Array.isArray(cats)) {
+          for (const c of cats) {
+            const it = (c as { items?: unknown })?.items;
+            if (Array.isArray(it)) for (const v of it) if (typeof v === "string") push(v);
+          }
+        } else {
+          for (const v of Object.values(cats as Record<string, unknown>)) {
+            if (Array.isArray(v)) {
+              for (const s of v) if (typeof s === "string") push(s);
+            } else if (v && typeof v === "object" && Array.isArray((v as { items?: unknown }).items)) {
+              for (const s of (v as { items: unknown[] }).items) if (typeof s === "string") push(s);
+            }
+          }
+        }
+      }
+      if (obj.synonyms && typeof obj.synonyms === "object") {
+        const syn = obj.synonyms as Record<string, unknown>;
+        for (const [canon, alts] of Object.entries(syn)) {
+          push(canon);
+          if (Array.isArray(alts)) for (const a of alts) if (typeof a === "string") push(canon, a);
+        }
+      }
+      for (const v of Object.values(obj)) walk(v);
+    }
+  };
+
+  walk(rule);
+  return Array.from(out.entries()).map(([canon, set]) => ({ canon, alts: Array.from(set) }));
+}
+
+function buildStudentUnion(studentTexts: string[], rule: RuleJson | null): string[] {
+  const haystack = normalizeText(studentTexts.join(" \n "));
+  const entries = collectCanonAndSynonyms(rule);
+  const hits: string[] = [];
+  for (const { canon, alts } of entries) {
+    const variants = [canon, ...alts].map(normalizeText).filter(Boolean);
+    if (variants.some(v => haystack.includes(v))) hits.push(canon);
+  }
+  if (hits.length === 0) {
+    const rawPieces = studentTexts
+      .join(", ")
+      .split(/[,;]| und | sowie /gi)
+      .map(s => normalizeText(s))
+      .map(s => s.replace(/\s+/g, " ").trim())
+      .filter(s => s.length >= 3 && s.length <= 60);
+    return Array.from(new Set(rawPieces));
+  }
+  return Array.from(new Set(hits));
 }
 
 /* ---------------------- Handlers ---------------------- */
@@ -201,21 +296,26 @@ export async function POST(req: NextRequest) {
     // --- Nachfrage/Letzte Antwort vorbereiten ---
     const lastStudentText = [...transcript].reverse().find((t) => t.role === "student")?.text?.trim() || "";
 
+    // --- KUMULATIV: alle student-Antworten seit der letzten Frage sammeln ---
+    const studentTextsWindow = studentSinceLastExaminerQuestion(transcript);
+    const student_so_far_text = studentTextsWindow.join("\n").trim();
+    const student_union = buildStudentUnion(studentTextsWindow, stepRule);
+
     /* ---------- MODE A: Tipp (nur per Button) ---------- */
     if (tipRequest) {
       const sysTip = `Du bist Prüfer:in im 3. Staatsexamen (M3, Tag 2 – Theorie).
-Gib GENAU EINEN sehr kurzen Tipp (1 Satz) zur CURRENT_STEP_PROMPT.
-- attemptStage=1: sehr allgemein (Vorgehen/Kategorien/Prioritäten).
-- attemptStage=2: etwas fokussierter auf die Prüfungslogik des Schritts.
-- KEINE Beispiele, KEINE Diagnosen, KEINE Laborwerte/Bildgebungsbefunde, keine Spoiler.
-- Deutsch, ohne Präambel.`;
+        Gib GENAU EINEN sehr kurzen Tipp (1 Satz) zur CURRENT_STEP_PROMPT.
+        - attemptStage=1: sehr allgemein (Vorgehen/Kategorien/Prioritäten).
+        - attemptStage=2: etwas fokussierter auf die Prüfungslogik des Schritts.
+        - KEINE Beispiele, KEINE Diagnosen, KEINE Laborwerte/Bildgebungsbefunde, keine Spoiler, nicht die richtige antwort.
+        - Deutsch, ohne Präambel.`;
 
       const usrTip = `Vignette: ${caseText}
-CURRENT_STEP_PROMPT: ${currentPrompt || "(unbekannt)"}
-attemptStage: ${attemptStage}
-Letzte Studierenden-Antwort (nur Kontext): ${lastStudentText || "(noch keine)"}
-RULE_JSON: ${JSON.stringify(stepRule ?? {})}
-Gib NUR den Tipp-Text zurück (ohne Präambel).`;
+        CURRENT_STEP_PROMPT: ${currentPrompt || "(unbekannt)"}
+        attemptStage: ${attemptStage}
+        Letzte Studierenden-Antwort (nur Kontext): ${lastStudentText || "(noch keine)"}
+        RULE_JSON: ${JSON.stringify(stepRule ?? {})}
+        Gib NUR den Tipp-Text zurück (ohne Präambel).`;
 
       const outTip = await client.chat.completions.create({
         model,
@@ -267,11 +367,11 @@ Gib NUR den Tipp-Text zurück (ohne Präambel).`;
     /* ---------- MODE B: Zusatzinfos (Clarify) ---------- */
     if (clarify) {
       const sysClarify = `Du bist Prüfer:in.
-Auf Nachfrage gibst du ZUSÄTZLICHE PATIENTENDETAILS, realistisch zur Vignette und zum aktuellen Schritt.
-Form: 1–3 Sätze ODER 2–3 Bulletpoints (mit "- ").
-Kein Spoiler (keine Enddiagnose, keine definitive Therapie).
-Keine erfundenen Labor-/Bildbefunde; bleibe auf Anamnese/Untersuchungsebene, außer wenn der Schritt ausdrücklich Diagnostik betrifft.
-Deutsch.`;
+        Auf Nachfrage gibst du ZUSÄTZLICHE PATIENTENDETAILS, realistisch zur Vignette und zum aktuellen Schritt.
+        Form: 1–3 Sätze ODER 2–3 Bulletpoints (mit "- ").
+        Kein Spoiler (keine Enddiagnose, keine definitive Therapie).
+        Keine erfundenen Labor-/Bildbefunde; bleibe auf Anamnese/Untersuchungsebene, außer wenn der Schritt ausdrücklich Diagnostik betrifft.
+  Deutsch.`;
 
       const usrClarify = `Vignette: ${caseText}
 CURRENT_STEP_PROMPT: ${currentPrompt || "(unbekannt)"}
@@ -307,57 +407,77 @@ Gib NUR die Zusatzinformation (ohne Präambel/Bewertung).`;
       return NextResponse.json(payload);
     }
 
-    /* ---------- MODE D: Erklärung ---------- */
-    if (explainRequest) {
-      const sysExplain = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
-Erkläre KURZ die Qualität der Antwort auf die CURRENT_STEP_PROMPT:
-- 2–5 knappe Punkte: Kerngedanke, warum richtig/falsch, typische Fallen, Mini-Merksatz.
-- attemptStage=1/2: keine konkreten Beispiele/Lösungen nennen (nur Kategorien/Hinweise).
-- KEINE neue Frage stellen. Deutsch.`;
+    /* ---------- MODE D: Erklärung (kumulativ) ---------- */
+if (explainRequest) {
+  const sysExplain = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
+Ziel: eine kurze, flüssige Einordnung der STUDIERENDENANTWORTEN zur CURRENT_STEP_PROMPT.
+Beziehe dich NUR auf Vignette + bereits preisgegebene Informationen dieses Falls/Schritts.
 
-      const fallbackQuestion =
-        (currentPrompt || explainContext?.question?.trim()) ||
-         ([...transcript].reverse().find((t) => t.role === "examiner" && /\?\s*$/.test(t.text))?.text || "");
-      const fallbackAnswer =
-        explainContext?.lastAnswer?.trim() ||
-        ([...transcript].reverse().find((t) => t.role === "student")?.text || "");
+WICHTIG: KUMULATIV BEWERTEN
+- Nutze die kumulierten Felder:
+  • CUMULATED_STUDENT_TEXT = alle bisherigen Antworten seit der letzten Prüferfrage (roh)
+  • CUMULATED_STUDENT_LIST = deduplizierte extrahierte Items/Begriffe
+- Erkläre bezogen auf die Gesamtheit dieser Angaben (nicht nur die letzte Nachricht).
 
-      const usrExplain = `Vignette: ${caseText}
+FORMAT
+- ZUERST 1–2 Sätze in natürlicher Prosa (keine Liste), die die Antwort einordnen (richtig/teilweise/falsch) und kurz warum – kontextbezogen.
+- DANACH optional maximal 2 sehr knappe Bulletpoints (mit "- "), nur wenn sie echten Mehrwert bieten (Struktur/Prio/Falle).
+- Keine neue Frage stellen. Keine Meta-Sprache in der Ich-/Du-Form („deine Antwort ist…“ vermeiden), keine Emojis, keine Auslassungspunkte, keine Platzhalter.
+
+SPOILER-SCHUTZ
+- Bei attemptStage 1/2: Striktes Spoilerverbot. Keine neuen Diagnosen, Beispiele, Labor-/Bild-Befunde oder Schlüsselbegriffe, die NICHT von der/dem Studierenden genannt oder offiziell preisgegeben wurden.
+- Duzen (du/dir/dein). Deutsch.`;
+
+  const fallbackQuestion =
+    (currentPrompt || explainContext?.question?.trim()) ||
+     ([...transcript].reverse().find((t) => t.role === "examiner" && /\?\s*$/.test(t.text))?.text || "");
+
+  // <- WICHTIG: wir erklären jetzt kumulativ (nicht nur die letzte Antwort)
+  const usrExplain = `Vignette: ${caseText}
 CURRENT_STEP_PROMPT: ${fallbackQuestion || "(unbekannt)"}
-Antwort: ${fallbackAnswer || "(unbekannt)"}
 attemptStage: ${effectiveAttempt}
+
+RULE_JSON (für CURRENT_STEP_PROMPT):
+${JSON.stringify(stepRule ?? {}, null, 2)}
+
+CUMULATED_STUDENT_TEXT:
+${student_so_far_text || "(leer)"}
+
+CUMULATED_STUDENT_LIST:
+${JSON.stringify(student_union)}
+
 ${outline.length ? `Prüfungs-Outline: ${outline.join(" • ")}` : ""}
-Gib nur die kurze Erklärung (ohne neue Aufgabe).`;
+Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bullets mit "- ").`;
 
-      const outExplain = await client.chat.completions.create({
-        model,
-        messages: [
-          { role: "system", content: sysExplain },
-          { role: "user", content: usrExplain },
-        ],
-        temperature: 0.2,
-      });
+  const outExplain = await client.chat.completions.create({
+    model,
+    messages: [
+      { role: "system", content: sysExplain },
+      { role: "user", content: usrExplain },
+    ],
+    temperature: 0.2,
+  });
 
-      const say = stripMd((outExplain.choices?.[0]?.message?.content || "").trim()) ||
-        "Kurz erklärt: Relevanz, typisches Vorgehen und Fallstricke beachten.";
-      const payload: ApiOut = { say_to_student: say, evaluation: null, next_question: null, end: false };
+  const say = stripMd((outExplain.choices?.[0]?.message?.content || "").trim()) ||
+    "Kurz eingeordnet: Inhaltlich passend und kontextgerecht begründet.";
+  const payload: ApiOut = { say_to_student: say, evaluation: null, next_question: null, end: false };
 
-      if (userId) {
-        void logTurn(supabase, {
-          userId,
-          caseId,
-          attemptStage: effectiveAttempt,
-          tipRequest: false,
-          explainRequest: true,
-          clarifyQuestion: null,
-          focusQuestion: fallbackQuestion || null,
-          lastStudentAnswer: fallbackAnswer || null,
-          modelOut: payload,
-        });
-      }
+  if (userId) {
+    void logTurn(supabase, {
+      userId,
+      caseId,
+      attemptStage: effectiveAttempt,
+      tipRequest: false,
+      explainRequest: true,
+      clarifyQuestion: null,
+      focusQuestion: fallbackQuestion || null,
+      lastStudentAnswer: student_so_far_text || null, // <- kumulativ loggen
+      modelOut: payload,
+    });
+  }
 
-      return NextResponse.json(payload);
-    }
+  return NextResponse.json(payload);
+}
 
     /* ---------- KICKOFF ---------- */
     {
@@ -443,43 +563,62 @@ Erzeuge NUR die Frage (ein Satz, Fragezeichen).`;
     }
 
     /* ---------- MODE C: Normaler Prüfungszug ---------- */
-    const sysExam = `Du bist Prüfer:in am 2. Tag (Theorie) des 3. Staatsexamens (M3).
+   const sysExam = `Du bist Prüfer:in am 2. Tag (Theorie) des 3. Staatsexamens (M3).
 Stil: ${style === "strict" ? "knapp, streng-sachlich" : "freundlich-klar, coaching-orientiert"}.
+Ansprache: du/dir/dein.
 Sprache: Deutsch.
 Im Transkript: Rollen student/examiner/patient – bewerte ausschließlich student.
 
-KONTEXT-REGELN:
-- Beziehe dich NUR auf Vignette + bereits preisgegebene Informationen.
-- Nichts dazuerfinden (insb. keine Labor-/Bildbefunde, die nicht genannt wurden).
-- Es wird ausschließlich die AKTUELLE Frage bewertet (CURRENT_STEP_PROMPT).
+KONTEXT-REGELN
+- Beziehe dich NUR auf Vignette + bereits preisgegebene Infos.
+- Keine neuen Befunde erfinden.
+- Bewerte ausschließlich die AKTUELLE Frage (CURRENT_STEP_PROMPT).
 
-VERSUCHSLOGIK (hart):
-- Drei Versuche (attemptStage=1..3). Give-up zählt wie 3.
-- attemptStage=1/2 UND nicht korrekt:
-  • 1–3 Sätze Feedback (warum die gegebene Antwort unvollständig/inkonsistent ist; Kategorien/Prozess, keine Lösungen).
-  • KEINE Tipps automatisch (tips-Feld nur beim separaten Tipp-Modus). KEINE Beispiele/konkreten Diagnosen/Labor-/Bild-Befunde.
-  • next_question = null (Studierende:r bessert nach).
-- attemptStage=3 ODER Give-up:
-  • say_to_student MUSS mit "Lösung:" beginnen. 1–2 Sätze Kernlösung + 1–3 sehr kurze Bullet-Begründungen (Fallen/Merksatz).
+KUMULATIVE WERTUNG (wichtig)
+- Entscheide die Korrektheit nach der **Gesamtheit** der bisher genannten Inhalte in diesem Schritt.
+- Du erhältst dazu strukturierte Felder:
+  • CUMULATED_STUDENT_TEXT = student_so_far_text
+  • CUMULATED_STUDENT_LIST = student_union (deduplizierte Items)
+- **Zähle erfüllte Regeln über alle bisherigen Versuche zusammen** (Union). Wenn die Summe aus alten+aktuellen Antworten die Regel erfüllt, ist die Antwort 'correct' – auch wenn die letzte Einzelnachricht allein nicht ausreichen würde.
+- Doppelnennungen zählen nicht mehrfach; offensichtliche Tippfehler darfst du tolerant mappen.
+
+NO-LEAK GUARD (streng)
+- In attemptStage 1/2 (und im Tipp-Modus) keine neuen Diagnosen/Beispiele/Synonyme/Hinweise, die nicht von der/dem Studierenden stammen.
+- Nur Meta-Feedback (z. B. Organsysteme/Struktur/Anzahl), keine Inhalte verraten.
+- Genutzte Begriffe darfst du korrigieren, aber **keine** neuen Inhalte einführen.
+
+AUSDRUCK & TON
+- Kurze Hauptsätze. Keine Emojis/Auslassungspunkte/Klammer-Meta.
+- Bei correct/partial/incorrect kurze, klare Begründung auf Meta-Ebene.
+
+VERSUCHSLOGIK (hart)
+- Drei Versuche (attemptStage 1..3). Give-up zählt wie 3.
+- attemptStage 1/2 UND nicht korrekt:
+  • evaluation.feedback = 1 kurzer Satz Bewertung + 1 kurzer Satz Lücke/Strukturhinweis (ohne Beispiele/Diagnosen).
+  • evaluation.tips = weglassen (nur im Tipp-Modus).
+  • next_question = null.
+- attemptStage 3 ODER Give-up:
+  • say_to_student MUSS mit "Lösung:" beginnen. Danach 1 Kernsatz + 2–3 sehr knappe Bullets (• Kerngedanke • Abgrenzung • nächster Schritt).
   • next_question = NEXT_STEP_PROMPT (falls vorhanden), sonst null.
 - Antwort ist korrekt:
-  • Kurze Bestätigung in 1 Satz, danach 2–3 Bullet-Begründungen (Warum sinnvoll, Kategorie/Pathomechanismus/Dringlichkeit).
-  • Keine Platzhalter, keine eckigen Klammern, keine "…".
+  • evaluation.feedback = 1 kurzer Bestätigungssatz + 2–3 Meta-Bullets ( warum passend • Kategorie/Pathomechanismus auf Meta-Ebene • Priorität).
   • next_question = NEXT_STEP_PROMPT (falls vorhanden); end=true falls letzter Schritt.
 
-REGEL-ENGINE (RULE_JSON):
+TIPP-MODUS (tipRequest=true)
+- Nur "say_to_student" mit 1–2 neutralen Strukturhinweisen (keine Diagnosen/Beispiele). "evaluation" und "next_question" bleiben null.
+
+REGEL-ENGINE (RULE_JSON)
 - "exact": alle expected (Synonyme zulässig); forbidden → incorrect.
-- "anyOf": Treffer, wenn ≥ (minHits||1) aus expected/synonyms genannt werden.
-- "allOf": required-Gruppen müssen alle getroffen sein (Synonyme = OR); minHits erlaubt Teilpunkte.
-- "categories": nur Items zählen (nicht die Kategorienamen); korrekt, wenn ≥ (minCategories||1) Kategorien je ≥1 Item und (minHits||0) gesamt.
-- "numeric": prüfe numeric.min/max/equals gegen eindeutig genannte Zahl.
-- "regex": prüfe regex.
+- "anyOf": korrekt, wenn ≥ (minHits||1) aus expected/synonyms genannt werden.
+- "allOf": Gruppen müssen erfüllt sein; minHits erlaubt Teilpunkte.
+- "categories": korrekt, wenn ≥ (minCategories||1) Kategorien je ≥1 Item und (minHits||0) gesamt – auf Basis der **kumulierten** Nennungen.
+- "numeric"/"regex": wie definiert.
 - synonyms: Map Canon → [Synonyme].
 
-AUSGABE NUR als JSON exakt im Schema:
+AUSGABE NUR als JSON exakt:
 {
   "say_to_student": string | null,
-  "evaluation": { "correctness": "correct"|"partially_correct"|"incorrect", "feedback": string } | null,
+  "evaluation": { "correctness": "correct" | "partially_correct" | "incorrect", "feedback": string } | null,
   "next_question": string | null,
   "end": boolean
 }`;
@@ -494,6 +633,9 @@ ${JSON.stringify(stepRule ?? {}, null, 2)}
 attemptStage: ${effectiveAttempt}
 Transkript (letzte 20 Züge, Rollen: student/examiner/patient):
 ${JSON.stringify(transcript.slice(-20), null, 2)}
+
+CUMULATED_STUDENT_TEXT: ${student_so_far_text || "(leer)"}
+CUMULATED_STUDENT_LIST: ${JSON.stringify(student_union)}
 
 ${outline.length ? `ZIELE: ${objectives.map(o => `${o.id}: ${o.label}`).join(" | ")}` : ""}
 ${completion ? `COMPLETION: ${JSON.stringify(completion)}` : ""}
@@ -601,7 +743,7 @@ Erzeuge NUR das JSON-Objekt.`.trim();
   }
 }
 
-/* ---------------------- Helpers: Supabase Writes ---------------------- */
+// ---------------------- Helpers: Supabase Writes ----------------------
 
 type LogTurnArgs = {
   userId: string;
@@ -632,7 +774,7 @@ async function logTurn(
       model_out: args.modelOut,
     });
   } catch {
-    // bewusst geschluckt – App-Fluss nicht stören
+    // bewusst geschluckt
   }
 }
 

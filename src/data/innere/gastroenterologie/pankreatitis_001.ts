@@ -41,6 +41,23 @@ export const pankreatitis_001: Case = {
         minCategories: 2,
         minHits: 3,
         forbidden: ["appendizitis"],
+        // ✨ NEU: Synonyme & Tippfehler-Mapping
+    synonyms: {
+      // GI
+      pankreatitis: ["akute pankreatitis", "entzündung der bauchspeicheldrüse", "pankreasentzündung", "pankreatitits", "pankreatiditis"],
+      choledocholithiasis: ["ductus-choledochus-stein", "dhc-stein", "gallenstein im ductus", "steine im dhc"],
+
+      // Kardial
+      "akutes koronares syndrom": ["acs", "akutes-koronarsyndrom", "myokardinfarkt", "herzinfarkt", "mi", "stemi", "nstemi"],
+
+      // Gefäße
+      "abdominelles aortenaneurysma": ["aaa", "bauchaortenaneurysma", "aortenaneurysma", "bauch-aaa", "aneurysma aorta abdominalis"],
+      aortendissektion: ["aorten-dissektion", "dissektion aorta", "aortendissec"],
+
+      // GI (weitere Varianten)
+      gastritis: ["magenschleimhautentzündung"],
+      cholezystitis: ["gallenblasenentzündung"]
+    },
         hint_general: "Häufig + zeitkritisch priorisieren: GI, kardial, große Gefäße.",
       },
     },

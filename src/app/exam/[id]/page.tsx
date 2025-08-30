@@ -298,116 +298,139 @@ export default function ExamPage() {
     }
   }
 
-  // *** API ***
-  async function callExamAPI(
-    current: Turn[],
-    opts: { mode: "answer" | "tip" | "explain" }
-  ) {
-    if (!c) return;
-    setLoading(true);
-    try {
-      const payload: Record<string, unknown> = {
-        caseId: c.id,
-        points: totalPoints,
-        progressPct,
-        caseText: c.vignette,
-        transcript: current.map((t): { role: "examiner" | "student"; text: string } => ({
-          role: t.role === "prof" ? "examiner" : "student",
-          text: t.text,
-        })),
-        outline: [],
-        style,
-        objectives: c.objectives ?? [],
-        completion: c.completion ?? null,
+// *** API ***
+async function callExamAPI(
+  current: Turn[],
+  opts: { mode: "answer" | "tip" | "explain" }
+) {
+  if (!c) return;
+  setLoading(true);
+  try {
+    // 🔹 NEU: kumulierte Student:innen-Antworten für den aktuellen Schritt sammeln
+    const turnsThisStep = (chats[activeIndex] ?? []) as Turn[];
+    const studentSoFar = turnsThisStep
+      .filter((t) => t.role === "student")
+      .map((t) => t.text.trim())
+      .filter(Boolean);
 
-        stepIndex: activeIndex,
-        stepsPrompts: [],
-        stepRule,
-        focusQuestion: currentPrompt,
-      };
+    // sehr simple Itemisierung + Deduplizierung (Komma / Semikolon / Slash / Zeilenumbruch)
+    const studentUnion = Array.from(
+      new Set(
+        studentSoFar
+          .join(" ; ")
+          .split(/[,;\/\n\r]+/g)
+          .map((s) => s.trim())
+          .filter(Boolean)
+      )
+    );
 
-      if (opts.mode === "tip") payload["tipRequest"] = true;
-      if (opts.mode === "explain") payload["explainRequest"] = true;
-      if (opts.mode === "answer") payload["attemptStage"] = Math.min(3, attemptCount + 1);
+    const payload: Record<string, unknown> = {
+      caseId: c.id,
+      points: totalPoints,
+      progressPct,
+      caseText: c.vignette,
+      transcript: current.map((t): { role: "examiner" | "student"; text: string } => ({
+        role: t.role === "prof" ? "examiner" : "student",
+        text: t.text,
+      })),
+      outline: [],
+      style,
+      objectives: c.objectives ?? [],
+      completion: c.completion ?? null,
 
-      const res = await fetch("/api/exam/turn", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string })?.error || `HTTP ${res.status}`);
-      }
+      stepIndex: activeIndex,
+      stepsPrompts: [],
+      stepRule,
+      focusQuestion: currentPrompt,
 
-      const data: ApiReply = (await res.json()) as ApiReply;
+      // 🔹 NEU: Felder für die kumulative Bewertung
+      student_so_far: studentSoFar,                 // alle bisherigen Texte
+      student_union: studentUnion,                  // deduplizierte Items
+      student_so_far_text: studentSoFar.join("\n"), // als Fließtext
+    };
 
-      const hadSolution =
-        typeof data.say_to_student === "string" &&
-        /^lösung\s*:/i.test(data.say_to_student.trim());
+    if (opts.mode === "tip") payload["tipRequest"] = true;
+    if (opts.mode === "explain") payload["explainRequest"] = true;
+    if (opts.mode === "answer") payload["attemptStage"] = Math.min(3, attemptCount + 1);
 
-      if (hadSolution) pushProf(activeIndex, data.say_to_student);
-
-      if (data.evaluation && opts.mode === "answer") {
-        const { correctness, feedback, tips } = data.evaluation;
-        setLastCorrectness(correctness);
-
-        // Punkte (Bestwert je Schritt)
-        setPerStepScores((prev) => {
-          const curPrev = prev[activeIndex] || 0;
-          const candidate =
-            correctness === "correct"
-              ? stepPoints
-              : correctness === "partially_correct"
-              ? stepPoints * 0.5
-              : 0;
-          const best = Math.max(curPrev, candidate);
-          if (best === curPrev) return prev;
-          const copy = [...prev];
-          copy[activeIndex] = Math.min(Math.round(best * 10) / 10, stepPoints);
-          return copy;
-        });
-
-        // Status
-        setAsked((prev) => {
-          const copy = [...prev];
-          const i = copy.findIndex((x) => x.index === activeIndex);
-          if (i >= 0) {
-            copy[i] = {
-              ...copy[i],
-              status:
-                correctness === "correct"
-                  ? "correct"
-                  : correctness === "partially_correct"
-                  ? "partial"
-                  : "incorrect",
-            };
-          }
-          return copy;
-        });
-
-        const parts = [
-          `${label(correctness)} — ${feedback}`,
-          correctness !== "correct" && tips ? `Tipp: ${tips}` : "",
-        ].filter(Boolean);
-        if (!hadSolution) pushProf(activeIndex, parts.join(" "));
-
-        // Reveal (falls konfiguriert, nicht on_enter)
-        if (stepReveal && shouldReveal(stepReveal, data.evaluation, hadSolution)) {
-          pushProf(activeIndex, formatReveal(stepReveal.content));
-        }
-      }
-
-      // Zusätzliche Prüfer-Nachrichten (Tip/Explain)
-      if (!hadSolution && (!data.evaluation || !data.evaluation.feedback) && data.say_to_student) {
-        pushProf(activeIndex, data.say_to_student);
-      }
-    } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
+    const res = await fetch("/api/exam/turn", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as { error?: string })?.error || `HTTP ${res.status}`);
     }
+
+    const data: ApiReply = (await res.json()) as ApiReply;
+
+    const hadSolution =
+      typeof data.say_to_student === "string" &&
+      /^lösung\s*:/i.test(data.say_to_student.trim());
+
+    if (hadSolution) pushProf(activeIndex, data.say_to_student);
+
+    if (data.evaluation && opts.mode === "answer") {
+      const { correctness, feedback, tips } = data.evaluation;
+      setLastCorrectness(correctness);
+
+      // Punkte (Bestwert je Schritt)
+      setPerStepScores((prev) => {
+        const curPrev = prev[activeIndex] || 0;
+        const candidate =
+          correctness === "correct"
+            ? stepPoints
+            : correctness === "partially_correct"
+            ? stepPoints * 0.5
+            : 0;
+        const best = Math.max(curPrev, candidate);
+        if (best === curPrev) return prev;
+        const copy = [...prev];
+        copy[activeIndex] = Math.min(Math.round(best * 10) / 10, stepPoints);
+        return copy;
+      });
+
+      // Status aktualisieren
+      setAsked((prev) => {
+        const copy = [...prev];
+        const i = copy.findIndex((x) => x.index === activeIndex);
+        if (i >= 0) {
+          copy[i] = {
+            ...copy[i],
+            status:
+              correctness === "correct"
+                ? "correct"
+                : correctness === "partially_correct"
+                ? "partial"
+                : "incorrect",
+          };
+        }
+        return copy;
+      });
+
+      const parts = [
+        `${label(correctness)} — ${feedback}`,
+        correctness !== "correct" && tips ? `Tipp: ${tips}` : "",
+      ].filter(Boolean);
+      if (!hadSolution) pushProf(activeIndex, parts.join(" "));
+
+      // Reveal (falls konfiguriert, nicht on_enter)
+      if (stepReveal && shouldReveal(stepReveal, data.evaluation, hadSolution)) {
+        pushProf(activeIndex, formatReveal(stepReveal.content));
+      }
+    }
+
+    // Zusätzliche Prüfer-Nachrichten (Tip/Explain)
+    if (!hadSolution && (!data.evaluation || !data.evaluation.feedback) && data.say_to_student) {
+      pushProf(activeIndex, data.say_to_student);
+    }
+  } catch (e: unknown) {
+    alert(e instanceof Error ? e.message : String(e));
+  } finally {
+    setLoading(false);
   }
+}
 
   // -------------------------------------------------
   // Fortschritt in Supabase speichern
@@ -714,71 +737,74 @@ export default function ExamPage() {
           </div>
 
           {/* Eingabezeile */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!hasStarted) return startExam();
-              if (!ended) onSend();
-            }}
-            className="sticky bottom-0 left-0 right-0 z-20 flex flex-wrap gap-2 border-t bg-white p-2"
-          >
-            <input
-              className="min-w-0 flex-1 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-              placeholder={
-                ended
-                  ? "Fall beendet"
-                  : !hasStarted
-                  ? "Zum Start bitte links klicken"
-                  : viewIndex !== activeIndex
-                  ? "Nur Ansicht – zurück zur aktuellen Frage wechseln"
-                  : "Deine Antwort…"
-              }
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              disabled={!hasStarted || ended || viewIndex !== activeIndex}
-            />
-            <button
-              type="submit"
-              disabled={loading || !hasStarted || ended || viewIndex !== activeIndex || !input.trim()}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-            >
-              Senden
-            </button>
-            <button
-              type="button"
-              onClick={requestTip}
-              disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-              title="Kleinen Hinweis erhalten"
-            >
-              💡 Tipp
-            </button>
-            <button
-              type="button"
-              onClick={requestExplain}
-              disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-              title="Kurze Erklärung zur aktuellen Frage/Antwort"
-            >
-              📘 Erklären
-            </button>
+<form
+  onSubmit={(e) => {
+    e.preventDefault();
+    if (!hasStarted) return startExam();
+    if (!ended) onSend();
+  }}
+  className="sticky bottom-0 left-0 right-0 z-20 flex flex-col gap-2 border-t bg-white p-2"
+>
+  {/* Reihe 1: Eingabe + Senden */}
+  <div className="flex gap-2">
+    <input
+      className="min-w-0 flex-1 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+      placeholder={
+        ended
+          ? "Fall beendet"
+          : !hasStarted
+          ? "Zum Start bitte links klicken"
+          : viewIndex !== activeIndex
+          ? "Nur Ansicht – zurück zur aktuellen Frage wechseln"
+          : "Deine Antwort…"
+      }
+      value={input}
+      onChange={(e) => setInput(e.target.value)}
+      disabled={!hasStarted || ended || viewIndex !== activeIndex}
+    />
+    <button
+      type="submit"
+      disabled={loading || !hasStarted || ended || viewIndex !== activeIndex || !input.trim()}
+      className="rounded-md border border-black/10 bg-blue-600 text-white px-4 py-2 text-sm hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+    >
+      Senden
+    </button>
+  </div>
 
-            <button
-              type="button"
-              onClick={hasStarted ? nextStep : startExam}
-              disabled={loading}
-              className="ml-auto rounded-md px-3 py-2 text-sm text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 bg-blue-600 hover:bg-blue-700"
-            >
-              {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
-            </button>
-
-            <Link
-              href={`/cases/${c.id}`}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-            >
-              Fallinfo
-            </Link>
-          </form>
+  {/* Reihe 2: Zusatz-Buttons */}
+  <div className="flex flex-wrap gap-2">
+    <button
+      type="button"
+      onClick={requestTip}
+      disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
+      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+    >
+      💡 Tipp
+    </button>
+    <button
+      type="button"
+      onClick={requestExplain}
+      disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
+      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+    >
+      📘 Erklären
+    </button>
+    <button
+      type="button"
+      onClick={hasStarted ? nextStep : startExam}
+      disabled={loading}
+      className="ml-auto rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+    >
+      {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
+    </button>
+    <Link
+      href={`/cases/${c.id}`}
+      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+    >
+      Fallinfo
+    </Link>
+  </div>
+</form>
         </section>
       </div>
     </main>

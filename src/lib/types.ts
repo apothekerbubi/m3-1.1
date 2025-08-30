@@ -19,6 +19,7 @@ export type CategoriesRule = {
   minHits: number;       // mind. so viele Gesamt-Treffer
   forbidden?: string[];
   hint_general?: string;
+  synonyms?: Record<string, string[]>;
 };
 
 export type AllOfRule = {
