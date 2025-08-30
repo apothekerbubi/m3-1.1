@@ -15,8 +15,16 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "M3 Mentor",
+  title: {
+    default: "ExaSim",
+    template: "ExaSim | %s",
+  },
   description: "Prüfungsnahe M3-Simulation – Innere, Chirurgie & Wahlfach",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
+  manifest: "/site.webmanifest",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
