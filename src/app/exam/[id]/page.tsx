@@ -720,7 +720,7 @@ export default function ExamPage() {
               if (!hasStarted) return startExam();
               if (!ended) onSend();
             }}
-            className="relative z-10 flex flex-wrap gap-2"
+            className="sticky bottom-0 left-0 right-0 z-20 flex flex-wrap gap-2 border-t bg-white p-2"
           >
             <input
               className="min-w-0 flex-1 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
