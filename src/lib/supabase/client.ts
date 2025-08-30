@@ -23,14 +23,17 @@ export function createBrowserSupabase(): SupabaseClient | null {
 
   _client = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+    {
+      // ⚡ wichtig, damit Session/Token im Browser erhalten bleiben
+      auth: { persistSession: true },
+    }
   );
   return _client;
 }
 
 /**
- * Optional: Falls du an einer Stelle bewusst einen harten Fehler willst,
- * nutze diese Variante.
+ * Variante mit Fehler, falls ENV fehlt.
  */
 export function requireBrowserSupabase(): SupabaseClient {
   const c = createBrowserSupabase();

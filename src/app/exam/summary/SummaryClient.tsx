@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ProgressBar from "@/components/ProgressBar";
 import ScorePill from "@/components/ScorePill";
+import { requireBrowserSupabase } from "@/lib/supabase/client";
 
 type SeriesResultRow = {
   title: string;
@@ -30,6 +31,7 @@ export default function SummaryClient() {
   const sid = params.get("sid");
   const [data, setData] = useState<SeriesStore | null>(null);
 
+  // 🔹 Lokal laden
   useEffect(() => {
     if (!sid || typeof window === "undefined") return;
     try {
@@ -72,6 +74,39 @@ export default function SummaryClient() {
     return { arr, totalScore, totalMax, subjectRows, best, worst };
   }, [data]);
 
+  // 🔹 Supabase speichern (nur Summary)
+  useEffect(() => {
+    if (!sid || !data) return;
+    const supabase = requireBrowserSupabase();
+
+    async function saveSeries() {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user) {
+        console.warn("⚠️ Kein eingeloggter User – wird nicht gespeichert.");
+        return;
+      }
+
+      const { error } = await supabase.from("series_results").upsert({
+  user_id: userData.user.id,
+  series_id: sid,
+  total_score: flat.totalScore,
+  total_max: flat.totalMax,
+  started_at: data?.startedAt ?? new Date().toISOString(),
+  ended_at: data?.endedAt ?? new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+});
+
+      if (error) {
+        console.error("❌ Fehler beim Speichern in series_results:", error);
+      } else {
+        console.log("✅ Simulationsergebnis gespeichert");
+      }
+    }
+
+    saveSeries();
+  }, [sid, data, flat]);
+
+  // 🔹 Fallbacks
   if (!sid) {
     return (
       <main className="mx-auto max-w-3xl p-6">
@@ -79,10 +114,7 @@ export default function SummaryClient() {
         <p className="text-sm text-gray-600">
           Es fehlt die Serien-ID (<code>sid</code>).
         </p>
-        <Link
-          href="/simulate"
-          className="mt-3 inline-block rounded-md bg-blue-600 px-3 py-2 text-sm text-white"
-        >
+        <Link href="/simulate" className="mt-3 inline-block rounded-md bg-blue-600 px-3 py-2 text-sm text-white">
           Neue Simulation starten
         </Link>
       </main>
@@ -93,31 +125,22 @@ export default function SummaryClient() {
     return (
       <main className="mx-auto max-w-3xl p-6">
         <h1 className="text-2xl font-semibold mb-2">Ergebnis nicht verfügbar</h1>
-        <p className="text-sm text-gray-600">
-          Für diese Serie konnten keine Daten geladen werden.
-        </p>
-        <Link
-          href="/simulate"
-          className="mt-3 inline-block rounded-md bg-blue-600 px-3 py-2 text-sm text-white"
-        >
+        <p className="text-sm text-gray-600">Für diese Serie konnten keine Daten geladen werden.</p>
+        <Link href="/simulate" className="mt-3 inline-block rounded-md bg-blue-600 px-3 py-2 text-sm text-white">
           Neue Simulation starten
         </Link>
       </main>
     );
   }
 
+  // 🔹 Anzeige
   const totalPct = flat.totalMax > 0 ? Math.round((flat.totalScore / flat.totalMax) * 100) : 0;
-
   const improvements = flat.subjectRows.filter((r) => r.pct < 75).map((r) => r.subject);
-
   const badge =
-    totalPct >= 90
-      ? "🥇 Exzellent"
-      : totalPct >= 75
-      ? "🥈 Stark"
-      : totalPct >= 60
-      ? "🥉 Solide"
-      : "🚀 Auf Kurs";
+    totalPct >= 90 ? "🥇 Exzellent" :
+    totalPct >= 75 ? "🥈 Stark" :
+    totalPct >= 60 ? "🥉 Solide" :
+    "🚀 Auf Kurs";
 
   return (
     <main className="mx-auto max-w-5xl p-6">
@@ -129,6 +152,7 @@ export default function SummaryClient() {
 
       {/* KPI-Reihe */}
       <div className="grid gap-4 md:grid-cols-3">
+        {/* Gesamtleistung */}
         <section className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-gray-700">Gesamtleistung</h2>
           <div className="mt-2 text-sm text-gray-800">
@@ -144,6 +168,7 @@ export default function SummaryClient() {
           </div>
         </section>
 
+        {/* Bester Bereich */}
         <section className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-gray-700">Stärkster Bereich</h2>
           {flat.best ? (
@@ -163,6 +188,7 @@ export default function SummaryClient() {
           )}
         </section>
 
+        {/* Schwächster Bereich */}
         <section className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-gray-700">Verbesserungspotenzial</h2>
           {flat.worst ? (
@@ -201,50 +227,50 @@ export default function SummaryClient() {
         )}
       </section>
 
-      {/* Fälle der Serie */}
-      <section className="mt-4 rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-lg font-semibold">Fälle dieser Simulation</h2>
-        {flat.arr.length === 0 ? (
-          <div className="text-sm text-gray-600">Keine Fälle gefunden.</div>
-        ) : (
-          <ul className="space-y-2">
-            {flat.arr.map((r) => (
-              <li
-                key={r.caseId}
-                className="flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white/80 px-3 py-2"
-              >
-                <div className="min-w-0">
-                  <div className="truncate font-medium">{r.title}</div>
-                  <div className="text-[11px] text-gray-600">
-                    {(r.subject || "Fach")} · {(r.category || "Kategorie")}
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <div className="w-40">
-                    <ProgressBar value={r.pct} />
-                    <div className="text-[11px] text-right text-gray-600 mt-0.5">
-                      {r.pct}%
-                    </div>
-                  </div>
-                  <Link
-                    href={`/exam/${r.caseId}`}
-                    className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-sm text-white hover:bg-blue-700"
-                    title="Diesen Fall erneut üben"
-                  >
-                    Wiederholen
-                  </Link>
-                  <Link
-                    href={`/cases/${r.caseId}`}
-                    className="hidden sm:inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-black/[.04]"
-                  >
-                    Details
-                  </Link>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {/* Fälle */}
+<section className="mt-4 rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+  <h2 className="mb-3 text-lg font-semibold">Fälle dieser Simulation</h2>
+  {flat.arr.length === 0 ? (
+    <div className="text-sm text-gray-600">Keine Fälle gefunden.</div>
+  ) : (
+    <ul className="space-y-2">
+      {flat.arr.map((r) => (
+        <li
+          key={r.caseId}
+          className="flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white/80 px-3 py-2"
+        >
+          <div className="min-w-0">
+            <div className="truncate font-medium">{r.title}</div>
+            <div className="text-[11px] text-gray-600">
+              {(r.subject || "Fach")} · {(r.category || "Kategorie")}
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-3">
+            <div className="w-40">
+              <ProgressBar value={r.pct} />
+            </div>
+            <div className="text-[11px] text-gray-600 w-10 text-right">
+              {r.pct}%
+            </div>
+            <Link
+              href={`/exam/${r.caseId}`}
+              className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-sm text-white hover:bg-blue-700"
+              title="Diesen Fall erneut üben"
+            >
+              Wiederholen
+            </Link>
+            <Link
+              href={`/cases/${r.caseId}`}
+              className="hidden sm:inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-black/[.04]"
+            >
+              Details
+            </Link>
+          </div>
+        </li>
+      ))}
+    </ul>
+  )}
+</section>
 
       {/* Actions */}
       <div className="mt-4 flex flex-wrap gap-2">

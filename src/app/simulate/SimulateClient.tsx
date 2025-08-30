@@ -6,6 +6,8 @@ import Link from "next/link";
 import { CASES } from "@/data/cases";
 import type { Case } from "@/lib/types";
 import { AcademicCapIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
+import { requireBrowserSupabase } from "@/lib/supabase/client";  // ⬅️ hier importieren
+import ProgressBar from "@/components/ProgressBar";
 
 /* ---------- Utils ---------- */
 function sample<T>(arr: T[], n: number): T[] {
@@ -19,6 +21,7 @@ function sample<T>(arr: T[], n: number): T[] {
 }
 const clampInt = (v: number, min = 0, max = 999) =>
   Math.max(min, Math.min(max, Math.round(v)));
+
 
 /* ---------- Skeleton ---------- */
 function SimulateSkeleton({ minRows = 6 }: { minRows?: number }) {
@@ -71,6 +74,7 @@ function SimulateSkeleton({ minRows = 6 }: { minRows?: number }) {
 }
 
 /* ---------- Seite ---------- */
+
 export default function SimulatePage() {
   // ⏳ Skeleton-Steuerung
   const MIN_SKELETON_MS = 600;
@@ -80,6 +84,31 @@ export default function SimulatePage() {
     const rest = Math.max(0, MIN_SKELETON_MS - (Date.now() - started));
     const t = setTimeout(() => setLoading(false), rest);
     return () => clearTimeout(t);
+  }, []);
+
+// 🆕 Letzte Simulation laden (kommt direkt nach Skeleton-States)
+  const [lastSeries, setLastSeries] = useState<null | {
+    series_id: string;
+    total_score: number;
+    total_max: number;
+    ended_at: string;
+  }>(null);
+
+  useEffect(() => {
+    const supabase = requireBrowserSupabase();
+
+    async function load() {
+      const { data, error } = await supabase
+        .from("series_results") // deine Tabelle
+        .select("series_id, total_score, total_max, ended_at")
+        .order("ended_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data) setLastSeries(data);
+    }
+
+    load();
   }, []);
 
   // Eindeutige Serien-ID für diese Zusammenstellung
@@ -330,11 +359,48 @@ export default function SimulatePage() {
         )}
       </section>
 
-      <p className="mt-3 text-xs text-gray-500">
-        Hinweis: „Prüfung starten“ öffnet den ersten Fall deiner Serie. Nach
-        jedem Fall wird automatisch der nächste gestartet, bis alle erledigt
-        sind.
-      </p>
-    </main>
-  );
+     {/* 🔽 NEU: Letzte Simulation */}
+{lastSeries && (
+  <section className="mt-4 rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+    <h2 className="mb-2 text-lg font-semibold">Letzte Simulation</h2>
+    <div className="flex items-center justify-between">
+      {/* Links: Score + beendet am */}
+      <div className="flex flex-col text-sm text-gray-700">
+        <div>
+          Score: <b>{lastSeries.total_score}</b> / {lastSeries.total_max}{" "}
+          ({Math.round(
+            (lastSeries.total_score / Math.max(1, lastSeries.total_max)) * 100
+          )}%)
+        </div>
+        <div className="text-xs text-gray-500">
+          beendet am {new Date(lastSeries.ended_at).toLocaleString("de-DE")}
+        </div>
+      </div>
+
+      {/* Rechts: ProgressBar + Button */}
+      <div className="flex items-center gap-3">
+        <div className="w-32">
+          <ProgressBar
+            value={Math.round(
+              (lastSeries.total_score / Math.max(1, lastSeries.total_max)) * 100
+            )}
+          />
+        </div>
+        <Link
+          href={`/exam/summary?sid=${encodeURIComponent(lastSeries.series_id)}`}
+          className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
+        >
+          Ergebnisse ansehen
+        </Link>
+      </div>
+    </div>
+  </section>
+)}
+<p className="mt-3 text-xs text-gray-500">
+  Hinweis: „Prüfung starten“ öffnet den ersten Fall deiner Serie. Nach
+  jedem Fall wird automatisch der nächste gestartet, bis alle erledigt
+  sind.
+</p>
+</main>
+);
 }
