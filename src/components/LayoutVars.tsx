@@ -1,3 +1,4 @@
+// src/components/LayoutVars.tsx
 "use client";
 
 import { useEffect } from "react";
@@ -12,49 +13,38 @@ const LIGHT: Record<string, string> = {
   "--ring": "#60a5fa",
 };
 
-const DARK: Record<string, string> = {
-  "--bg": "#0c111c",
-  "--fg": "#e5e7eb",
-  "--panel": "#0f1524",
-  "--muted": "#9ca3af",
-  "--ring": "#3b82f6",
-};
-
 function setCssVars(vars: Record<string, string>) {
   const root = document.documentElement;
-  for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
+  for (const [k, v] of Object.entries(vars)) {
+    root.style.setProperty(k, v);
+  }
 }
-
-// Extend MediaQueryList with optional legacy methods
-type MQWithDeprecated = MediaQueryList & {
-  addListener?: (listener: (ev: MediaQueryListEvent) => void) => void;
-  removeListener?: (listener: (ev: MediaQueryListEvent) => void) => void;
-};
 
 export default function LayoutVars({ children }: Props) {
   useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)") as MQWithDeprecated;
+    const root = document.documentElement;
 
-    const applyScheme = () => setCssVars(mq.matches ? DARK : LIGHT);
+    const applyLight = () => {
+      // force light mode
+      root.classList.remove("dark");
+      root.removeAttribute("data-theme");
+      root.style.colorScheme = "light";
+      setCssVars(LIGHT);
+    };
 
     // initial
-    applyScheme();
+    applyLight();
 
-    // subscribe (modern first, legacy fallback)
-    const onChange = (_e: MediaQueryListEvent) => applyScheme();
+    // if the OS theme changes, re-apply light so the app stays light
+    const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
+    const onChange = () => applyLight();
 
-    if (typeof mq.addEventListener === "function") {
-      mq.addEventListener("change", onChange);
-    } else if (typeof mq.addListener === "function") {
-      mq.addListener(onChange);
-    }
+    if (mq?.addEventListener) mq.addEventListener("change", onChange);
+    else if (mq?.addListener) mq.addListener(onChange);
 
     return () => {
-      if (typeof mq.removeEventListener === "function") {
-        mq.removeEventListener("change", onChange);
-      } else if (typeof mq.removeListener === "function") {
-        mq.removeListener(onChange);
-      }
+      if (mq?.removeEventListener) mq.removeEventListener("change", onChange);
+      else if (mq?.removeListener) mq.removeListener(onChange);
     };
   }, []);
 

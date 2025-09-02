@@ -1,7 +1,8 @@
+// tailwind.config.ts
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  darkMode: ["class", '[data-theme="dark"]'],
+  darkMode: false, // ⬅️ wichtig: KEIN "class" / KEIN "[data-theme=dark]"
   content: [
     "./src/app/**/*.{ts,tsx}",
     "./src/components/**/*.{ts,tsx}",
@@ -26,12 +27,8 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-jakarta)", "system-ui", "ui-sans-serif", "Arial"],
       },
-      boxShadow: {
-        card: "0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.08)",
-      },
-      borderRadius: {
-        xl: "14px",
-      },
+      boxShadow: { card: "0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.08)" },
+      borderRadius: { xl: "14px" },
     },
   },
   plugins: [],

@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* ---------- Design Tokens (Light) ---------- */
+/* ---------- Design Tokens (immer Light) ---------- */
 :root {
   --bg:     #f7f9fc;   /* Seitenhintergrund */
   --fg:     #0f172a;   /* Haupttext */
@@ -10,15 +10,8 @@
 
   --nav-w:   220px;    /* Sidebar-Breite */
   --steps-w: 280px;    /* Fragen-Spalte */
-  --header-h: 3.5rem; /* entspricht h-14 */
-}
-
-/* ---------- Dark Tokens ---------- */
-:root.dark {
-  --bg:    #0c111c;
-  --fg:    #e5e7eb;
-  --panel: #0f1524;
-  --muted: #9ca3af;
+  --header-h: 3.5rem;  /* entspricht h-14 */
+  color-scheme: light;
 }
 
 /* ---------- Globale Styles ---------- */
@@ -34,26 +27,13 @@ body {
 ::selection { background: #bfdbfe; color: inherit; }
 ::-moz-selection { background: #bfdbfe; color: inherit; }
 
-/* Outline-Buttons global */
+/* ---------- Outline-Buttons global ---------- */
 button,
 a[role="button"],
 input[type="submit"] {
-  color: #2563eb !important;                 /* blue-600 (Text) */
-  background-color: #fff !important;          /* weiße Füllung */
-  border: 1px solid #3b82f6 !important;       /* blue-500 (Umrandung) */
-  border-radius: 10px !important;
-  padding: 0.5rem 0.75rem !important;
-  font-weight: 600 !important;
-  transition: background-color .2s, box-shadow .2s, color .2s !important;
-}
-
-/* Outline-Buttons global – blauer Rand/Text, hellblauer Hintergrund */
-button,
-a[role="button"],
-input[type="submit"] {
-  color: #2563eb !important;                 /* blue-600 (Text) */
-  background-color: #eff6ff !important;      /* blue-50 (leichter Blau-Hintergrund) */
-  border: 1px solid #3b82f6 !important;      /* blue-500 (Umrandung) */
+  color: #2563eb !important;
+  background-color: #eff6ff !important;
+  border: 1px solid #3b82f6 !important;
   border-radius: 10px !important;
   padding: 0.5rem 0.75rem !important;
   font-weight: 600 !important;
@@ -63,23 +43,23 @@ input[type="submit"] {
 button:hover,
 a[role="button"]:hover,
 input[type="submit"]:hover {
-  background-color: #dbeafe !important;      /* blue-100 */
-  color: #1d4ed8 !important;                 /* blue-700 */
+  background-color: #dbeafe !important;
+  color: #1d4ed8 !important;
   box-shadow: 0 1px 6px rgba(37, 99, 235, .15) !important;
 }
 
 button:active,
 a[role="button"]:active,
 input[type="submit"]:active {
-  background-color: #bfdbfe !important;      /* blue-200 */
-  color: #1e40af !important;                 /* blue-800 */
+  background-color: #bfdbfe !important;
+  color: #1e40af !important;
 }
 
 button:focus-visible,
 a[role="button"]:focus-visible,
 input[type="submit"]:focus-visible {
   outline: none !important;
-  box-shadow: 0 0 0 3px #93c5fd !important;  /* blue-300 focus ring */
+  box-shadow: 0 0 0 3px #93c5fd !important;
 }
 
 button:disabled,

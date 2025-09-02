@@ -1,0 +1,495 @@
+{
+  "generatedAt": "2025-08-31T12:56:05.664Z",
+  "pages": [
+    {
+      "route": "/",
+      "file": "src/app/page.tsx",
+      "desc": "",
+      "size": 104
+    },
+    {
+      "route": "/account",
+      "file": "src/app/account/page.tsx",
+      "desc": "",
+      "size": 296
+    },
+    {
+      "route": "/cases",
+      "file": "src/app/cases/page.tsx",
+      "desc": "",
+      "size": 317
+    },
+    {
+      "route": "/cases/[id]",
+      "file": "src/app/cases/[id]/page.tsx",
+      "desc": "src/app/cases/[id]/page.tsx",
+      "size": 4696
+    },
+    {
+      "route": "/exam/[id]",
+      "file": "src/app/exam/[id]/page.tsx",
+      "desc": "src/app/exam/[id]/page.tsx",
+      "size": 31283
+    },
+    {
+      "route": "/exam/summary",
+      "file": "src/app/exam/summary/page.tsx",
+      "desc": "src/app/exam/summary/page.tsx",
+      "size": 348
+    },
+    {
+      "route": "/feedback/[id]",
+      "file": "src/app/feedback/[id]/page.tsx",
+      "desc": "src/app/feedback/[id]/page.tsx",
+      "size": 2512
+    },
+    {
+      "route": "/kontakt",
+      "file": "src/app/kontakt/page.tsx",
+      "desc": "",
+      "size": 266
+    },
+    {
+      "route": "/login",
+      "file": "src/app/login/page.tsx",
+      "desc": "",
+      "size": 257
+    },
+    {
+      "route": "/overview",
+      "file": "src/app/overview/page.tsx",
+      "desc": "",
+      "size": 293
+    },
+    {
+      "route": "/post-auth",
+      "file": "src/app/post-auth/page.tsx",
+      "desc": "",
+      "size": 630
+    },
+    {
+      "route": "/register",
+      "file": "src/app/register/page.tsx",
+      "desc": "",
+      "size": 243
+    },
+    {
+      "route": "/search",
+      "file": "src/app/search/page.tsx",
+      "desc": "",
+      "size": 3804
+    },
+    {
+      "route": "/shop",
+      "file": "src/app/shop/page.tsx",
+      "desc": "",
+      "size": 258
+    },
+    {
+      "route": "/simulate",
+      "file": "src/app/simulate/page.tsx",
+      "desc": "",
+      "size": 316
+    },
+    {
+      "route": "/simulate/[id]",
+      "file": "src/app/simulate/[id]/page.tsx",
+      "desc": "",
+      "size": 25482
+    },
+    {
+      "route": "/stats",
+      "file": "src/app/stats/page.tsx",
+      "desc": "",
+      "size": 1248
+    },
+    {
+      "route": "/subjects",
+      "file": "src/app/subjects/page.tsx",
+      "desc": "",
+      "size": 475
+    },
+    {
+      "route": "/subjects/[subject]",
+      "file": "src/app/subjects/[subject]/page.tsx",
+      "desc": "",
+      "size": 2614
+    },
+    {
+      "route": "/subjects/[subject]/[category]",
+      "file": "src/app/subjects/[subject]/[category]/page.tsx",
+      "desc": "",
+      "size": 2581
+    }
+  ],
+  "layouts": [
+    {
+      "route": "/",
+      "file": "src/app/layout.tsx",
+      "desc": "src/app/layout.tsx",
+      "size": 1845
+    }
+  ],
+  "apis": [
+    {
+      "route": "/api/cases",
+      "file": "src/app/api/cases/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "desc": "",
+      "size": 146
+    },
+    {
+      "route": "/api/cases/[id]",
+      "file": "src/app/api/cases/[id]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "desc": "",
+      "size": 420
+    },
+    {
+      "route": "/api/env-check",
+      "file": "src/app/api/env-check/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "desc": "",
+      "size": 318
+    },
+    {
+      "route": "/api/exam/turn",
+      "file": "src/app/api/exam/turn/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "desc": "src/app/api/exam/turn/route.ts",
+      "size": 30828
+    },
+    {
+      "route": "/api/profile/ensure",
+      "file": "src/app/api/profile/ensure/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "desc": "src/app/api/profile/ensure/route.ts",
+      "size": 2035
+    },
+    {
+      "route": "/api/progress/list",
+      "file": "src/app/api/progress/list/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "desc": "src/app/api/progress/list/route.ts",
+      "size": 768
+    },
+    {
+      "route": "/api/progress/save",
+      "file": "src/app/api/progress/save/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "desc": "src/app/api/progress/save/route.ts",
+      "size": 1176
+    },
+    {
+      "route": "/api/series/save",
+      "file": "src/app/api/series/save/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "desc": "",
+      "size": 1424
+    },
+    {
+      "route": "/auth/callback",
+      "file": "src/app/auth/callback/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "desc": "",
+      "size": 364
+    },
+    {
+      "route": "/twitter-image",
+      "file": "src/app/twitter-image/route.tsx",
+      "methods": [
+        "GET"
+      ],
+      "desc": "src/app/twitter-image/route.tsx",
+      "size": 1574
+    }
+  ],
+  "components": [
+    {
+      "name": "Badge",
+      "file": "src/components/Badge.tsx",
+      "desc": "",
+      "size": 478
+    },
+    {
+      "name": "CaseImagePublic",
+      "file": "src/components/CaseImagePublic.tsx",
+      "desc": "src/components/CaseImagePublic.tsx",
+      "size": 10248
+    },
+    {
+      "name": "CaseMiniCard",
+      "file": "src/components/CaseMiniCard.tsx",
+      "desc": "",
+      "size": 2051
+    },
+    {
+      "name": "CaseStep",
+      "file": "src/components/CaseStep.tsx",
+      "desc": "src/components/CaseStep.tsx",
+      "size": 708
+    },
+    {
+      "name": "Footer",
+      "file": "src/components/Footer.tsx",
+      "desc": "src/components/Footer.tsx",
+      "size": 355
+    },
+    {
+      "name": "GlobalSkeleton",
+      "file": "src/components/GlobalSkeleton.tsx",
+      "desc": "",
+      "size": 1150
+    },
+    {
+      "name": "Header",
+      "file": "src/components/Header.tsx",
+      "desc": "",
+      "size": 6165
+    },
+    {
+      "name": "LayoutVars",
+      "file": "src/components/LayoutVars.tsx",
+      "desc": "src/components/LayoutVars.tsx",
+      "size": 1347
+    },
+    {
+      "name": "LogoutButton",
+      "file": "src/components/LogoutButton.tsx",
+      "desc": "",
+      "size": 982
+    },
+    {
+      "name": "MiniProgress",
+      "file": "src/components/MiniProgress.tsx",
+      "desc": "src/components/MiniProgress.tsx",
+      "size": 496
+    },
+    {
+      "name": "PageTransition",
+      "file": "src/components/PageTransition.tsx",
+      "desc": "",
+      "size": 127
+    },
+    {
+      "name": "ProgressBar",
+      "file": "src/components/ProgressBar.tsx",
+      "desc": "src/components/MiniProgress.tsx",
+      "size": 568
+    },
+    {
+      "name": "QuestionSidebar",
+      "file": "src/components/QuestionSidebar.tsx",
+      "desc": "src/components/QuestionSidebar.tsx",
+      "size": 1938
+    },
+    {
+      "name": "ScorePill",
+      "file": "src/components/ScorePill.tsx",
+      "desc": "",
+      "size": 1247
+    },
+    {
+      "name": "SideNav",
+      "file": "src/components/SideNav.tsx",
+      "desc": "",
+      "size": 2435
+    },
+    {
+      "name": "SubjectsExplorer",
+      "file": "src/components/SubjectsExplorer.tsx",
+      "desc": "",
+      "size": 7325
+    }
+  ],
+  "libs": [
+    {
+      "file": "src/lib/eval.ts",
+      "desc": "src/lib/scoring.ts",
+      "size": 3178
+    },
+    {
+      "file": "src/lib/scoring.ts",
+      "desc": "",
+      "size": 6391
+    },
+    {
+      "file": "src/lib/slug.ts",
+      "desc": "",
+      "size": 699
+    },
+    {
+      "file": "src/lib/storage.ts",
+      "desc": "",
+      "size": 1084
+    },
+    {
+      "file": "src/lib/supabase/client.ts",
+      "desc": "src/lib/supabase/client.ts",
+      "size": 1223
+    },
+    {
+      "file": "src/lib/supabase/publicUrl.ts",
+      "desc": "",
+      "size": 971
+    },
+    {
+      "file": "src/lib/supabase/server.ts",
+      "desc": "src/lib/supabase/server.ts",
+      "size": 1690
+    },
+    {
+      "file": "src/lib/types.ts",
+      "desc": "src/lib/types.ts",
+      "size": 5702
+    }
+  ],
+  "data": [
+    {
+      "file": "src/data/cases.ts",
+      "desc": "",
+      "size": 704
+    },
+    {
+      "file": "src/data/chirurgie/appendizitis_001.ts",
+      "desc": "src/data/chirurgie/appendizitis_001.ts",
+      "size": 1683
+    },
+    {
+      "file": "src/data/chirurgie/Thoraxchirurgie/spannungspneumothorax_001.ts",
+      "desc": "src/data/cases/spannungspneumothorax_001.ts",
+      "size": 12022
+    },
+    {
+      "file": "src/data/innere/gastroenterologie/pankreatitis_001.ts",
+      "desc": "src/data/cases/pankreatitis_001.ts",
+      "size": 10746
+    },
+    {
+      "file": "src/data/innere/haematoonkologie/anaemie_001.ts",
+      "desc": "src/data/innere/haematoonkologie/anaemie_001.ts",
+      "size": 1991
+    },
+    {
+      "file": "src/data/innere/kardiologie/brustschmerz_001.ts",
+      "desc": "src/data/innere/kardiologie/brustschmerz_001.ts",
+      "size": 2196
+    },
+    {
+      "file": "src/data/innere/kardiologie/hypertonie_001.ts",
+      "desc": "",
+      "size": 4594
+    },
+    {
+      "file": "src/data/wahlfach/dermatologie/hautausschlag_001.ts",
+      "desc": "src/data/wahlfach/dermatologie/hautausschlag_001.ts",
+      "size": 3015
+    }
+  ],
+  "others": [
+    {
+      "file": "src/app/account/AccountClient.tsx",
+      "desc": "",
+      "size": 5964
+    },
+    {
+      "file": "src/app/account/AccountForm.tsx",
+      "desc": "src/app/account/AccountForm.tsx",
+      "size": 5923
+    },
+    {
+      "file": "src/app/cases/CasesClient.tsx",
+      "desc": "src/app/cases/casesclient.tsx",
+      "size": 11225
+    },
+    {
+      "file": "src/app/cases/loading.tsx",
+      "desc": "src/app/cases/loading.tsx",
+      "size": 1303
+    },
+    {
+      "file": "src/app/exam/summary/SummaryClient.tsx",
+      "desc": "src/app/exam/summary/SummaryClient.tsx",
+      "size": 10563
+    },
+    {
+      "file": "src/app/globals.css",
+      "desc": "",
+      "size": 2106
+    },
+    {
+      "file": "src/app/kontakt/KontaktClient.tsx",
+      "desc": "",
+      "size": 370
+    },
+    {
+      "file": "src/app/login/LoginClient.tsx",
+      "desc": "src/app/login/page.tsx",
+      "size": 10215
+    },
+    {
+      "file": "src/app/opengraph-image.tsx",
+      "desc": "",
+      "size": 1658
+    },
+    {
+      "file": "src/app/overview/OverviewClient.tsx",
+      "desc": "src/app/overview/page.tsx",
+      "size": 9020
+    },
+    {
+      "file": "src/app/register/RegisterClient.tsx",
+      "desc": "",
+      "size": 6340
+    },
+    {
+      "file": "src/app/search/search-inner.tsx",
+      "desc": "src/app/search/search-inner.tsx",
+      "size": 252
+    },
+    {
+      "file": "src/app/shop/ShopClient.tsx",
+      "desc": "",
+      "size": 351
+    },
+    {
+      "file": "src/app/simulate/SimulateClient.tsx",
+      "desc": "src/app/simulate/simulateClient.tsx",
+      "size": 14364
+    },
+    {
+      "file": "src/app/subjects/loading.tsx",
+      "desc": "src/app/subjects/loading.tsx",
+      "size": 1837
+    },
+    {
+      "file": "src/app/subjects/subjects-inner.tsx",
+      "desc": "src/app/subjects/subjects-inner.tsx",
+      "size": 12398
+    },
+    {
+      "file": "src/middleware.ts",
+      "desc": "src/middleware.ts",
+      "size": 2119
+    }
+  ]
+}
