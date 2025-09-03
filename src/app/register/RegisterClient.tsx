@@ -60,7 +60,7 @@ export default function RegisterPage() {
         throw signUpError;
       }
 
-      if (data.user && data.user.identities.length === 0) {
+      if (data.user && !data.user.identities?.length) {
         throw new Error("Diese E-Mail-Adresse ist bereits registriert.");
       }
 
