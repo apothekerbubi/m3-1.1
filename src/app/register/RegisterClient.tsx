@@ -37,7 +37,7 @@ export default function RegisterPage() {
       }
 
       // Zusätzliche Felder in user_metadata mitgeben
-      const { error: signUpError } = await sb.auth.signUp({
+      const { data, error: signUpError } = await sb.auth.signUp({
         email,
         password,
         options: {
@@ -58,6 +58,10 @@ export default function RegisterPage() {
           throw new Error("Diese E-Mail-Adresse ist bereits registriert.");
         }
         throw signUpError;
+      }
+
+      if (data.user && data.user.identities.length === 0) {
+        throw new Error("Diese E-Mail-Adresse ist bereits registriert.");
       }
 
       setDone(true);
