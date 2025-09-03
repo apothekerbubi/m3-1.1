@@ -113,7 +113,12 @@ export default function LoginPage() {
           },
         },
       });
-      if (signUpError) throw signUpError;
+      if (signUpError) {
+        if (signUpError.message.toLowerCase().includes("already registered")) {
+          throw new Error("Diese E-Mail-Adresse ist bereits registriert.");
+        }
+        throw signUpError;
+      }
 
       alert("Registrierung erfolgreich! Bitte bestätige die E-Mail und melde dich dann an.");
       setMode("login");

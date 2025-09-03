@@ -53,7 +53,12 @@ export default function RegisterPage() {
         },
       });
 
-      if (signUpError) throw signUpError;
+      if (signUpError) {
+        if (signUpError.message.toLowerCase().includes("already registered")) {
+          throw new Error("Diese E-Mail-Adresse ist bereits registriert.");
+        }
+        throw signUpError;
+      }
 
       setDone(true);
     } catch (err: unknown) {
