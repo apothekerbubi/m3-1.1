@@ -30,12 +30,25 @@ export async function POST(req: Request) {
       const subscriptionId = session.subscription as string;
 
       // Hole das Abo aus Stripe
+      type SubscriptionWithPeriod = Stripe.Subscription & {
+        current_period_start?: number;
+        current_period_end?: number;
+        current_period?: { start: number; end: number };
+      };
+
       const subscription = (await stripe.subscriptions.retrieve(
         subscriptionId,
-      )) as Stripe.Subscription;
+      )) as SubscriptionWithPeriod;
 
-      const start = new Date(subscription.current_period_start * 1000);
-      const end = new Date(subscription.current_period_end * 1000);
+      const startUnix =
+        subscription.current_period_start ?? subscription.current_period?.start;
+      const endUnix =
+        subscription.current_period_end ?? subscription.current_period?.end;
+      if (typeof startUnix !== "number" || typeof endUnix !== "number") {
+        throw new Error("Missing subscription period");
+      }
+      const start = new Date(startUnix * 1000);
+      const end = new Date(endUnix * 1000);
 
       // Supabase aktualisieren
       await admin
