@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const title = searchParams.get("title") ?? "M3 Mentor";
+  const title = searchParams.get("title") ?? "ExaSim";
 
   return new ImageResponse(
     (
@@ -40,9 +40,9 @@ export async function GET(req: Request) {
               fontSize: 32,
             }}
           >
-            M3
+            Ex
           </div>
-          <div style={{ fontSize: 40, fontWeight: 700 }}>M3 Mentor</div>
+          <div style={{ fontSize: 40, fontWeight: 700 }}>ExaSim</div>
         </div>
 
         <div style={{ fontWeight: 800 }}>{title}</div>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import symptaiLogo from "@/lib/Logo.png";
+import exasimLogo from "@/lib/Logo.png";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -67,16 +67,16 @@ export default function Header() {
           <Link
             href="/overview"
             className="flex items-center gap-2"
-            aria-label="SymptAI – zur Übersicht"
-            title="SymptAI"
+            aria-label="ExaSim – zur Übersicht"
+            title="ExaSim"
           >
             <Image
-              src={symptaiLogo}
-              alt="SymptAI"
+              src={exasimLogo}
+              alt="ExaSim"
               priority
               className="h-12 w-auto sm:h-12 lg:h-14"
             />
-            <span className="sr-only font-semibold tracking-tight">SymptAI</span>
+            <span className="sr-only font-semibold tracking-tight">ExaSim</span>
           </Link>
 
           {/* Suche + Account */}

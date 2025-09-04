@@ -2,7 +2,7 @@
 
 import type { Attempt } from "@/lib/types";
 
-const KEY = "m3_attempts_v1";
+const KEY = "exasim_attempts_v1";
 
 // Alle Versuche laden
 function readAll(): Attempt[] {
