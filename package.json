@@ -12,13 +12,15 @@
     "@heroicons/react": "^2.2.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.55.0",
+    "@stripe/stripe-js": "^3.4.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.23.12",
     "next": "15.4.6",
     "next-sitemap": "^4.2.3",
     "openai": "^5.12.2",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "stripe": "^15.8.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
