@@ -5,6 +5,45 @@ import type Stripe from "stripe";
 
 const admin = createAdminClient();
 
+async function upsertSubscription(customerId: string, subscriptionId: string) {
+  // Hole das Abo aus Stripe
+  type SubscriptionWithPeriod = Stripe.Subscription & {
+    current_period_start?: number;
+    current_period_end?: number;
+    current_period?: { start: number; end: number };
+  };
+
+  const subscription = (await stripe.subscriptions.retrieve(
+    subscriptionId,
+  )) as SubscriptionWithPeriod;
+
+  const startUnix =
+    subscription.current_period_start ?? subscription.current_period?.start;
+  const endUnix =
+    subscription.current_period_end ?? subscription.current_period?.end;
+  if (typeof startUnix !== "number" || typeof endUnix !== "number") {
+    throw new Error("Missing subscription period");
+  }
+  const start = new Date(startUnix * 1000);
+  const end = new Date(endUnix * 1000);
+
+  const tier =
+    (subscription.items.data[0]?.price?.nickname as string | undefined) || null;
+
+  // Supabase aktualisieren
+  await admin
+    .from("profiles")
+    .update({
+      subscription_status: "active",
+      subscription_tier: tier,
+      subscription_start: start.toISOString(),
+      current_period_end: end.toISOString(),
+    })
+    .eq("stripe_customer_id", customerId);
+
+  console.log("✅ Subscription gespeichert in Supabase");
+}
+
 export async function POST(req: Request) {
   const sig = req.headers.get("stripe-signature");
   if (!sig) {
@@ -22,45 +61,25 @@ export async function POST(req: Request) {
       process.env.STRIPE_WEBHOOK_SECRET!
     );
 
-    // 👇 Abo erstellt oder erneuert
+    // 👇 Abo erstellt oder erneuert (Checkout)
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
 
       const customerId = session.customer as string;
       const subscriptionId = session.subscription as string;
 
-      // Hole das Abo aus Stripe
-      type SubscriptionWithPeriod = Stripe.Subscription & {
-        current_period_start?: number;
-        current_period_end?: number;
-        current_period?: { start: number; end: number };
-      };
+      await upsertSubscription(customerId, subscriptionId);
+    }
 
-      const subscription = (await stripe.subscriptions.retrieve(
-        subscriptionId,
-      )) as SubscriptionWithPeriod;
+    // 👇 Folgezahlungen bei bestehendem Abo
+    if (event.type === "invoice.payment_succeeded") {
+      const invoice = event.data.object as Stripe.Invoice;
+      const customerId = invoice.customer as string;
+      const subscriptionId = invoice.subscription as string;
 
-      const startUnix =
-        subscription.current_period_start ?? subscription.current_period?.start;
-      const endUnix =
-        subscription.current_period_end ?? subscription.current_period?.end;
-      if (typeof startUnix !== "number" || typeof endUnix !== "number") {
-        throw new Error("Missing subscription period");
+      if (subscriptionId) {
+        await upsertSubscription(customerId, subscriptionId);
       }
-      const start = new Date(startUnix * 1000);
-      const end = new Date(endUnix * 1000);
-
-      // Supabase aktualisieren
-      await admin
-        .from("profiles")
-        .update({
-          subscription_status: "active",
-          subscription_start: start.toISOString(),
-          subscription_end: end.toISOString(),
-        })
-        .eq("stripe_customer_id", customerId);
-
-      console.log("✅ Subscription gespeichert in Supabase");
     }
 
     // 👇 Abo gekündigt oder ausgelaufen
@@ -73,7 +92,8 @@ export async function POST(req: Request) {
         .from("profiles")
         .update({
           subscription_status: "canceled",
-          subscription_end: new Date().toISOString(),
+          subscription_tier: null,
+          current_period_end: new Date().toISOString(),
         })
         .eq("stripe_customer_id", customerId);
 
