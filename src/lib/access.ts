@@ -15,3 +15,4 @@ export async function hasActiveSubscription(userId: string): Promise<boolean> {
     return active && notExpired;
   });
 }
+
