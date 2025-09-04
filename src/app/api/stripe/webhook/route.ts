@@ -31,7 +31,7 @@ async function upsertSubscription(customerId: string, subscriptionId: string) {
     (subscription.items.data[0]?.price?.nickname as string | undefined) || null;
 
   // Supabase aktualisieren
-  await admin
+  const { error } = await admin
     .from("profiles")
     .update({
       subscription_status: "active",
@@ -41,7 +41,11 @@ async function upsertSubscription(customerId: string, subscriptionId: string) {
     })
     .eq("stripe_customer_id", customerId);
 
-  console.log("✅ Subscription gespeichert in Supabase");
+  if (error) {
+    console.error("❌ Supabase update failed", error);
+  } else {
+    console.log("✅ Subscription gespeichert in Supabase");
+  }
 }
 
 export async function POST(req: Request) {
@@ -71,13 +75,19 @@ export async function POST(req: Request) {
       await upsertSubscription(customerId, subscriptionId);
     }
 
+    // 👇 Abo wurde in Stripe angelegt (sicherheitsnetz)
+    if (event.type === "customer.subscription.created") {
+      const subscription = event.data.object as Stripe.Subscription;
+      const customerId = subscription.customer as string;
+      await upsertSubscription(customerId, subscription.id);
+    }
+
     // 👇 Folgezahlungen bei bestehendem Abo
     if (event.type === "invoice.payment_succeeded") {
       const invoice = event.data.object as Stripe.Invoice;
       const customerId = invoice.customer as string;
-      const parentSub = invoice.parent?.subscription_details?.subscription;
-      const subscriptionId =
-        typeof parentSub === "string" ? parentSub : parentSub?.id;
+      const sub = invoice.subscription_details?.subscription;
+      const subscriptionId = typeof sub === "string" ? sub : sub?.id;
 
       if (subscriptionId) {
         await upsertSubscription(customerId, subscriptionId);
