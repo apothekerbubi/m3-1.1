@@ -8,3 +8,6 @@ export function createAdminClient() {
     auth: { persistSession: false },
   });
 }
+
+export const supabaseAdmin = createAdminClient();
+
