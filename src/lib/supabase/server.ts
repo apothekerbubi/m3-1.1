@@ -1,6 +1,6 @@
 // src/lib/supabase/server.ts
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 
 export function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -13,21 +13,18 @@ export function createClient() {
 
   return createServerClient(url, anonKey, {
     cookies: {
-      get: async (name: string) => {
-        const store = await cookies();
+      get(name: string) {
+        const store = cookies();
         return store.get(name)?.value;
       },
-      set: async (name: string, value: string, options?: CookieOptions) => {
-        const store = await cookies();
+      set(name: string, value: string, options?: CookieOptions) {
+        const store = cookies();
         store.set(name, value, options);
       },
-      remove: async (name: string, options?: CookieOptions) => {
-        const store = await cookies();
+      remove(name: string, options?: CookieOptions) {
+        const store = cookies();
         store.set(name, "", { ...options, maxAge: 0 });
       },
-    },
-    headers: {
-      get: (key: string) => headers().get(key) ?? undefined,
     },
   });
 }
