@@ -75,7 +75,9 @@ export async function POST(req: Request) {
     if (event.type === "invoice.payment_succeeded") {
       const invoice = event.data.object as Stripe.Invoice;
       const customerId = invoice.customer as string;
-      const subscriptionId = invoice.subscription as string;
+      const parentSub = invoice.parent?.subscription_details?.subscription;
+      const subscriptionId =
+        typeof parentSub === "string" ? parentSub : parentSub?.id;
 
       if (subscriptionId) {
         await upsertSubscription(customerId, subscriptionId);
