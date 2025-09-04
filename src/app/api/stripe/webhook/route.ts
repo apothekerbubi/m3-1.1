@@ -30,7 +30,9 @@ export async function POST(req: Request) {
       const subscriptionId = session.subscription as string;
 
       // Hole das Abo aus Stripe
-      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      const subscription = (await stripe.subscriptions.retrieve(
+        subscriptionId,
+      )) as Stripe.Subscription;
 
       const start = new Date(subscription.current_period_start * 1000);
       const end = new Date(subscription.current_period_end * 1000);
