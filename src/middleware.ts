@@ -47,6 +47,17 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // Abo-Status prüfen
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('subscription_active')
+    .eq('id', user.id)
+    .single();
+  if (!profile?.subscription_active) {
+    const shopUrl = new URL('/shop', origin);
+    return NextResponse.redirect(shopUrl);
+  }
+
   // Eingeloggt → Request normal weiterreichen (inkl. evtl. aktualisierter Cookies)
   return res;
 }
