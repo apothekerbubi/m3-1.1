@@ -1,13 +1,25 @@
 "use client";
+export default function ShopClient() {
+  async function onUpgrade() {
+    const res = await fetch("/api/stripe/create-checkout-session", { method: "POST" });
+    const { url } = await res.json();
+    if (url) location.href = url;
+  }
 
-export default function ShopPage() {
+  async function onManage() {
+    const res = await fetch("/api/stripe/portal", { method: "POST" });
+    const { url } = await res.json();
+    if (url) location.href = url;
+  }
+
   return (
-    <main className="mx-auto max-w-2xl p-6 text-center">
-      <h1 className="mb-2 text-2xl font-semibold tracking-tight">Shop</h1>
-      <p className="text-gray-600 text-sm">
-        Unser Shop wird bald verfügbar sein. <br />
-        <b>Coming soon…</b>
-      </p>
-    </main>
+    <div className="rounded-xl border p-4 bg-white">
+      <h2 className="text-lg font-semibold mb-2">ExaSim Pro</h2>
+      <p className="text-sm text-gray-600 mb-3">Voller Zugriff auf alle Fälle & Features.</p>
+      <div className="flex gap-2">
+        <button onClick={onUpgrade} className="rounded-md bg-blue-600 text-white px-3 py-2 text-sm">Jetzt abonnieren</button>
+        <button onClick={onManage} className="rounded-md border px-3 py-2 text-sm">Abo verwalten</button>
+      </div>
+    </div>
   );
 }

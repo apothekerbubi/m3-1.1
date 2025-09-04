@@ -1,14 +1,6 @@
 // src/lib/supabase/server.ts
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
-
-// kleine, typsichere Wrapper-Interfaces (ohne `any`)
-type CookieValue = { value?: string };
-type CookieSetInput = { name: string; value: string } & Record<string, unknown>;
-interface CookieStoreLike {
-  get(name: string): CookieValue | undefined;
-  set(options: CookieSetInput): void;
-}
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { cookies, headers } from "next/headers";
 
 export function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -19,38 +11,23 @@ export function createClient() {
     );
   }
 
-  // In einigen Next-Versionen wird `cookies()` unterschiedlich typisiert.
-  // Zur Laufzeit ist es im Route/SSR-Kontext synchron nutzbar.
-  const cookieStore = cookies() as unknown as CookieStoreLike;
-
   return createServerClient(url, anonKey, {
     cookies: {
-      get(name: string) {
-        return cookieStore.get(name)?.value;
+      get: async (name: string) => {
+        const store = await cookies();
+        return store.get(name)?.value;
       },
-      set(name: string, value: string, options?: Record<string, unknown>) {
-        try {
-          cookieStore.set({
-            name,
-            value,
-            ...(options ?? {}),
-          });
-        } catch {
-          // read-only Kontext (z. B. reine RSC) → ignorieren
-        }
+      set: async (name: string, value: string, options?: CookieOptions) => {
+        const store = await cookies();
+        store.set(name, value, options);
       },
-      remove(name: string, options?: Record<string, unknown>) {
-        try {
-          cookieStore.set({
-            name,
-            value: "",
-            ...(options ?? {}),
-            maxAge: 0,
-          });
-        } catch {
-          // read-only Kontext → ignorieren
-        }
+      remove: async (name: string, options?: CookieOptions) => {
+        const store = await cookies();
+        store.set(name, "", { ...options, maxAge: 0 });
       },
+    },
+    headers: {
+      get: (key: string) => headers().get(key) ?? undefined,
     },
   });
 }
