@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { headers } from 'next/headers';
 import Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { createClient } from '@/lib/supabase/server';
@@ -8,7 +7,7 @@ export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
   const body = await req.text();
-  const sig = headers().get('stripe-signature') as string;
+  const sig = req.headers.get('stripe-signature') as string;
 
   let event: Stripe.Event;
   try {
