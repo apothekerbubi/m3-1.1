@@ -1,23 +1,30 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type Stripe from "stripe";
 
 const admin = createAdminClient();
 
 export async function POST(req: Request) {
   const sig = req.headers.get("stripe-signature");
+  if (!sig) {
+    return NextResponse.json(
+      { error: "Missing stripe-signature header" },
+      { status: 400 },
+    );
+  }
   const body = await req.text();
 
   try {
     const event = stripe.webhooks.constructEvent(
       body,
-      sig!,
+      sig,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
 
     // 👇 Abo erstellt oder erneuert
     if (event.type === "checkout.session.completed") {
-      const session = event.data.object as any;
+      const session = event.data.object as Stripe.Checkout.Session;
 
       const customerId = session.customer as string;
       const subscriptionId = session.subscription as string;
@@ -43,7 +50,7 @@ export async function POST(req: Request) {
 
     // 👇 Abo gekündigt oder ausgelaufen
     if (event.type === "customer.subscription.deleted") {
-      const subscription = event.data.object as any;
+      const subscription = event.data.object as Stripe.Subscription;
 
       const customerId = subscription.customer as string;
 
