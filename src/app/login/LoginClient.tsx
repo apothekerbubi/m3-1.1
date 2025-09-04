@@ -95,7 +95,7 @@ export default function LoginPage() {
       }
 
       // mode === "register"
-      const { error: signUpError } = await sb.auth.signUp({
+      const { data, error: signUpError } = await sb.auth.signUp({
         email,
         password,
         options: {
@@ -113,7 +113,21 @@ export default function LoginPage() {
           },
         },
       });
-      if (signUpError) throw signUpError;
+      if (signUpError) {
+        const msg = signUpError.message.toLowerCase();
+        if (
+          msg.includes("already registered") ||
+          msg.includes("middleware_invocation_failed") ||
+          msg.includes("duplicate")
+        ) {
+          throw new Error("Diese E-Mail-Adresse ist bereits registriert.");
+        }
+        throw signUpError;
+      }
+
+      if (!data.user || !data.user.identities?.length) {
+        throw new Error("Diese E-Mail-Adresse ist bereits registriert.");
+      }
 
       alert("Registrierung erfolgreich! Bitte bestätige die E-Mail und melde dich dann an.");
       setMode("login");

@@ -43,9 +43,9 @@ export default function OGImage() {
               fontWeight: 800,
             }}
           >
-            M3
+            Ex
           </div>
-          <div style={{ fontSize: 40, fontWeight: 700 }}>M3 Mentor</div>
+          <div style={{ fontSize: 40, fontWeight: 700 }}>ExaSim</div>
         </div>
         <div style={{ fontSize: 28, opacity: 0.9, lineHeight: 1.25 }}>
           Prüfungsnahe M3-Simulation – Innere Medizin

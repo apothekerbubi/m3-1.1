@@ -37,7 +37,7 @@ export default function RegisterPage() {
       }
 
       // Zusätzliche Felder in user_metadata mitgeben
-      const { error: signUpError } = await sb.auth.signUp({
+      const { data, error: signUpError } = await sb.auth.signUp({
         email,
         password,
         options: {
@@ -53,7 +53,21 @@ export default function RegisterPage() {
         },
       });
 
-      if (signUpError) throw signUpError;
+      if (signUpError) {
+        const msg = signUpError.message.toLowerCase();
+        if (
+          msg.includes("already registered") ||
+          msg.includes("middleware_invocation_failed") ||
+          msg.includes("duplicate")
+        ) {
+          throw new Error("Diese E-Mail-Adresse ist bereits registriert.");
+        }
+        throw signUpError;
+      }
+
+      if (!data.user || !data.user.identities?.length) {
+        throw new Error("Diese E-Mail-Adresse ist bereits registriert.");
+      }
 
       setDone(true);
     } catch (err: unknown) {
