@@ -54,13 +54,18 @@ export default function RegisterPage() {
       });
 
       if (signUpError) {
-        if (signUpError.message.toLowerCase().includes("already registered")) {
+        const msg = signUpError.message.toLowerCase();
+        if (
+          msg.includes("already registered") ||
+          msg.includes("middleware_invocation_failed") ||
+          msg.includes("duplicate")
+        ) {
           throw new Error("Diese E-Mail-Adresse ist bereits registriert.");
         }
         throw signUpError;
       }
 
-      if (data.user && !data.user.identities?.length) {
+      if (!data.user || !data.user.identities?.length) {
         throw new Error("Diese E-Mail-Adresse ist bereits registriert.");
       }
 
