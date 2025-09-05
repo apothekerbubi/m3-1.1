@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type Stripe from "stripe";
 
 export async function POST(req: Request) {
   const body = await req.text();
@@ -19,7 +20,7 @@ export async function POST(req: Request) {
       event.type === "customer.subscription.created" ||
       event.type === "customer.subscription.updated"
     ) {
-      const subscription = event.data.object as any;
+      const subscription = event.data.object as Stripe.Subscription;
       const supabase = createAdminClient();
 
       // 👇 Abo-Details auslesen
@@ -33,8 +34,16 @@ export async function POST(req: Request) {
         productName = product.name;
       }
 
-      const updateData: Record<string, any> = {
-        stripe_customer_id: subscription.customer,
+      interface UpdateData {
+        stripe_customer_id: string;
+        abo_start: string | null;
+        abo_end: string | null;
+        abo_name: string | null;
+        abo_price_id: string | null;
+      }
+
+      const updateData: UpdateData = {
+        stripe_customer_id: String(subscription.customer),
         abo_start: subscription.start_date
           ? new Date(subscription.start_date * 1000).toISOString()
           : null,
@@ -42,7 +51,7 @@ export async function POST(req: Request) {
           ? new Date(subscription.current_period_end * 1000).toISOString()
           : null,
         abo_name: productName,
-        abo_price_id: priceId,
+        abo_price_id: priceId ?? null,
       };
 
       const userId = subscription.metadata?.user_id;
