@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type Stripe from "stripe";
 
 export async function POST(req: Request) {
   const body = await req.text();
@@ -19,22 +20,30 @@ export async function POST(req: Request) {
       event.type === "customer.subscription.created" ||
       event.type === "customer.subscription.updated"
     ) {
-      const subscription = event.data.object as any;
+      // 👇 Typ erweitern, damit TS `current_period_end` & `start_date` kennt
+      const subscription = event.data.object as Stripe.Subscription & {
+        current_period_end?: number;
+        start_date?: number;
+      };
+
       const supabase = createAdminClient();
 
-      // 👇 Abo-Details auslesen
       const item = subscription.items?.data?.[0];
-      const priceId = item?.price?.id;
-      const productId = item?.price?.product as string;
+      const priceId = item?.price?.id ?? null;
+      const productId = (item?.price?.product as string) ?? null;
 
       let productName: string | null = null;
       if (productId) {
-        const product = await stripe.products.retrieve(productId);
-        productName = product.name;
+        try {
+          const product = await stripe.products.retrieve(productId);
+          productName = product?.name ?? null;
+        } catch (e) {
+          console.error("❌ Konnte Produkt nicht laden:", e);
+        }
       }
 
-      const updateData: Record<string, any> = {
-        stripe_customer_id: subscription.customer,
+      const updateData = {
+        stripe_customer_id: String(subscription.customer),
         abo_start: subscription.start_date
           ? new Date(subscription.start_date * 1000).toISOString()
           : null,
