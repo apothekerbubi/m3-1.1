@@ -289,7 +289,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Supabase
-    const supabase = createClient();
+      const supabase = await createClient();
+
+  const { data: userRes } = await supabase.auth.getUser();
+  const userId = userRes?.user?.id ?? null;
     const { data: userRes } = await supabase.auth.getUser();
     const userId = userRes?.user?.id ?? null;
 
