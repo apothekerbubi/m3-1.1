@@ -47,7 +47,24 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Eingeloggt → Request normal weiterreichen (inkl. evtl. aktualisierter Cookies)
+  // Profil & Abo-Status prüfen
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("subscription_status, current_period_end")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const active =
+    profile?.subscription_status === "active" &&
+    profile.current_period_end &&
+    new Date(profile.current_period_end).getTime() > Date.now();
+
+  if (!active) {
+    // Kein gültiges Abo → zur Shop-Seite
+    return NextResponse.redirect(new URL("/shop", origin));
+  }
+
+  // Eingeloggt & gültiges Abo → Request normal weiterreichen
   return res;
 }
 
