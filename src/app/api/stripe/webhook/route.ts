@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import type Stripe from "stripe";
 
 export async function POST(req: Request) {
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
         start_date?: number;
       };
 
-      const supabase = createAdminClient();
+      const supabase = supabaseAdmin;
 
       const item = subscription.items?.data?.[0];
       const priceId = item?.price?.id ?? null;
