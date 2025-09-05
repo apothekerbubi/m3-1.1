@@ -13,6 +13,9 @@ type Profile = {
   home_uni?: string | null;
   pj_wahlfach?: string | null;
   exam_date?: string | null;
+  abo_start?: string | null;
+  abo_name?: string | null;
+  abo_price_id?: string | null;
 };
 
 export default function AccountClient() {
@@ -24,6 +27,11 @@ export default function AccountClient() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  // Abo-Status
+  const [aboActive, setAboActive] = useState(false);
+  const [aboStart, setAboStart] = useState<Date | null>(null);
+  const [aboEnd, setAboEnd] = useState<Date | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -51,7 +59,9 @@ export default function AccountClient() {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("first_name,last_name,semester,home_uni,pj_wahlfach,exam_date")
+        .select(
+          "first_name,last_name,semester,home_uni,pj_wahlfach,exam_date,abo_start,abo_name,abo_price_id"
+        )
         .eq("id", session.user.id)
         .maybeSingle();
 
@@ -66,7 +76,21 @@ export default function AccountClient() {
         home_uni: data?.home_uni ?? md.home_uni ?? "",
         pj_wahlfach: data?.pj_wahlfach ?? md.pj_wahlfach ?? "",
         exam_date: data?.exam_date ?? md.exam_date ?? "",
+        abo_start: data?.abo_start ?? null,
+        abo_name: data?.abo_name ?? null,
+        abo_price_id: data?.abo_price_id ?? null,
       });
+
+      // Abo prüfen
+      if (data?.abo_start) {
+        const start = new Date(data.abo_start);
+        const end = new Date(start);
+        end.setMonth(end.getMonth() + 1);
+
+        setAboStart(start);
+        setAboEnd(end);
+        setAboActive(new Date() < end);
+      }
 
       setLoading(false);
     })();
@@ -118,6 +142,14 @@ export default function AccountClient() {
       }
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function goToStripePortal() {
+    const res = await fetch("/api/stripe/portal", { method: "POST" });
+    const data = await res.json();
+    if (data.url) {
+      window.location.href = data.url;
     }
   }
 
@@ -184,6 +216,36 @@ export default function AccountClient() {
           {saving ? "Speichere..." : "Speichern"}
         </button>
       </div>
+
+      <div className="mt-6 rounded-xl border border-black/10 bg-white p-4">
+        <h2 className="text-lg font-semibold mb-2">Abo</h2>
+        {aboActive ? (
+          <>
+            <p className="text-sm text-green-600">
+              ✅ Aktiv bis {aboEnd?.toLocaleDateString()}
+            </p>
+            <p className="text-sm text-gray-600">
+              Abo: {profile.abo_name ?? "Unbekannt"}
+            </p>
+            <button
+              onClick={goToStripePortal}
+              className="mt-2 rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200"
+            >
+              Abo verwalten
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-red-600">❌ Kein aktives Abo</p>
+            <a
+              href="/shop"
+              className="mt-2 inline-block rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              Zum Shop
+            </a>
+          </>
+        )}
+      </div>
     </main>
   );
 }
@@ -213,5 +275,10 @@ function Field({
 }
 
 function isPostgrestError(err: unknown): err is PostgrestError {
-  return typeof err === "object" && err !== null && "message" in err && "code" in err;
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "message" in err &&
+    "code" in err
+  );
 }

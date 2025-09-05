@@ -2,65 +2,69 @@ import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const admin = createAdminClient();
-
 export async function POST(req: Request) {
-  const sig = req.headers.get("stripe-signature");
   const body = await req.text();
+  const sig = req.headers.get("stripe-signature")!;
 
   try {
     const event = stripe.webhooks.constructEvent(
       body,
-      sig!,
+      sig,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
 
-    // 👇 Abo erstellt oder erneuert
-    if (event.type === "checkout.session.completed") {
-      const session = event.data.object as any;
+    console.log("👉 Event empfangen:", event.type);
 
-      const customerId = session.customer as string;
-      const subscriptionId = session.subscription as string;
-
-      // Hole das Abo aus Stripe
-      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-
-      const start = new Date(subscription.current_period_start * 1000);
-      const end = new Date(subscription.current_period_end * 1000);
-
-      // Supabase aktualisieren
-      await admin
-        .from("profiles")
-        .update({
-          subscription_status: "active",
-          subscription_start: start.toISOString(),
-          subscription_end: end.toISOString(),
-        })
-        .eq("stripe_customer_id", customerId);
-
-      console.log("✅ Subscription gespeichert in Supabase");
-    }
-
-    // 👇 Abo gekündigt oder ausgelaufen
-    if (event.type === "customer.subscription.deleted") {
+    if (
+      event.type === "customer.subscription.created" ||
+      event.type === "customer.subscription.updated"
+    ) {
       const subscription = event.data.object as any;
+      const supabase = createAdminClient();
 
-      const customerId = subscription.customer as string;
+      // 👇 Abo-Details auslesen
+      const item = subscription.items?.data?.[0];
+      const priceId = item?.price?.id;
+      const productId = item?.price?.product as string;
 
-      await admin
-        .from("profiles")
-        .update({
-          subscription_status: "canceled",
-          subscription_end: new Date().toISOString(),
-        })
-        .eq("stripe_customer_id", customerId);
+      let productName: string | null = null;
+      if (productId) {
+        const product = await stripe.products.retrieve(productId);
+        productName = product.name;
+      }
 
-      console.log("❌ Subscription beendet");
+      const updateData: Record<string, any> = {
+        stripe_customer_id: subscription.customer,
+        abo_start: subscription.start_date
+          ? new Date(subscription.start_date * 1000).toISOString()
+          : null,
+        abo_end: subscription.current_period_end
+          ? new Date(subscription.current_period_end * 1000).toISOString()
+          : null,
+        abo_name: productName,
+        abo_price_id: priceId,
+      };
+
+      const userId = subscription.metadata?.user_id;
+      if (!userId) {
+        console.error("❌ Kein user_id im subscription.metadata gefunden!");
+      } else {
+        const { error } = await supabase
+          .from("profiles")
+          .update(updateData)
+          .eq("id", userId);
+
+        if (error) {
+          console.error("❌ Supabase Update Fehler:", error);
+        } else {
+          console.log("✅ Subscription in Supabase aktualisiert");
+        }
+      }
     }
 
     return NextResponse.json({ received: true });
   } catch (err) {
-    console.error("❌ Webhook-Error", err);
-    return NextResponse.json({ error: "Webhook error" }, { status: 400 });
+    console.error("❌ Webhook Fehler:", err);
+    return new NextResponse("Webhook Error", { status: 400 });
   }
 }

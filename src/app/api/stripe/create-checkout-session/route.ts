@@ -1,59 +1,49 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 
-const admin = createAdminClient();
-
-export async function POST() {
+export async function POST(req: Request) {
   try {
     const supabase = createClient();
     const {
       data: { user },
+      error: userError,
     } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // Profil laden
-    const { data: profile } = await admin
-      .from("profiles")
-      .select("stripe_customer_id, email")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    let customerId = profile?.stripe_customer_id;
-
-    // Falls noch keine Stripe-Customer-ID existiert → anlegen
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: profile?.email ?? user.email,
-        metadata: { supabaseUserId: user.id },
-      });
-
-      customerId = customer.id;
-
-      await admin.from("profiles").update({ stripe_customer_id: customerId }).eq("id", user.id);
-
-      console.log(`✅ Neuer Stripe-Customer erstellt: ${customerId}`);
+    if (userError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Checkout-Session erzeugen
+    // 👇 PriceId aus Body entgegennehmen
+    const { priceId } = await req.json();
+    if (!priceId) {
+      return NextResponse.json({ error: "Missing priceId" }, { status: 400 });
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       payment_method_types: ["card"],
       line_items: [
         {
-          price: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID!, // deine Price-ID hier
+          price: priceId,
           quantity: 1,
         },
       ],
-      customer: customerId,
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/account?success=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/shop?canceled=true`,
+      success_url: `${appUrl}/account?success=true`,
+      cancel_url: `${appUrl}/shop?canceled=true`,
+      customer_email: user.email ?? undefined,
+      subscription_data: {
+        metadata: {
+          user_id: user.id, // 👈 landet direkt an der Subscription
+        },
+      },
     });
 
     return NextResponse.json({ url: session.url });
-  } catch (e) {
-    console.error("❌ Fehler bei create-checkout-session:", e);
-    return NextResponse.json({ error: "checkout-failed" }, { status: 500 });
+  } catch (err) {
+    console.error("❌ Fehler bei create-checkout-session:", err);
+    return NextResponse.json({ error: "session-failed" }, { status: 500 });
   }
 }

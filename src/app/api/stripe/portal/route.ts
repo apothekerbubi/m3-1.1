@@ -33,7 +33,7 @@ export async function POST() {
     }
 
     // 3) Portal-Session erstellen
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://exasim.de";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://localhost:3000";
     const portal = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
       return_url: `${appUrl}/account`,
