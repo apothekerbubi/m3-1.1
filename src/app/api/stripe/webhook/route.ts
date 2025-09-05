@@ -1,3 +1,4 @@
+// src/app/api/stripe/webhook/route.ts
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -20,10 +21,10 @@ export async function POST(req: Request) {
       event.type === "customer.subscription.created" ||
       event.type === "customer.subscription.updated"
     ) {
-      // 👇 Typ erweitern, damit TS `current_period_end` & `start_date` kennt
+      // 👇 Stripe Subscription erweitern, damit TS die Felder kennt
       const subscription = event.data.object as Stripe.Subscription & {
-        current_period_end?: number;
-        start_date?: number;
+        current_period_end: number;
+        start_date: number;
       };
 
       const supabase = supabaseAdmin;
