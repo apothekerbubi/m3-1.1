@@ -1,8 +1,8 @@
 // src/lib/supabase/server.ts
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { cookies as nextCookies } from "next/headers";
 
-function makeClient(cookieStore: any) {
+function getEnv() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) {
@@ -10,29 +10,38 @@ function makeClient(cookieStore: any) {
       "Supabase ist nicht konfiguriert: Bitte NEXT_PUBLIC_SUPABASE_URL und NEXT_PUBLIC_SUPABASE_ANON_KEY setzen."
     );
   }
+  return { url, anonKey };
+}
+
+/**
+ * Für Server Components / Layouts (synchrones cookies()).
+ */
+export function createClient() {
+  const { url, anonKey } = getEnv();
+  const store = nextCookies(); // synchron in RSC/Layouts
 
   return createServerClient(url, anonKey, {
     cookies: {
-      get(name: string) {
+      get(name: string): string | undefined {
         try {
-          return cookieStore?.get?.(name)?.value;
+          return store.get(name)?.value;
         } catch {
           return undefined;
         }
       },
-      set(name: string, value: string, options?: CookieOptions) {
+      set(name: string, value: string, options?: CookieOptions): void {
         try {
-          // In RSC ist set nicht erlaubt → Fehler ignorieren
-          cookieStore?.set?.(name, value, options);
+          // In RSC ist .set i.d.R. nicht erlaubt → Fehler abfangen
+          nextCookies().set(name, value, options);
         } catch {
-          /* no-op */
+          /* no-op in read-only Kontext */
         }
       },
-      remove(name: string, options?: CookieOptions) {
+      remove(name: string, options?: CookieOptions): void {
         try {
-          cookieStore?.set?.(name, "", { ...options, maxAge: 0 });
+          nextCookies().set(name, "", { ...options, maxAge: 0 });
         } catch {
-          /* no-op */
+          /* no-op in read-only Kontext */
         }
       },
     },
@@ -40,18 +49,37 @@ function makeClient(cookieStore: any) {
 }
 
 /**
- * Für Server Components / Layouts / Pages (synchrones cookies()).
- */
-export function createClient() {
-  const store = cookies() as any; // in RSC synchron
-  return makeClient(store);
-}
-
-/**
  * Für Route Handlers (app/api/*) – asynchrones cookies().
- * In API-Routen **immer diese** Version verwenden: const supabase = await createClientRoute()
+ * In API-Routen **diese** Version nutzen:
+ *   const supabase = await createClientRoute();
  */
 export async function createClientRoute() {
-  const store = (await cookies()) as any; // in Route Handlers async
-  return makeClient(store);
+  const { url, anonKey } = getEnv();
+  const store = await nextCookies(); // async in Route Handlers
+
+  return createServerClient(url, anonKey, {
+    cookies: {
+      get(name: string): string | undefined {
+        try {
+          return store.get(name)?.value;
+        } catch {
+          return undefined;
+        }
+      },
+      set(name: string, value: string, options?: CookieOptions): void {
+        try {
+          store.set(name, value, options);
+        } catch {
+          /* no-op falls nicht erlaubt */
+        }
+      },
+      remove(name: string, options?: CookieOptions): void {
+        try {
+          store.set(name, "", { ...options, maxAge: 0 });
+        } catch {
+          /* no-op */
+        }
+      },
+    },
+  });
 }
