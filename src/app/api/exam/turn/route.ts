@@ -293,8 +293,6 @@ export async function POST(req: NextRequest) {
 
   const { data: userRes } = await supabase.auth.getUser();
   const userId = userRes?.user?.id ?? null;
-    const { data: userRes } = await supabase.auth.getUser();
-    const userId = userRes?.user?.id ?? null;
 
     // --- Nachfrage/Letzte Antwort vorbereiten ---
     const lastStudentText = [...transcript].reverse().find((t) => t.role === "student")?.text?.trim() || "";
