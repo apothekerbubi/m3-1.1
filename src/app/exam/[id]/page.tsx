@@ -544,20 +544,31 @@ async function callExamAPI(
   }
   // -------------------------------------------------
 
-  // *** Flow-Funktionen ***
-  function startExam() {
-    if (!c) return;
+ // *** Flow-Funktionen ***
+async function startExam() {
+  if (!c) return;
 
-    const n = stepsOrdered.length;
+  // 🔹 Zähler in Supabase hochziehen
+  try {
+    await fetch("/api/progress/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ caseId: c.id }),
+    });
+  } catch {
+    console.warn("Start-Tracking fehlgeschlagen");
+  }
 
-    // Reset
-    setAsked([]);
-    setPerStepScores(Array(n).fill(0));
-    setLastCorrectness(null);
-    setAttemptCount(0);
-    setActiveIndex(0);
-    setViewIndex(0);
-    setEnded(false);
+  const n = stepsOrdered.length;
+
+  // Reset
+  setAsked([]);
+  setPerStepScores(Array(n).fill(0));
+  setLastCorrectness(null);
+  setAttemptCount(0);
+  setActiveIndex(0);
+  setViewIndex(0);
+  setEnded(false);
 
     // Chats vorbereiten
     const initChats: Turn[][] = Array.from({ length: n }, () => []);
