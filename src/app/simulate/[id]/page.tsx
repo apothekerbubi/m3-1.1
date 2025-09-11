@@ -34,7 +34,7 @@ type CaseWithRules = Case & { objectives?: ObjMin[]; completion?: CompletionRule
 
 type SpeechRecognitionResult = { 0: { transcript: string } };
 type SpeechRecognitionEventType = {
-  results: SpeechRecognitionResult[];
+  results: ArrayLike<SpeechRecognitionResult>;
 };
 
 type SpeechRecognitionType = {
@@ -118,7 +118,9 @@ export default function ExamPage() {
     recog.continuous = true;
     recog.interimResults = true;
     recog.onresult = (e: SpeechRecognitionEventType) => {
-      const text = e.results.map((r) => r[0].transcript).join("");
+      const text = Array.from(e.results)
+        .map((r) => r[0].transcript)
+        .join("");
       setInput(prefixRef.current + text);
     };
     recog.onstart = () => {
