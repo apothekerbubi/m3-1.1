@@ -32,14 +32,9 @@ type ObjMin = { id: string; label: string };
 type CompletionRules = { minObjectives: number; maxLLMTurns?: number; hardStopTurns?: number };
 type CaseWithRules = Case & { objectives?: ObjMin[]; completion?: CompletionRules | null };
 
+type SpeechRecognitionResult = { 0: { transcript: string } };
 type SpeechRecognitionEventType = {
-  results: {
-    0: {
-      0: {
-        transcript: string;
-      };
-    };
-  };
+  results: SpeechRecognitionResult[];
 };
 
 type SpeechRecognitionType = {
@@ -97,6 +92,11 @@ export default function ExamPage() {
 
   const [attemptCount, setAttemptCount] = useState<number>(0);
   const [input, setInput] = useState("");
+  const inputRef = useRef("");
+  useEffect(() => {
+    inputRef.current = input;
+  }, [input]);
+  const prefixRef = useRef("");
 
   const recognitionRef = useRef<SpeechRecognitionType | null>(null);
   const [isListening, setIsListening] = useState(false);
@@ -115,13 +115,16 @@ export default function ExamPage() {
     if (!SR) return;
     const recog = new SR();
     recog.lang = "de-DE";
-    recog.continuous = false;
-    recog.interimResults = false;
+    recog.continuous = true;
+    recog.interimResults = true;
     recog.onresult = (e: SpeechRecognitionEventType) => {
-      const text = e.results[0][0].transcript;
-      setInput((prev) => (prev ? prev + " " : "") + text);
+      const text = e.results.map((r) => r[0].transcript).join("");
+      setInput(prefixRef.current + text);
     };
-    recog.onstart = () => setIsListening(true);
+    recog.onstart = () => {
+      prefixRef.current = inputRef.current ? inputRef.current + " " : "";
+      setIsListening(true);
+    };
     recog.onend = () => setIsListening(false);
     recog.onerror = () => setIsListening(false);
     recognitionRef.current = recog;
