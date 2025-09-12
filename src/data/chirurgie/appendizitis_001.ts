@@ -11,6 +11,7 @@ export const appendizitis_001: Case = {
   subspecialty: "Allgemeinchirurgie",
   difficulty: 1,
   tags: ["Appendizitis", "RUQ/RLQ", "Akutes Abdomen"],
+  relatedCases: ["schock_001"],
   steps: [
     {
       order: 1,

@@ -129,6 +129,7 @@ export type Case = {
   pseudonym?: string;         // interne Bezeichnung
   difficulty: number;         // 1..5 oder ähnlich
   tags: string[];             // Freitags
+  relatedCases?: string[];    // IDs verwandter Fälle
 
   // Inhalt
   steps: Step[];              // die einzelnen Prüfungs-/Lernschritte
