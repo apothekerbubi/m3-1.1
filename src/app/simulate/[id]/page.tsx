@@ -688,7 +688,7 @@ export default function ExamPage() {
             {related.map((rc) => (
               <li key={rc.id}>
                 <Link
-                  href={`/cases/${rc.id}`}
+                  href={`/simulate/${rc.id}`}
                   className="text-blue-600 underline-offset-2 hover:underline"
                 >
                   {rc.title}
