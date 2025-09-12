@@ -41,6 +41,13 @@ export default function ExamPage() {
   const router = useRouter();
   const REDIRECT_AFTER_MS = 1200;
 
+  const related = useMemo<Case[]>(() => {
+    if (!c?.relatedCases) return [];
+    return c.relatedCases
+      .map((id) => CASES.find((x) => x.id === id))
+      .filter((x): x is Case => Boolean(x));
+  }, [c]);
+
   // --- Serie (aus Query ?s=...,&i=...) — OHNE useSearchParams ---
   const [seriesIds, setSeriesIds] = useState<string[]>([]);
   const [seriesIdx, setSeriesIdx] = useState<number>(0);
@@ -673,6 +680,24 @@ export default function ExamPage() {
           </form>
         </section>
       </div>
+
+      {related.length > 0 && (
+        <div className="mt-8">
+          <h3 className="mb-2 text-lg font-semibold">Verwandte Fälle</h3>
+          <ul className="list-disc space-y-1 pl-5">
+            {related.map((rc) => (
+              <li key={rc.id}>
+                <Link
+                  href={`/simulate/${rc.id}`}
+                  className="text-blue-600 underline-offset-2 hover:underline"
+                >
+                  {rc.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </main>
   );
 }
