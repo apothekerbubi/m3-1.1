@@ -226,6 +226,69 @@ function buildStudentUnion(studentTexts: string[], rule: RuleJson | null): strin
   return Array.from(new Set(hits));
 }
 
+type GenericRule = {
+  mode?: string;
+  expected?: string[];
+  required?: string[];
+  optional?: string[];
+  forbidden?: string[];
+  minHits?: number;
+  categories?: Record<string, string[]>;
+  minCategories?: number;
+};
+
+function evaluateStep(rule: GenericRule | null, items: string[]): "correct" | "partially_correct" | "incorrect" {
+  if (!rule) return items.length > 0 ? "partially_correct" : "incorrect";
+  const normalized = new Set(items.map(normalizeText));
+  const hasForbidden = Array.isArray(rule.forbidden)
+    ? rule.forbidden.some((f) => normalized.has(normalizeText(f)))
+    : false;
+  if (hasForbidden) return "incorrect";
+
+  switch (rule.mode) {
+    case "anyOf": {
+      const expected = Array.isArray(rule.expected) ? rule.expected.map(normalizeText) : [];
+      const hits = expected.filter((e) => normalized.has(e)).length;
+      const minHits = typeof rule.minHits === "number" ? rule.minHits : 1;
+      if (hits >= minHits) return "correct";
+      return hits > 0 ? "partially_correct" : "incorrect";
+    }
+    case "allOf": {
+      const required = Array.isArray(rule.required) ? rule.required.map(normalizeText) : [];
+      const optional = Array.isArray(rule.optional) ? rule.optional.map(normalizeText) : [];
+      const reqHits = required.filter((e) => normalized.has(e)).length;
+      const optHits = optional.filter((e) => normalized.has(e)).length;
+      const totalHits = reqHits + optHits;
+      const minHits = typeof rule.minHits === "number" ? rule.minHits : 0;
+      const allReq = reqHits === required.length && required.length > 0;
+      if (allReq && totalHits >= minHits) return "correct";
+      return totalHits > 0 ? "partially_correct" : "incorrect";
+    }
+    case "categories": {
+      const categories = rule.categories || {};
+      const minCategories = typeof rule.minCategories === "number" ? rule.minCategories : 1;
+      const minHits = typeof rule.minHits === "number" ? rule.minHits : 0;
+      let catHits = 0;
+      let totalHits = 0;
+      for (const itemsArr of Object.values(categories) as string[][]) {
+        const normalizedItems = itemsArr.map(normalizeText);
+        const hits = normalizedItems.filter((e) => normalized.has(e)).length;
+        if (hits > 0) catHits++;
+        totalHits += hits;
+      }
+      if (catHits >= minCategories && totalHits >= minHits) return "correct";
+      return totalHits > 0 ? "partially_correct" : "incorrect";
+    }
+    default: {
+      const expected = Array.isArray(rule.expected) ? rule.expected.map(normalizeText) : [];
+      const hits = expected.filter((e) => normalized.has(e)).length;
+      const minHits = typeof rule.minHits === "number" ? rule.minHits : expected.length;
+      if (hits >= minHits && minHits > 0) return "correct";
+      return hits > 0 ? "partially_correct" : "incorrect";
+    }
+  }
+}
+
 /* ---------------------- Handlers ---------------------- */
 
 export async function GET() {
@@ -678,6 +741,18 @@ Erzeuge NUR das JSON-Objekt.`.trim();
       : null;
     payload.next_question = stripMd((payload.next_question ?? "") as string) || null;
     payload.end = Boolean(payload.end);
+
+    if (payload.evaluation) {
+      const autoCorrect = evaluateStep(stepRule, student_union);
+      if (autoCorrect !== payload.evaluation.correctness) {
+        payload.evaluation.correctness = autoCorrect;
+        if (autoCorrect === "partially_correct") {
+          payload.evaluation.feedback = payload.evaluation.feedback
+            ? `Teilweise richtig. ${payload.evaluation.feedback}`.trim()
+            : "Teilweise richtig.";
+        }
+      }
+    }
 
     // Spoiler-Schutz NUR für frühe Versuche und NICHT bei korrekter Antwort
     if (payload.evaluation && effectiveAttempt < 3 && payload.evaluation.correctness !== "correct") {
