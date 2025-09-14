@@ -83,3 +83,10 @@ input[type="submit"]:disabled {
   --color-background: var(--bg);
   --color-foreground: var(--fg);
 }
+
+@layer components {
+  .section {
+    @apply py-16 sm:py-20 lg:py-28;
+  }
+}
+
