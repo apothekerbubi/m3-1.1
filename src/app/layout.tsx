@@ -8,6 +8,7 @@ import SideNav from "@/components/SideNav";
 import LayoutVars from "@/components/LayoutVars";
 import { Suspense } from "react";
 import GlobalSkeleton from "@/components/GlobalSkeleton";
+import { headers } from "next/headers";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -23,6 +24,9 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const pathname = headers().get("next-url") || "";
+  const isLanding = pathname === "/";
+
   return (
     <html lang="de" className={jakarta.variable}>
       <body className="bg-[var(--bg)] text-[var(--fg)]">
@@ -30,24 +34,30 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="flex min-h-screen flex-col">
             <Header />
 
-            <div className="mx-auto w-full max-w-screen-2xl px-6 py-6 flex-1">
-              {/* Grid mit fixer Sidebar */}
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-[var(--nav-w)_1fr] items-start">
-                {/* Sidebar links */}
-                <aside className="hidden md:block">
-                  <div className="sticky top-20">
-                    <SideNav />
-                  </div>
-                </aside>
+            {isLanding ? (
+              <div className="flex-1">
+                {children}
+              </div>
+            ) : (
+              <div className="mx-auto w-full max-w-screen-2xl px-6 py-6 flex-1">
+                {/* Grid mit fixer Sidebar */}
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-[var(--nav-w)_1fr] items-start">
+                  {/* Sidebar links */}
+                  <aside className="hidden md:block">
+                    <div className="sticky top-20">
+                      <SideNav />
+                    </div>
+                  </aside>
 
-                {/* Seiteninhalt rechts mit Suspense */}
-                <div>
-                  <Suspense fallback={<GlobalSkeleton />}>
-                    {children}
-                  </Suspense>
+                  {/* Seiteninhalt rechts mit Suspense */}
+                  <div>
+                    <Suspense fallback={<GlobalSkeleton />}>
+                      {children}
+                    </Suspense>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <div className="mt-auto">
               <Footer />
