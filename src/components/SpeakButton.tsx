@@ -16,6 +16,7 @@ export default function SpeakButton({ text }: { text: string }) {
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
+      audio.playbackRate = 1.25;
       audio.play();
     } finally {
       setLoading(false);

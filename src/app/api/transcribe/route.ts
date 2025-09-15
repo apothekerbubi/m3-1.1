@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const transcription = await client.audio.transcriptions.create({
       file: audioFile,
-      model: "gpt-4o-transcribe", // Whisper large-v2
+      model: "gpt-4o-mini-transcribe", // faster model
       language: "de",
     });
     return NextResponse.json({ text: transcription.text });

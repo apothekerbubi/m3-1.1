@@ -4,29 +4,31 @@ import { useRef, useState } from "react";
 export default function VoiceInput({ onResult }: { onResult: (t: string) => void }) {
   const [recording, setRecording] = useState(false);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
-  const chunks = useRef<Blob[]>([]);
 
   async function start() {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder.current = new MediaRecorder(stream);
-    chunks.current = [];
-    mediaRecorder.current.ondataavailable = e => {
-      if (e.data.size > 0) chunks.current.push(e.data);
+    const recorder = new MediaRecorder(stream);
+    mediaRecorder.current = recorder;
+    recorder.ondataavailable = async (e) => {
+      if (e.data.size > 0) {
+        const form = new FormData();
+        form.append("file", e.data, `chunk-${Date.now()}.webm`);
+        try {
+          const res = await fetch("/api/transcribe", { method: "POST", body: form });
+          const json = await res.json();
+          if (json.text) onResult(json.text as string);
+        } catch (err) {
+          console.error("chunk failed", err);
+        }
+      }
     };
-    mediaRecorder.current.onstop = async () => {
-      const blob = new Blob(chunks.current, { type: "audio/webm" });
-      const form = new FormData();
-      form.append("file", blob, "audio.webm");
-      const res = await fetch("/api/transcribe", { method: "POST", body: form });
-      const json = await res.json();
-      if (json.text) onResult(json.text as string);
-    };
-    mediaRecorder.current.start();
+    recorder.start(1000); // send chunk every second
     setRecording(true);
   }
 
   function stop() {
     mediaRecorder.current?.stop();
+    mediaRecorder.current?.stream.getTracks().forEach(t => t.stop());
     setRecording(false);
   }
 

@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
     const speech = await client.audio.speech.create({
       model: "gpt-4o-mini-tts",
       voice: "sage",
+      speed: 1.25,
       input: text,
     });
     const buffer = Buffer.from(await speech.arrayBuffer());
