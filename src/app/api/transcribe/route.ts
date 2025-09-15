@@ -10,9 +10,11 @@ export async function POST(req: NextRequest) {
     if (!file || !(file instanceof File)) {
       return NextResponse.json({ error: "No audio file" }, { status: 400 });
     }
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const audioFile = await OpenAI.toFile(buffer, file.name);
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const transcription = await client.audio.transcriptions.create({
-      file,
+      file: audioFile,
       model: "gpt-4o-transcribe", // Whisper large-v2
       language: "de",
     });
