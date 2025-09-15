@@ -7,6 +7,8 @@ import { CASES } from "@/data/cases";
 import type { Case } from "@/lib/types";
 import ProgressBar from "@/components/ProgressBar";
 import ScorePill from "@/components/ScorePill";
+import VoiceInput from "@/components/VoiceInput";
+import SpeakButton from "@/components/SpeakButton";
 
 /** ---- Zusatttypen ---- */
 type RevealWhen = "on_enter" | "always" | "after_answer" | "after_full" | "after_partial";
@@ -582,13 +584,14 @@ export default function ExamPage() {
             {viewChat.map((t, i) => (
               <div key={i} className={`mb-3 ${t.role === "prof" ? "" : "text-right"}`}>
                 <div
-                  className={`inline-block max-w-[80%] rounded-2xl px-3 py-2 shadow-sm ${
+                  className={`inline-flex items-center gap-1 max-w-[80%] rounded-2xl px-3 py-2 shadow-sm ${
                     t.role === "prof" ? "border border-black/10 bg-white text-gray-900" : "bg-blue-600 text-white"
                   }`}
                 >
                   <span className="text-sm leading-relaxed">
                     <b className="opacity-80">{t.role === "prof" ? "Prüfer" : "Du"}:</b> {t.text}
                   </span>
+                  {t.role === "prof" && <SpeakButton text={t.text} />}
                 </div>
               </div>
             ))}
@@ -628,6 +631,11 @@ export default function ExamPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={!hasStarted || ended || viewIndex !== activeIndex}
+            />
+            <VoiceInput
+              onResult={(t) =>
+                setInput((prev) => (prev && !prev.endsWith(" ") ? prev + " " : prev) + t)
+              }
             />
             <button
               type="submit"
