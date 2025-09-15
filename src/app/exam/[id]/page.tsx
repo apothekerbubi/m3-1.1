@@ -154,6 +154,12 @@ export default function ExamPage() {
 
   const [input, setInput] = useState("");
 
+  const [recording, setRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const [ttsEnabled, setTtsEnabled] = useState(false);
+
   // *** Abgeleitete Daten ***
   const stepsOrdered = useMemo<Step[]>(
     () => (c ? [...c.steps].sort((a, b) => a.order - b.order) : []),
@@ -247,6 +253,21 @@ export default function ExamPage() {
     if (sym && sym.trim()) return sym;
     return "Prüfung";
   }
+  async function speak(text: string) {
+    try {
+      const res = await fetch("/api/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.play();
+    } catch {}
+  }
+
 
   function pushProf(step: number, text?: string | null) {
     if (!text || !text.trim()) return;
@@ -261,6 +282,9 @@ export default function ExamPage() {
       }
       return copy;
     });
+     if (ttsEnabled) {
+      void speak(t);
+    }
   }
 
   function pushStudent(step: number, text: string) {
@@ -270,6 +294,42 @@ export default function ExamPage() {
       copy[step] = [...arr, { role: "student" as const, text }];
       return copy;
     });
+  }
+
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      audioChunksRef.current = [];
+      const mr = new MediaRecorder(stream);
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      mr.onstop = async () => {
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const fd = new FormData();
+        fd.append("file", blob, "speech.webm");
+        try {
+          const res = await fetch("/api/transcribe", { method: "POST", body: fd });
+          const data = await res.json();
+          if (data.text) {
+            setInput((prev) => (prev ? prev + " " : "") + data.text);
+          }
+        } catch {}
+        stream.getTracks().forEach((t) => t.stop());
+      };
+      mediaRecorderRef.current = mr;
+      mr.start();
+      setRecording(true);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function stopRecording() {
+    mediaRecorderRef.current?.stop();
+    setRecording(false);
   }
 
   function shouldReveal(
@@ -863,6 +923,14 @@ async function startExam() {
       onChange={(e) => setInput(e.target.value)}
       disabled={!hasStarted || ended || viewIndex !== activeIndex}
     />
+      <button
+      type="button"
+      onClick={recording ? stopRecording : startRecording}
+      disabled={!hasStarted || ended || viewIndex !== activeIndex}
+      className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+    >
+      {recording ? "⏹️" : "🎙️"}
+    </button>
     <button
       type="submit"
       disabled={loading || !hasStarted || ended || viewIndex !== activeIndex || !input.trim()}
@@ -890,6 +958,14 @@ async function startExam() {
     >
       📘 Erklären
     </button>
+    <label className="flex items-center gap-1 text-xs text-gray-600">
+      <input
+        type="checkbox"
+        checked={ttsEnabled}
+        onChange={(e) => setTtsEnabled(e.target.checked)}
+      />
+      Antworten vorlesen
+    </label>
     <button
       type="button"
       onClick={hasStarted ? nextStep : startExam}

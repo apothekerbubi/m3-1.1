@@ -27,14 +27,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="de" className={jakarta.variable}>
       <body className="bg-[var(--bg)] text-[var(--fg)]">
         <LayoutVars>
-          <div className="flex min-h-screen flex-col">
+           <div id="app-shell" className="flex min-h-screen flex-col">
             <Header />
 
             <div className="mx-auto w-full max-w-screen-2xl px-6 py-6 flex-1">
               {/* Grid mit fixer Sidebar */}
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-[var(--nav-w)_1fr] items-start">
+              <div
+                id="app-layout"
+                className="grid grid-cols-1 gap-4 md:grid-cols-[var(--nav-w)_1fr] items-start"
+              >
                 {/* Sidebar links */}
-                <aside className="hidden md:block">
+                 <aside id="app-sidenav-container" className="hidden md:block">
                   <div className="sticky top-20">
                     <SideNav />
                   </div>

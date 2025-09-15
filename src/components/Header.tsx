@@ -58,6 +58,7 @@ export default function Header() {
 
   return (
     <header
+     id="app-header"
       className="sticky top-0 z-50 border-b bg-white dark:bg-[#0f1524] shadow-sm"
       style={{ "--header-h": HEADER_H } as React.CSSProperties}
     >

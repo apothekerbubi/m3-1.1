@@ -58,7 +58,9 @@ export default function SideNav() {
   }, [infoChildActive]);
 
   return (
+
     <nav
+     id="app-sidenav"
       className="w-[var(--nav-w)] rounded-xl bg-white/80 border border-black/10 shadow-sm p-2"
       aria-label="Hauptnavigation"
     >

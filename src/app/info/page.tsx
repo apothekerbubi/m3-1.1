@@ -1,31 +1,43 @@
-export const metadata = {
-  title: "Info",
-};
+import Link from "next/link";
 
-export default function InfoPage() {
-  const items = [
-    { href: "/kontakt", title: "Kontakt", desc: "So erreichst du uns." },
-    { href: "/impressum", title: "Impressum", desc: "Angaben gemäß § 5 TMG." },
-    { href: "/datenschutz", title: "Datenschutz", desc: "Informationen nach DSGVO." },
-    { href: "/agb", title: "AGB", desc: "Allgemeine Geschäftsbedingungen." },
-    { href: "/widerruf", title: "Widerruf", desc: "Widerrufsbelehrung & Musterformular." },
-  ];
-
+export default function LandingPage() {
   return (
-    <main className="p-0">
-      <h1 className="mb-4 text-2xl font-semibold tracking-tight">Kontakt &amp; Info</h1>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {items.map((it) => (
-          <a
-            key={it.href}
-            href={it.href}
-            className="block rounded-2xl border border-black/10 bg-white p-4 shadow-card hover:bg-black/[.02] transition"
-          >
-            <div className="text-lg font-semibold">{it.title}</div>
-            <div className="text-sm text-gray-600">{it.desc}</div>
-          </a>
-        ))}
-      </div>
-    </main>
+    <div className="flex flex-col items-center justify-center px-6 py-24 gap-24">
+      <section className="text-center max-w-2xl space-y-6">
+        <h1 className="text-5xl font-bold">ExaSim neu erleben</h1>
+        <p className="text-xl text-slate-600">
+          Moderne Vorbereitung mit Fokus auf das Wesentliche.
+        </p>
+        <div className="flex justify-center gap-4">
+          <Link href="#" role="button">
+            Jetzt starten
+          </Link>
+          <Link href="#" role="button">
+            Mehr erfahren
+          </Link>
+        </div>
+      </section>
+
+      <section className="grid w-full max-w-5xl gap-6 md:grid-cols-3">
+        <div className="rounded-lg bg-white p-6 shadow">
+          <h3 className="mb-2 text-lg font-semibold">Realistische Fälle</h3>
+          <p className="text-slate-600 text-sm">
+            Dummy-Inhalt: Beschreibe hier das herausragende Feature.
+          </p>
+        </div>
+        <div className="rounded-lg bg-white p-6 shadow">
+          <h3 className="mb-2 text-lg font-semibold">Intuitive Oberfläche</h3>
+          <p className="text-slate-600 text-sm">
+            Dummy-Inhalt: Moderne UI für effizientes Lernen.
+          </p>
+        </div>
+        <div className="rounded-lg bg-white p-6 shadow">
+          <h3 className="mb-2 text-lg font-semibold">Individuelle Auswertung</h3>
+          <p className="text-slate-600 text-sm">
+            Dummy-Inhalt: Fortschritt auf einen Blick.
+          </p>
+        </div>
+      </section>
+    </div>
   );
 }

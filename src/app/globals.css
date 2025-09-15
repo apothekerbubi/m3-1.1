@@ -1,21 +1,22 @@
+/* Tailwind v4 */
 @import "tailwindcss";
 
-/* ---------- Design Tokens (immer Light) ---------- */
+/* ---------- Design Tokens ---------- */
 :root {
-  --bg:     #f7f9fc;   /* Seitenhintergrund */
-  --fg:     #0f172a;   /* Haupttext */
-  --panel:  #ffffff;   /* Karten, Chat, Panels */
-  --muted:  #475569;   /* Sekundärtext */
-  --ring:   #60a5fa;   /* Fokus-Ring */
+  --bg:     #f7f9fc;
+  --fg:     #0f172a;
+  --panel:  #ffffff;
+  --muted:  #475569;
+  --ring:   #60a5fa;
 
-  --nav-w:   220px;    /* Sidebar-Breite */
-  --steps-w: 280px;    /* Fragen-Spalte */
-  --header-h: 3.5rem;  /* entspricht h-14 */
+  --nav-w:   220px;
+  --steps-w: 280px;
+  --header-h: 3.5rem;
   color-scheme: light;
 }
 
-/* ---------- Globale Styles ---------- */
 html, body { height: 100%; }
+*, *::before, *::after { box-sizing: border-box; }
 
 body {
   background: var(--bg);
@@ -27,59 +28,68 @@ body {
 ::selection { background: #bfdbfe; color: inherit; }
 ::-moz-selection { background: #bfdbfe; color: inherit; }
 
-/* ---------- Outline-Buttons global ---------- */
-button,
-a[role="button"],
-input[type="submit"] {
-  color: #2563eb !important;
-  background-color: #eff6ff !important;
-  border: 1px solid #3b82f6 !important;
-  border-radius: 10px !important;
-  padding: 0.5rem 0.75rem !important;
-  font-weight: 600 !important;
-  transition: background-color .2s, box-shadow .2s, color .2s !important;
+/* ---------- Optional: Tailwind Theme Mapping (v4) ---------- */
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
+  --color-panel: var(--panel);
+  --color-muted: var(--muted);
+  --color-ring: var(--ring);
 }
 
-button:hover,
-a[role="button"]:hover,
-input[type="submit"]:hover {
-  background-color: #dbeafe !important;
-  color: #1d4ed8 !important;
-  box-shadow: 0 1px 6px rgba(37, 99, 235, .15) !important;
-}
+/* ---------- Komponenten-Layer ---------- */
+@layer components {
+  .section { @apply py-16 sm:py-20 lg:py-28; }
 
-button:active,
-a[role="button"]:active,
-input[type="submit"]:active {
-  background-color: #bfdbfe !important;
-  color: #1e40af !important;
-}
-
-button:focus-visible,
-a[role="button"]:focus-visible,
-input[type="submit"]:focus-visible {
-  outline: none !important;
-  box-shadow: 0 0 0 3px #93c5fd !important;
-}
-
-button:disabled,
-a[role="button"][aria-disabled="true"],
-input[type="submit"]:disabled {
-  opacity: .55 !important;
-  cursor: not-allowed !important;
-  box-shadow: none !important;
+  /* Outline-Button NUR wenn explizit genutzt */
+  .btn-outline {
+    color: #2563eb;
+    background-color: #eff6ff;
+    border: 1px solid #3b82f6;
+    border-radius: 10px;
+    padding: 0.5rem 0.75rem;
+    font-weight: 600;
+    transition: background-color .2s, box-shadow .2s, color .2s;
+  }
+  .btn-outline:hover {
+    background-color: #dbeafe;
+    color: #1d4ed8;
+    box-shadow: 0 1px 6px rgba(37,99,235,.15);
+  }
+  .btn-outline:active {
+    background-color: #bfdbfe;
+    color: #1e40af;
+  }
+  .btn-outline:focus-visible {
+    outline: none;
+    /* nutzt dein Token */
+    box-shadow: 0 0 0 3px var(--ring);
+  }
+  .btn-outline[disabled], .btn-outline[aria-disabled="true"] {
+    opacity: .55;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
 }
 
 /* ---------- Breitere Screens ---------- */
 @media (min-width: 1440px) {
-  :root {
-    --nav-w:   240px;
-    --steps-w: 300px;
+  :root { --nav-w: 240px; --steps-w: 300px; }
+}
+
+@layer components {
+  .section {
+    @apply py-16 sm:py-20 lg:py-28;
   }
 }
 
-/* ---------- Optional: Tailwind Theme Mapping ---------- */
-@theme inline {
-  --color-background: var(--bg);
-  --color-foreground: var(--fg);
+/* Hide global app chrome on landing page */
+body.landing-page #app-header,
+body.landing-page #app-sidenav-container,
+body.landing-page #app-footer {
+  display: none;
+}
+
+body.landing-page #app-layout {
+  display: block;
 }
