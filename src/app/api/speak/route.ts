@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const speech = await openai.audio.speech.create({
       model: "gpt-4o-mini-tts",
-      voice: "sage",
+      voice: "onyx",
       input: text,
     });
     const buffer = Buffer.from(await speech.arrayBuffer());
