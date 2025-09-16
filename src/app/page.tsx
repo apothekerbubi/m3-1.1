@@ -27,8 +27,7 @@ export default function BoardReadyStyleLanding() {
   }, [audiences.length]);
 
   return (
-    <div className="min-h-screen text-slate-900 bg-white">
-      <Header />
+    <div className="min-h-screen bg-white text-slate-900">
       <Hero currentAudience={audiences[idx]} />
       <TrustedStrip />
       <FeaturesPrimary />
@@ -38,7 +37,6 @@ export default function BoardReadyStyleLanding() {
       <Pricing />
       <Testimonials />
       <CTA />
-      <Footer />
     </div>
   );
 }
@@ -201,42 +199,6 @@ function resolveSupabaseAsset(
   }
 }
 
-function Header() {
-  return (
-    <header className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-white/60 bg-white/80 border-b border-slate-100">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-3" aria-label="Zur Startseite">
-          <Image
-            src="/exasim-logo.svg"
-            alt="ExaSim Logo"
-            width={140}
-            height={32}
-            className="h-8 w-auto"
-            priority
-          />
-          <span className="font-semibold tracking-tight text-slate-900">ExaSim</span>
-        </Link>
-        <nav className="hidden md:flex items-center gap-8 text-sm text-slate-700">
-          <a href="#features" className="hover:text-slate-900">Features</a>
-          <a href="#offer" className="hover:text-slate-900">What we offer</a>
-          <a href="#pricing" className="hover:text-slate-900">Pricing</a>
-          <a href="#faq" className="hover:text-slate-900">FAQ</a>
-          <a href="#contact" className="hover:text-slate-900">Contact</a>
-        </nav>
-        <div className="hidden md:flex items-center gap-3">
-          <Link className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50" href="/login">
-            Sign in
-          </Link>
-          <Link className="px-4 py-2 rounded-xl bg-sky-600 text-white hover:bg-sky-700" href="/register">
-            Kostenlos testen
-          </Link>
-        </div>
-        <button aria-label="Open menu" className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200">☰</button>
-      </div>
-    </header>
-  );
-}
-
 function Hero({ currentAudience }: { currentAudience: string }) {
   return (
     <motion.section
@@ -360,7 +322,7 @@ function TrustedStrip() {
 
   const marqueeItems = useMemo(() => [...logos, ...logos], [logos]);
   return (
-    <FadeInSection className="py-8 border-y border-slate-100 bg-slate-50/80">
+    <FadeInSection className="py-8 border-y border-slate-100 bg-white">
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <p className="text-center text-sm font-medium text-slate-500">Bewährt bei Studierenden und Ärzten</p>
         <div className="relative mt-6 overflow-hidden">
@@ -413,7 +375,7 @@ function FeaturesPrimary() {
     []
   );
   return (
-    <FadeInSection id="features" className="section bg-slate-50">
+    <FadeInSection id="features" className="section bg-sky-50">
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-10 items-center">
           <div>
@@ -497,7 +459,7 @@ function Stats() {
     { value: "Lernfortschritt", label: "Tracke deinen Fortschritt" },
   ];
   return (
-    <FadeInSection className="section bg-slate-50/70">
+    <FadeInSection className="section bg-indigo-50">
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {stats.map((s) => (
@@ -522,7 +484,7 @@ function ProgressAndHabits() {
     []
   );
   return (
-    <FadeInSection className="section bg-slate-100/60">
+    <FadeInSection className="section bg-emerald-50">
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <h3 className="text-3xl font-bold tracking-tight">Make Learning a Daily Habit</h3>
         <p className="mt-2 text-slate-600 max-w-2xl">Tracke deinen Weg, feiere Erfolge und sieh messbare Verbesserungen.</p>
@@ -674,7 +636,7 @@ function Testimonials() {
     },
   ];
   return (
-    <FadeInSection className="section bg-slate-100/60" aria-labelledby="testimonials-heading">
+    <FadeInSection className="section bg-amber-50" aria-labelledby="testimonials-heading">
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <h3 id="testimonials-heading" className="text-3xl font-bold tracking-tight">Success stories</h3>
         <div className="mt-6 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -694,74 +656,19 @@ function Testimonials() {
 
 function CTA() {
   return (
-    <FadeInSection className="section bg-slate-50/80">
+    <FadeInSection className="section bg-slate-900">
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="rounded-3xl bg-slate-900 text-slate-50 p-10 md:p-14 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="flex flex-col items-center justify-between gap-6 rounded-3xl border border-slate-200 bg-white p-10 text-slate-900 shadow-2xl md:flex-row md:p-14">
           <div>
             <h3 className="text-2xl sm:text-3xl font-semibold tracking-tight">Join the case‑first revolution</h3>
-            <p className="mt-2 text-slate-300 max-w-xl">Starte heute mit kostenlosen Fällen - interaktive Fälle mit direkter Rückmeldung durch KI.</p>
+            <p className="mt-2 max-w-xl text-slate-600">Starte heute mit kostenlosen Fällen – interaktive Fälle mit direkter Rückmeldung durch KI.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <a href="#start" className="px-5 py-3 rounded-xl bg-white text-slate-900 hover:bg-slate-200">Starte hier</a>
-            <a href="#demo" className="px-5 py-3 rounded-xl border border-slate-700 text-slate-50 hover:bg-slate-800">Kostenlos tetsen</a>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <a href="#start" className="px-5 py-3 rounded-xl bg-sky-600 text-white shadow-sm transition hover:bg-sky-700">Starte hier</a>
+            <a href="#demo" className="px-5 py-3 rounded-xl border border-slate-200 text-slate-900 transition hover:bg-slate-100">Kostenlos testen</a>
           </div>
         </div>
       </div>
     </FadeInSection>
-  );
-}
-
-function Footer() {
-  return (
-    <motion.footer
-      className="pt-16 pb-10 border-t border-slate-100 bg-white"
-      id="contact"
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.2 }}
-      transition={{ duration: 0.6 }}
-    >
-      <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid md:grid-cols-4 gap-10">
-          <div>
-            <div className="flex items-center gap-3">
-              <Image src="/exasim-logo.svg" alt="ExaSim Logo" width={120} height={32} className="h-8 w-auto" />
-              <span className="font-semibold tracking-tight">ExaSim</span>
-            </div>
-            <p className="mt-3 text-sm text-slate-600 max-w-xs">Voice‑based AI study partner for clinical learners.</p>
-          </div>
-          <div>
-            <h4 className="font-semibold mb-3">Product</h4>
-            <ul className="space-y-2 text-sm text-slate-600">
-              <li><a href="#features" className="hover:text-slate-900">Features</a></li>
-              <li><a href="#offer" className="hover:text-slate-900">Modules</a></li>
-              <li><a href="#pricing" className="hover:text-slate-900">Pricing</a></li>
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold mb-3">Company</h4>
-            <ul className="space-y-2 text-sm text-slate-600">
-              <li><a href="#about" className="hover:text-slate-900">About</a></li>
-              <li><a href="#blog" className="hover:text-slate-900">Blog</a></li>
-              <li><a href="#careers" className="hover:text-slate-900">Careers</a></li>
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold mb-3">Contact</h4>
-            <ul className="space-y-2 text-sm text-slate-600">
-              <li><a href="mailto:hello@example.com" className="hover:text-slate-900">hello@example.com</a></li>
-              <li>San Francisco, CA</li>
-            </ul>
-          </div>
-        </div>
-        <div className="mt-10 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100 pt-6 text-sm text-slate-500">
-          <p>© {new Date().getFullYear()} Your Company</p>
-          <div className="flex items-center gap-4">
-            <a href="#terms" className="hover:text-slate-900">Terms</a>
-            <a href="#privacy" className="hover:text-slate-900">Privacy</a>
-          </div>
-        </div>
-      </div>
-    </motion.footer>
   );
 }
