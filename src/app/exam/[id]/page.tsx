@@ -30,6 +30,23 @@ type ObjMin = { id: string; label: string };
 type CompletionRules = { minObjectives: number; maxLLMTurns?: number; hardStopTurns?: number };
 type CaseWithRules = Case & { objectives?: ObjMin[]; completion?: CompletionRules | null };
 
+type SpeechRecognitionResult = { 0: { transcript: string } };
+type SpeechRecognitionEventType = {
+  results: ArrayLike<SpeechRecognitionResult>;
+};
+
+type SpeechRecognitionType = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((e: SpeechRecognitionEventType) => void) | null;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
 /* ------- Serien-Store für Summary ------- */
 type SeriesResultRow = {
   title: string;
@@ -153,6 +170,52 @@ export default function ExamPage() {
   const [attemptCount, setAttemptCount] = useState<number>(0);
 
   const [input, setInput] = useState("");
+  const inputRef = useRef("");
+  useEffect(() => {
+    inputRef.current = input;
+  }, [input]);
+  const prefixRef = useRef("");
+
+  const recognitionRef = useRef<SpeechRecognitionType | null>(null);
+  const [isListening, setIsListening] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const SR =
+      (window as unknown as {
+        SpeechRecognition?: new () => SpeechRecognitionType;
+        webkitSpeechRecognition?: new () => SpeechRecognitionType;
+      }).SpeechRecognition ||
+      (window as unknown as {
+        SpeechRecognition?: new () => SpeechRecognitionType;
+        webkitSpeechRecognition?: new () => SpeechRecognitionType;
+      }).webkitSpeechRecognition;
+    if (!SR) return;
+    const recog = new SR();
+    recog.lang = "de-DE";
+    recog.continuous = true;
+    recog.interimResults = true;
+    recog.onresult = (e: SpeechRecognitionEventType) => {
+      const text = Array.from(e.results)
+        .map((r) => r[0].transcript)
+        .join("");
+      setInput(prefixRef.current + text);
+    };
+    recog.onstart = () => {
+      prefixRef.current = inputRef.current ? inputRef.current + " " : "";
+      setIsListening(true);
+    };
+    recog.onend = () => setIsListening(false);
+    recog.onerror = () => setIsListening(false);
+    recognitionRef.current = recog;
+  }, []);
+
+  function handleSpeechClick() {
+    const r = recognitionRef.current;
+    if (!r) return;
+    if (isListening) r.stop();
+    else r.start();
+  }
 
   const [recording, setRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -930,6 +993,15 @@ async function startExam() {
       className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
     >
       {recording ? "⏹️" : "🎙️"}
+    </button>
+    <button
+      type="button"
+      onClick={handleSpeechClick}
+      disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
+      className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+      title="Spracheingabe"
+    >
+      {isListening ? "🎙️" : "🎤"}
     </button>
     <button
       type="submit"
