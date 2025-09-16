@@ -39,7 +39,7 @@ body {
 
 /* ---------- Komponenten-Layer ---------- */
 @layer components {
-  .section { @apply py-16 sm:py-20 lg:py-28; }
+  .section { @apply py-7 sm:py-11 lg:py-15; }
 
   /* Outline-Button NUR wenn explizit genutzt */
   .btn-outline {
