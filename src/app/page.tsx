@@ -2,6 +2,9 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import Image from "next/image";
+import Link from "next/link";
+import { publicImageUrl } from "@/lib/supabase/publicUrl";
 
 // Tailwind quick helpers used below:
 // container: mx-auto max-w-7xl px-4 sm:px-6 lg:px-8
@@ -11,20 +14,15 @@ export default function BoardReadyStyleLanding() {
   // Rotating audience labels like the original site (Medical Students, SRNAs, etc.)
   const audiences = useMemo(
     () => [
-      "Medical Students",
-      "SRNAs",
-      "PA-Students",
-      "Residents",
-      "CRNAs",
+      "Medizinstudierende",
       "Physician Assistants",
-      "Anesthesia Assistants",
-      "ICU RNs",
+      
     ],
     []
   );
   const [idx, setIdx] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setIdx((i) => (i + 1) % audiences.length), 2200);
+    const t = setInterval(() => setIdx((i) => (i + 1) % audiences.length), 3200);
     return () => clearInterval(t);
   }, [audiences.length]);
 
@@ -37,21 +35,54 @@ export default function BoardReadyStyleLanding() {
       <WhatWeOffer />
       <Stats />
       <ProgressAndHabits />
+      <Pricing />
       <Testimonials />
       <CTA />
       <Footer />
     </div>
   );
 }
+type LogoDefinition = {
+  name: string;
+  supabasePath: string;
+  fallbackSrc: string;
+};
+
+const SUPABASE_LOGO_BUCKET = "Unilogos"; // Falls du einen anderen Bucket nutzt, hier anpassen.
+
+const LOGO_DEFINITIONS: ReadonlyArray<LogoDefinition> = [
+  {
+    name: "MedUni Rhein",
+    supabasePath: "LMU_Muenchen_Logo.svg",
+    fallbackSrc: "/logos/LMU_Muenchen_Logo.svg.png",
+  },
+  {
+    name: "Klinikum Alpen",
+    supabasePath: "TUM.png",
+    fallbackSrc: "tum-logo.svg",
+  },
+  {
+    name: "HealthLab",
+    supabasePath: "UR+UKR.png",
+    fallbackSrc: "/logos/Universitätsklinikum_Regensburg_Logo.svg.png",
+  }
+];
 
 function Header() {
   return (
     <header className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-white/60 bg-white/80 border-b border-slate-100">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-xl bg-sky-600" aria-hidden />
-          <span className="font-semibold tracking-tight">BoardReady‑style</span>
-        </div>
+        <Link href="/" className="flex items-center gap-3" aria-label="Zur Startseite">
+          <Image
+            src="/exasim-logo.svg"
+            alt="ExaSim Logo"
+            width={140}
+            height={32}
+            className="h-8 w-auto"
+            priority
+          />
+          <span className="font-semibold tracking-tight text-slate-900">ExaSim</span>
+        </Link>
         <nav className="hidden md:flex items-center gap-8 text-sm text-slate-700">
           <a href="#features" className="hover:text-slate-900">Features</a>
           <a href="#offer" className="hover:text-slate-900">What we offer</a>
@@ -60,8 +91,12 @@ function Header() {
           <a href="#contact" className="hover:text-slate-900">Contact</a>
         </nav>
         <div className="hidden md:flex items-center gap-3">
-          <a className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50" href="#signin">Sign in</a>
-          <a className="px-4 py-2 rounded-xl bg-sky-600 text-white hover:bg-sky-700" href="#try">Try free</a>
+          <Link className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50" href="/login">
+            Sign in
+          </Link>
+          <Link className="px-4 py-2 rounded-xl bg-sky-600 text-white hover:bg-sky-700" href="/register">
+            Kostenlos testen
+          </Link>
         </div>
         <button aria-label="Open menu" className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200">☰</button>
       </div>
@@ -86,12 +121,12 @@ function Hero({ currentAudience }: { currentAudience: string }) {
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 sm:py-20 lg:py-28 grid lg:grid-cols-2 gap-12 relative">
         <div>
           <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-sky-700 bg-sky-50 ring-1 ring-sky-200 px-3 py-1 rounded-full mb-4">
-            Voice‑first clinical learning
+            Fallbasiert zum erfahrenen Kliniker
           </p>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight">
-            Voice‑Based AI Clinical
+            KI-gestützte und interaktive
             <span className="block bg-gradient-to-r from-sky-600 via-indigo-600 to-fuchsia-600 bg-clip-text text-transparent">
-              Simulations
+              Fallsimulationen
             </span>
           </h1>
           <p className="mt-6 text-lg leading-8 text-slate-600 max-w-xl">
@@ -103,12 +138,19 @@ function Hero({ currentAudience }: { currentAudience: string }) {
             
           </p>
           <div className="mt-8 flex items-center gap-3">
-            <a href="#start" className="px-5 py-3 rounded-xl bg-sky-600 text-white hover:bg-sky-700">Jetzt starten</a>
-            <a href="#case" className="px-5 py-3 rounded-xl border border-slate-200 text-slate-800 hover:bg-slate-50">Kostenlosen Case testen</a>
+            <Link href="/login" className="px-5 py-3 rounded-xl bg-sky-600 text-white hover:bg-sky-700">
+              Jetzt starten
+            </Link>
+            <Link
+              href="/login"
+              className="px-5 py-3 rounded-xl border border-slate-200 text-slate-800 hover:bg-slate-50"
+            >
+              Kostenlosen Case testen
+            </Link>
           </div>
           <div className="mt-6 flex items-center gap-4 text-sm text-slate-500">
             <span className="inline-flex items-center gap-1">★ ★ ★ ★ ★<span className="sr-only">5 Sterne</span></span>
-            <span>Vertraut von Studierenden &amp; Residents</span>
+            <span>Vertraut von Studierenden &amp; Ärzten</span>
           </div>
         </div>
 
@@ -116,16 +158,26 @@ function Hero({ currentAudience }: { currentAudience: string }) {
         <div className="relative">
           <div className="rounded-2xl border border-slate-200 bg-white/80 backdrop-blur p-4 shadow-xl">
             <div className="rounded-xl bg-slate-900 text-slate-50 p-4 mb-4">
-              <div className="text-xs uppercase tracking-wider text-slate-300">Clinical Case in Progress</div>
+              <div className="text-xs uppercase tracking-wider text-slate-300">Klinischer Fall</div>
               <p className="mt-1 text-sm text-slate-200">
                 „Ein 58‑jähriger Patient kommt mit akutem Thoraxschmerz und Dyspnoe in die Notaufnahme…“
               </p>
             </div>
-            <ChatBubble who="You" text="Ich ordere EKG, Troponin und eine Röntgenaufnahme an." />
-            <ChatBubble who="AI Preceptor" text="Gute Wahl. EKG ist unauffällig, Troponin leicht erhöht. Wie gehst du weiter vor?" variant="ai" />
+            <ChatBubble who="Du" text="Ich ordere EKG, Troponin und eine Röntgenaufnahme an." />
+            <ChatBubble who="Prüfer" text="Gute Wahl. EKG ist unauffällig, Troponin leicht erhöht. Wie gehst du weiter vor?" variant="ai" />
             <div className="mt-4 flex gap-2">
-              <button className="flex-1 h-11 rounded-xl bg-sky-600 text-white hover:bg-sky-700">Mikro starten</button>
-              <button className="flex-1 h-11 rounded-xl border border-slate-200 hover:bg-slate-50">Fall fortsetzen</button>
+              <Link
+                href="/login"
+                className="flex-1 h-11 rounded-xl bg-sky-600 text-white hover:bg-sky-700 inline-flex items-center justify-center"
+              >
+                Mikro starten
+              </Link>
+              <Link
+                href="/login"
+                className="flex-1 h-11 rounded-xl border border-slate-200 hover:bg-slate-50 inline-flex items-center justify-center text-slate-800"
+              >
+                Fall fortsetzen
+              </Link>
             </div>
           </div>
         </div>
@@ -161,15 +213,59 @@ function FadeInSection(
   );
 }
 
+
+
 function TrustedStrip() {
+  const logos = useMemo(() => {
+    try {
+      return LOGO_DEFINITIONS.map(({ name, supabasePath }) => ({
+        name,
+        src: publicImageUrl(supabasePath, SUPABASE_LOGO_BUCKET),
+      }));
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn(
+          "[TrustedStrip] Supabase-Logos konnten nicht geladen werden – verwende lokale Fallbacks.",
+          error
+        );
+      }
+      return LOGO_DEFINITIONS.map(({ name, fallbackSrc }) => ({
+        name,
+        src: fallbackSrc,
+      }));
+    }
+  }, []);
+
+  const marqueeItems = useMemo(() => [...logos, ...logos], [logos]);
   return (
     <FadeInSection className="py-10 border-y border-slate-100 bg-white">
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <p className="text-center text-sm font-medium text-slate-500">Trusted by students and residents</p>
-        <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-6 items-center opacity-80">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="h-8 bg-slate-100 rounded" />
-          ))}
+        <p className="text-center text-sm font-medium text-slate-500">Bewährt bei Studierenden und Ärzten</p>
+        <div className="relative mt-6 overflow-hidden">
+          <div
+            className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-white via-white/80 to-transparent"
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-white via-white/80 to-transparent"
+            aria-hidden
+          />
+          <div className="marquee-track items-center gap-12">
+            {marqueeItems.map((logo, index) => (
+              <Image
+                key={`${logo.name}-${index}`}
+                src={logo.src}
+                alt={logo.name}
+                width={160}
+                height={48}
+                className="h-12 w-auto flex-shrink-0 opacity-80"
+              />
+            ))}
+          </div>
+          <p className="mt-4 text-center text-xs text-slate-400">
+          
+          
+        </p>
         </div>
       </div>
     </FadeInSection>
@@ -179,19 +275,19 @@ function TrustedStrip() {
 function FeaturesPrimary() {
   const items = [
     {
-      title: "Voice‑Based Practice",
+      title: "Realitätsnahe Fälle",
       desc:
-        "Trainiere klinische Kommunikation, Fallpräsentationen und Entscheidungsfindung laut ausgesprochen – wie in der Praxis.",
+        "Trainiere klinische Kommunikation, Fallpräsentationen und Entscheidungsfindung mit direktem Feedback – wie in der Praxis.",
     },
     {
       title: "AI‑Powered Tech",
       desc:
-        "Adaptive Szenarien erkennen Wissenslücken in Echtzeit und verwandeln sie in Stärken.",
+        "Unsere KI erkennt deine Wissenslücken in Echtzeit, gibt dir Feedback und verwandeln sie in Stärken.",
     },
     {
-      title: "Real‑World Application",
+      title: "Experten-kuratierte Fälle",
       desc:
-        "Überbrücke die Lücke zwischen Multiple‑Choice‑Wissen und klinischer Umsetzung unter Druck.",
+        "Überbrücke die Lücke zwischen Multiple‑Choice‑Wissen und klinischer Umsetzung unter Druck durch unsere Experten-modellierten Fälle.",
     },
   ];
   return (
@@ -199,9 +295,9 @@ function FeaturesPrimary() {
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           <div>
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">AI‑gestützte Sprachszenarien für messbaren Lernerfolg</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">KI‑gestützte Szenarien für messbaren Lernerfolg</h2>
             <p className="mt-4 text-slate-600">
-              Vom Lehrbuch ans Patientenbett – durch Stimme. Übe, sprich, reflektiere und verbessere dich kontinuierlich.
+              Vom Lehrbuch zur Praxis – mit realistischen Fallbeispielen. Trainiere, erkläre, reflektiere und wachse an jeder Übung.
             </p>
             <ul className="mt-6 space-y-3">
               {items.map((f) => (
@@ -227,34 +323,35 @@ function FeaturesPrimary() {
 function WhatWeOffer() {
   const cards = [
     {
-      title: "Case Diagnosis Challenge",
+      title: "Fallbeispiele",
       text:
-        "Starte mit einer Leitsymptomatik und arbeite dich zur Diagnose vor – per natürlichem Dialog mit dem AI‑Preceptor.",
+        "Krankheitstypische und hochdynamische Cases mit Vitalwerten und Echtzeit‑Entscheidungen – ideal für mündliche Prüfungen.",
     },
     {
-      title: "Case Scenario",
+      title: "Leitsymptome",
       text:
-        "Hochdynamische Notfall‑Cases mit Vitalwerten und Echtzeit‑Entscheidungen – ideal für Board‑Style‑Training.",
+        "Vom Leitsymptom zur Diagnose. Gelange über Anamnese und Diagnostik zur korrekten Diagnose",
     },
     {
-      title: "Patient Presentation",
+      title: "Examenssimulation",
+      text:
+        "Verknüpfe Fälle aus der Inneren Medizin, Chirurgie, deinem Wahlfach und deinem Losfach zu einer großen Prüfung und erhalte detailliertes Feedback zu deinen Stärken und Schwächen",
+    },
+    {
+      title: "Daily Case Diagnosis Challenge",
+      text:
+        "Starte mit einer Leitsymptomatik und arbeite dich zur Diagnose vor – durch natürlichem Dialog mit unserem KI-Prüfer.",
+    },
+    {
+      title: "Patientvorstellung",
       text:
         "Übe strukturierte Übergaben &amp; Fallpräsentationen mit sofortigem Feedback zu Klarheit und Vollständigkeit.",
     },
+    
     {
-      title: "Difficult Conversations",
+      title: "Lernplan-Erstellung",
       text:
-        "Trainiere Aufklärung, schlechte Nachrichten und Gespräche mit Angehörigen mit sensitivem Feedback.",
-    },
-    {
-      title: "Verbal Flashcards",
-      text:
-        "Festige Wissen durch schnelle, gesprochene Abfragen zu Pharmakologie, Pathophysiologie &amp; Protokollen.",
-    },
-    {
-      title: "Radiology Interpretation",
-      text:
-        "Beschreibe Röntgen, CT und Sono laut und sicher – für Prüfungen und Klinikalltag.",
+        "Du weißt, wer dich prüft? Lade alte Mitschriften hoch und erhalte Empfehlungen, auf welche Fälle du dich konzentrieren solltest.",
     },
   ];
   return (
@@ -262,7 +359,7 @@ function WhatWeOffer() {
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex items-end justify-between gap-6">
           <div>
-            <p className="text-sm font-medium text-sky-700">What we offer</p>
+            <p className="text-sm font-medium text-sky-700">Unser Angebot an dich</p>
             <h3 className="mt-2 text-3xl font-bold tracking-tight">Module &amp; Trainingsformate</h3>
           </div>
           <a href="#all" className="hidden sm:inline-flex items-center gap-2 text-sm text-sky-700 hover:text-sky-800">Alle ansehen →</a>
@@ -284,10 +381,10 @@ function WhatWeOffer() {
 
 function Stats() {
   const stats = [
-    { value: "52", label: "Annual CME Credits" },
-    { value: "Weekly", label: "New Cases" },
-    { value: "100%", label: "Accredited" },
-    { value: "AUTO", label: "Certificate Generation" },
+    { value: "Validität", label: "Experten-generierte Fälle" },
+    { value: "Wöchentlich", label: "Neue Cases" },
+    { value: "KI-getrieben", label: "Sofortiges Feedback" },
+    { value: "Lernfortschritt", label: "Tracke deinen Fortschritt" },
   ];
   return (
     <FadeInSection className="section">
@@ -307,10 +404,10 @@ function Stats() {
 
 function ProgressAndHabits() {
   const items = [
-    { title: "Streak Tracking", text: "Baue Konsistenz mit täglichen Übungsserien auf." },
+    { title: "Streak Tracking", text: "Baue Konsistenz mit täglichen Übungsserien auf" },
     { title: "Progress Analytics", text: "Visualisiere Fortschritt über alle Kompetenzen." },
     { title: "Peer Benchmarking", text: "Vergleiche dich anonym mit Peers." },
-    { title: "Achievement Badges", text: "Feiere Meilensteine &amp; Mastery." },
+    
   ];
   return (
     <FadeInSection className="section bg-gradient-to-b from-white to-slate-50">
@@ -330,24 +427,131 @@ function ProgressAndHabits() {
     </FadeInSection>
   );
 }
+function Pricing() {
+  // Preise & Features können später individuell angepasst werden.
+  const plans = [
+    {
+      name: "Starter",
+      price: "Preis folgt",
+      description: "Ideal für einzelne Studierende, die flexibel üben möchten.",
+      features: [
+        "Platzhalter-Feature 1",
+        "Platzhalter-Feature 2",
+        "Platzhalter-Feature 3",
+      ],
+    },
+    {
+      name: "Professional",
+      price: "Preis folgt",
+      description: "Für Intensivvorbereitung mit erweitertem Feedback.",
+      features: [
+        "Platzhalter-Feature A",
+        "Platzhalter-Feature B",
+        "Platzhalter-Feature C",
+      ],
+      highlight: true,
+    },
+    {
+      name: "Team",
+      price: "Preis folgt",
+      description: "Für Lerngruppen, Skills-Labs oder Fakultäten.",
+      features: [
+        "Platzhalter-Feature α",
+        "Platzhalter-Feature β",
+        "Platzhalter-Feature γ",
+      ],
+    },
+  ];
+
+  return (
+    <FadeInSection id="pricing" className="section bg-white">
+      <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="text-center max-w-3xl mx-auto">
+          <p className="text-sm font-medium text-sky-700">Pricing</p>
+          <h3 className="mt-2 text-3xl font-bold tracking-tight">Wähle den passenden Plan</h3>
+          <p className="mt-3 text-slate-600">
+            Preise, Laufzeiten und Leistungen kannst du später präzisieren – hier ist die Struktur bereit.
+          </p>
+        </div>
+        <div className="mt-10 grid gap-6 md:grid-cols-3">
+          {plans.map((plan) => {
+            const isHighlight = plan.highlight;
+            return (
+              <article
+                key={plan.name}
+                className={`relative rounded-3xl border p-8 transition-shadow ${
+                  isHighlight
+                    ? "border-slate-900 bg-slate-900 text-slate-50 shadow-2xl"
+                    : "border-slate-200 bg-white shadow-sm hover:shadow-md"
+                }`}
+              >
+                {isHighlight && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-sky-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
+                    Beliebt
+                  </span>
+                )}
+                <h4 className="text-xl font-semibold tracking-tight">{plan.name}</h4>
+                <p className={`mt-2 text-sm ${isHighlight ? "text-slate-200" : "text-slate-600"}`}>
+                  {plan.description}
+                </p>
+                <div className={`mt-6 text-3xl font-semibold ${isHighlight ? "text-white" : "text-slate-900"}`}>
+                  {plan.price}
+                </div>
+                <ul className={`mt-6 space-y-3 text-sm ${isHighlight ? "text-slate-200" : "text-slate-600"}`}>
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex items-center gap-3">
+                      <span
+                        className={`flex h-6 w-6 items-center justify-center rounded-full ${
+                          isHighlight ? "bg-sky-400/90" : "bg-sky-100"
+                        }`}
+                      >
+                        <span
+                          className={`h-2.5 w-2.5 rounded-full ${
+                            isHighlight ? "bg-slate-900" : "bg-sky-500"
+                          }`}
+                        />
+                      </span>
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/register"
+                  className={`mt-8 block w-full rounded-xl px-4 py-3 text-center text-sm font-semibold transition ${
+                    isHighlight
+                      ? "bg-white text-slate-900 hover:bg-slate-200"
+                      : "bg-sky-600 text-white hover:bg-sky-700"
+                  }`}
+                >
+                  Plan auswählen
+                </Link>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    </FadeInSection>
+  );
+}
+
 
 function Testimonials() {
   const t = [
     {
       name: "Emily R.",
-      role: "PA‑S",
+      role: "Medizinstudentin",
       quote:
         "Hat mir geholfen, unter Druck klar zu denken. Die Sprach‑Drills fühlten sich real an, und das Feedback war präzise.",
     },
     {
       name: "James M.",
-      role: "SRNA",
+      role: "Medizinstudent",
       quote:
         "Die Fälle wirkten realistisch, das Feedback war scharf, und ich konnte flexibel lernen.",
     },
     {
       name: "Sarah L.",
-      role: "MS‑3",
+      role: "Medizinstudentin",
       quote: "Nichts war so hilfreich. Schnell, realistisch und stärkt die Art, wie ich Fälle laut strukturiere.",
     },
   ];
@@ -376,12 +580,12 @@ function CTA() {
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="rounded-3xl bg-slate-900 text-slate-50 p-10 md:p-14 flex flex-col md:flex-row items-center justify-between gap-6">
           <div>
-            <h3 className="text-2xl sm:text-3xl font-semibold tracking-tight">Join the voice‑first revolution</h3>
-            <p className="mt-2 text-slate-300 max-w-xl">Starte heute mit einem kostenlosen Fall und mach deine Stimme zur Superpower fürs klinische Denken.</p>
+            <h3 className="text-2xl sm:text-3xl font-semibold tracking-tight">Join the case‑first revolution</h3>
+            <p className="mt-2 text-slate-300 max-w-xl">Starte heute mit kostenlosen Fällen - interaktive Fälle mit direkter Rückmeldung durch KI.</p>
           </div>
           <div className="flex items-center gap-3">
-            <a href="#start" className="px-5 py-3 rounded-xl bg-white text-slate-900 hover:bg-slate-200">Get started</a>
-            <a href="#demo" className="px-5 py-3 rounded-xl border border-slate-700 text-slate-50 hover:bg-slate-800">Try a free case</a>
+            <a href="#start" className="px-5 py-3 rounded-xl bg-white text-slate-900 hover:bg-slate-200">Starte hier</a>
+            <a href="#demo" className="px-5 py-3 rounded-xl border border-slate-700 text-slate-50 hover:bg-slate-800">Kostenlos tetsen</a>
           </div>
         </div>
       </div>

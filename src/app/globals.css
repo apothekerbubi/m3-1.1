@@ -82,6 +82,26 @@ body {
     @apply py-16 sm:py-20 lg:py-28;
   }
 }
+@layer utilities {
+  .marquee-track {
+    display: flex;
+    width: max-content;
+    animation: marquee 28s linear infinite;
+  }
+
+  .marquee-track:hover {
+    animation-play-state: paused;
+  }
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
 
 /* Hide global app chrome on landing page */
 body.landing-page #app-header,
