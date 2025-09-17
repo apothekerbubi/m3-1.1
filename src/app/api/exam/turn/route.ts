@@ -63,6 +63,8 @@ type BodyIn = {
   stepIndex?: number;
   stepsPrompts?: string[];
   stepRule?: RuleJson | null;
+  askedIndices?: number[];
+  askedPrompts?: string[];
 };
 
 /* ---------------------- Utils ---------------------- */
@@ -274,7 +276,23 @@ export async function POST(req: NextRequest) {
 
     // Schritt-Kontext
     const stepIndex = typeof body.stepIndex === "number" ? body.stepIndex : 0;
-    const stepsPrompts = Array.isArray(body.stepsPrompts) ? body.stepsPrompts : [];
+    const stepsPromptsRaw = Array.isArray(body.stepsPrompts) ? body.stepsPrompts : [];
+    const stepsPrompts = stepsPromptsRaw.map((v) => (typeof v === "string" ? v : ""));
+    const stepsLibrary = stepsPrompts.map((p) => p.trim()).filter(Boolean);
+    const askedIndices = Array.isArray(body.askedIndices)
+      ? body.askedIndices
+          .map((v) =>
+            typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : null
+          )
+          .filter((v): v is number => v !== null)
+      : [];
+    const askedPromptsRaw = Array.isArray(body.askedPrompts) ? body.askedPrompts : [];
+    const askedSummaries = askedIndices.map((idx, i) => {
+      const canonical = (stepsPrompts[idx] || "").trim();
+      const fallback = typeof askedPromptsRaw[i] === "string" ? askedPromptsRaw[i].trim() : "";
+      const text = canonical || fallback;
+      return text ? `${idx + 1}. ${text}` : `${idx + 1}. (unbenannt)`;
+    });
     const stepRule = body.stepRule ?? null;
 
     // Abgeleitete Prompts
@@ -574,6 +592,13 @@ KONTEXT-REGELN
 - Keine neuen Befunde erfinden.
 - Bewerte ausschließlich die AKTUELLE Frage (CURRENT_STEP_PROMPT).
 
+FLEXIBLE FRAGENFÜHRUNG
+- Du erhältst die Liste STEPS_LIBRARY mit allen potenziellen Prüfungsfragen.
+- Nutze sie adaptiv: Wähle die nächste Frage passend zu den Entscheidungen der/des Studierenden.
+- Setze "next_question" GENAU auf eine Formulierung aus STEPS_LIBRARY.
+- Wiederhole Fragen aus ASKED_STEPS nur, wenn die/der Studierende dies explizit wünscht.
+- Wenn keine weitere Frage nötig ist, setze next_question = null und (falls Fall beendet) end = true.
+
 KUMULATIVE WERTUNG (wichtig)
 - Entscheide die Korrektheit nach der **Gesamtheit** der bisher genannten Inhalte in diesem Schritt.
 - Du erhältst dazu strukturierte Felder:
@@ -630,6 +655,10 @@ AUSGABE NUR als JSON exakt:
 
 CURRENT_STEP_PROMPT: ${currentPrompt || "(unbekannt)"}
 NEXT_STEP_PROMPT: ${nextPrompt ?? "(keine – letzter Schritt)"}
+STEPS_LIBRARY (alle verfügbaren Fragen):
+${stepsLibrary.length ? stepsLibrary.map((p, idx) => `${idx + 1}. ${p}`).join("\n") : "(leer)"}
+ASKED_STEPS (bisher gestellt):
+${askedSummaries.length ? askedSummaries.join("\n") : "(keine)"}
 RULE_JSON (für CURRENT_STEP_PROMPT):
 ${JSON.stringify(stepRule ?? {}, null, 2)}
 
@@ -682,6 +711,31 @@ Erzeuge NUR das JSON-Objekt.`.trim();
     payload.next_question = stripMd((payload.next_question ?? "") as string) || null;
     payload.end = Boolean(payload.end);
 
+    if (payload.next_question) {
+      const norm = normalizeText(payload.next_question);
+      if (norm) {
+        const map = new Map<string, string>();
+        for (const candidate of stepsLibrary) {
+          const trimmed = candidate.trim();
+          if (!trimmed) continue;
+          map.set(normalizeText(trimmed), trimmed);
+        }
+        const canonical = map.get(norm);
+        if (canonical) {
+          payload.next_question = canonical;
+        } else {
+          for (const candidate of stepsLibrary) {
+            const cNorm = normalizeText(candidate.trim());
+            if (!cNorm) continue;
+            if (cNorm.includes(norm) || norm.includes(cNorm)) {
+              payload.next_question = candidate.trim();
+              break;
+            }
+          }
+        }
+      }
+    }
+
     // Spoiler-Schutz NUR für frühe Versuche und NICHT bei korrekter Antwort
     if (payload.evaluation && effectiveAttempt < 3 && payload.evaluation.correctness !== "correct") {
       payload.evaluation.feedback = sanitizeForEarlyAttempts(payload.evaluation.feedback || "");
@@ -699,13 +753,15 @@ Erzeuge NUR das JSON-Objekt.`.trim();
       payload.end = false;
     }
 
-    // Bei korrekt → zwingend zum nächsten Schritt
+    // Bei korrekt → zwingend (mindestens) zum nächsten Schritt oder modellvorgabe
     if (isCorrect) {
-      payload.next_question = nextPrompt ?? null;
-      payload.end = !nextPrompt;
+      if (!payload.next_question) {
+        payload.next_question = nextPrompt ?? null;
+      }
       if (!payload.say_to_student) {
         payload.say_to_student = "Gut, weiter geht’s.";
       }
+      payload.end = payload.next_question ? false : true;
     }
 
     // Beim dritten Versuch (oder Give-up) MUSS Lösung kommen, dann weiter (falls möglich)
@@ -715,8 +771,10 @@ Erzeuge NUR das JSON-Objekt.`.trim();
           ? `Lösung: ${payload.say_to_student}`
           : "Lösung: (Hier 1–2 Sätze zur Kernlösung + 1–3 kurze Begründungen/Merksätze.)";
       }
-      payload.next_question = nextPrompt ?? null;
-      payload.end = !nextPrompt;
+      if (!payload.next_question) {
+        payload.next_question = nextPrompt ?? null;
+      }
+      payload.end = payload.next_question ? false : true;
     }
 
     // 🔐 Persistenz (nicht blockierend)

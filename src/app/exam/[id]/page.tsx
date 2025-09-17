@@ -1,7 +1,7 @@
 // src/app/exam/[id]/page.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { CASES } from "@/data/cases";
@@ -166,10 +166,84 @@ export default function ExamPage() {
     [c]
   );
 
+  const normalizePrompt = useCallback(
+    (s: string) =>
+      s.toLowerCase().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "").trim(),
+    []
+  );
+
+  const promptIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    stepsOrdered.forEach((step, idx) => {
+      const norm = normalizePrompt(step.prompt ?? "");
+      if (norm) {
+        map.set(norm, idx);
+      }
+    });
+    return map;
+  }, [stepsOrdered, normalizePrompt]);
+
   const nSteps = stepsOrdered.length;
 
   const currentPrompt = stepsOrdered[activeIndex]?.prompt ?? "";
   const stepRule: unknown = stepsOrdered[activeIndex]?.rule ?? null;
+
+  const findStepIndexByPrompt = (prompt: string): number => {
+    const norm = normalizePrompt(prompt);
+    if (!norm) return -1;
+    const direct = promptIndexMap.get(norm);
+    if (typeof direct === "number") return direct;
+    for (const [key, idx] of promptIndexMap.entries()) {
+      if (key.includes(norm) || norm.includes(key)) {
+        return idx;
+      }
+    }
+    return -1;
+  };
+
+  function ensureStepVisible(idx: number, overrideText?: string) {
+    if (!stepsOrdered[idx]) return;
+    const canonical = stepsOrdered[idx]?.prompt ?? "";
+    const text = (overrideText ?? canonical).trim() || canonical;
+    setAsked((prev) => {
+      const existing = prev.find((a) => a.index === idx);
+      const status = existing?.status ?? "pending";
+      const filtered = prev.filter((a) => a.index !== idx);
+      const next: Asked[] = [...filtered, { index: idx, text, status }];
+      next.sort((a, b) => a.index - b.index);
+      return next;
+    });
+  }
+
+  function openStep(idx: number, overrideText?: string, opts?: { pushPrompt?: boolean }) {
+    if (!c) return false;
+    if (idx < 0 || idx >= stepsOrdered.length) return false;
+    const canonical = stepsOrdered[idx]?.prompt ?? "";
+    const text = (overrideText ?? canonical).trim() || canonical;
+    ensureStepVisible(idx, text);
+    if (opts?.pushPrompt !== false) {
+      pushProf(idx, text);
+    }
+    setActiveIndex(idx);
+    setViewIndex(idx);
+    setAttemptCount(0);
+    setLastCorrectness(null);
+    maybeRevealOnEnter(idx);
+    return true;
+  }
+
+  function handleNextQuestion(next: string): boolean {
+    const idx = findStepIndexByPrompt(next);
+    if (idx >= 0) {
+      openStep(idx, next);
+      return true;
+    }
+    const trimmed = next.trim();
+    if (trimmed) {
+      pushProf(activeIndex, trimmed);
+    }
+    return false;
+  }
 
   const stepPoints = useMemo<number>(() => {
     const p = stepsOrdered[activeIndex]?.points;
@@ -239,9 +313,6 @@ export default function ExamPage() {
       ? "🟨 Teilweise richtig"
       : "❌ Nicht korrekt";
   }
-  const normalize = (s: string) =>
-    s.toLowerCase().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "").trim();
-
   // 🔒 Immer anonyme Überschrift
   function anonymousTitle(caseObj: CaseWithRules | null): string {
     if (!caseObj) return "Prüfung";
@@ -276,7 +347,7 @@ export default function ExamPage() {
       const copy: Turn[][] = prev.map((x) => [...x]);
       const arr: Turn[] = (copy[step] ?? []) as Turn[];
       const lastProf = [...arr].reverse().find((x) => x.role === "prof");
-      if (!lastProf || normalize(lastProf.text) !== normalize(t)) {
+      if (!lastProf || normalizePrompt(lastProf.text) !== normalizePrompt(t)) {
         const next: Turn[] = [...arr, { role: "prof" as const, text: t }];
         copy[step] = next;
       }
@@ -467,7 +538,12 @@ async function callExamAPI(
       completion: c.completion ?? null,
 
       stepIndex: activeIndex,
-      stepsPrompts: [],
+      stepsPrompts: stepsOrdered.map((step) => step.prompt),
+      askedIndices: asked.map((a) => a.index),
+      askedPrompts: asked.map((a) => {
+        const canonical = stepsOrdered[a.index]?.prompt;
+        return typeof canonical === "string" ? canonical : a.text;
+      }),
       stepRule,
       focusQuestion: currentPrompt,
 
@@ -553,6 +629,14 @@ async function callExamAPI(
     if (!hadSolution && (!data.evaluation || !data.evaluation.feedback) && data.say_to_student) {
       pushProf(activeIndex, data.say_to_student);
     }
+
+    if (opts.mode === "answer" && typeof data.next_question === "string" && data.next_question.trim()) {
+      handleNextQuestion(data.next_question);
+    }
+
+    if (data.end) {
+      finishCase();
+    }
   } catch (e: unknown) {
     alert(e instanceof Error ? e.message : String(e));
   } finally {
@@ -602,6 +686,14 @@ async function callExamAPI(
       }
     }
   }
+  function finishCase() {
+    setEnded((prev) => {
+      if (!prev) {
+        void persistProgress({ completed: true });
+      }
+      return true;
+    });
+  }
   // -------------------------------------------------
 
  // *** Flow-Funktionen ***
@@ -626,8 +718,6 @@ async function startExam() {
   setPerStepScores(Array(n).fill(0));
   setLastCorrectness(null);
   setAttemptCount(0);
-  setActiveIndex(0);
-  setViewIndex(0);
   setEnded(false);
 
     // Chats vorbereiten
@@ -640,8 +730,11 @@ async function startExam() {
     setChats(initChats);
 
     // Erste Frage sichtbar + evtl. on_enter-Reveal
-    setAsked([{ index: 0, text: q0, status: "pending" }]);
-    maybeRevealOnEnter(0);
+    if (n > 0) {
+      openStep(0, q0, { pushPrompt: false });
+    } else {
+      finishCase();
+    }
   }
 
   function onSend() {
@@ -664,22 +757,12 @@ async function startExam() {
     void callExamAPI(current, { mode: "answer" });
   }
 
-  function goToStep(idx: number) {
-    if (!c) return;
-    // Nur bereits freigegebene Fragen wählbar
-    if (!asked.find((a) => a.index === idx)) return;
-
-    setViewIndex(idx);
-  }
-
   function nextStep() {
     if (!c) return;
 
     const last = activeIndex >= nSteps - 1;
     if (last) {
-      setEnded(true);
-      // beim Abschließen Fortschritt speichern (+ lokal)
-      void persistProgress({ completed: true });
+      finishCase();
       return;
     }
 
@@ -687,28 +770,7 @@ async function startExam() {
     const q = stepsOrdered[idx]?.prompt ?? "";
 
     // neue Frage freischalten (immer erlaubt)
-    setAsked((prev) => {
-      if (prev.find((a) => a.index === idx)) return prev; // schon freigeschaltet
-      return [...prev, { index: idx, text: q, status: "pending" }];
-    });
-
-    // neuen Chat ggf. anlegen
-    setChats((prev) => {
-      const copy = prev.map((x) => [...x]);
-      if (!copy[idx] || copy[idx].length === 0) {
-        copy[idx] = [{ role: "prof", text: q }];
-      }
-      return copy;
-    });
-
-    // Status/Steuerung
-    setActiveIndex(idx);
-    setViewIndex(idx);
-    setAttemptCount(0);
-    setLastCorrectness(null);
-
-    // on_enter-Reveal
-    maybeRevealOnEnter(idx);
+    openStep(idx, q);
   }
 
   async function requestTip() {
@@ -738,7 +800,6 @@ async function startExam() {
 
   const hasStarted = asked.length > 0;
   const isLastStep = activeIndex >= nSteps - 1;
-  const viewingPast = viewIndex !== activeIndex;
 
   // Bild des gerade betrachteten Schritts (für Chat-Panel)
   const stepImg = stepsOrdered[viewIndex]?.image;
