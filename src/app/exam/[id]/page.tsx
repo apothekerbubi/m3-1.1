@@ -334,9 +334,21 @@ export default function ExamPage() {
     id: id ?? createId(role),
   });
 
+  const sanitizeProfText = (raw: string | null | undefined): string | null => {
+    if (!raw) return null;
+    const replaced = raw.replace(/\u2026/g, "...").replace(/\r\n/g, "\n");
+    const trimmed = replaced.trim();
+    if (!trimmed) return null;
+    const flat = trimmed.replace(/[\s]+/g, " ");
+    if (/^[.·•\-–—_\s]+$/.test(flat)) return null;
+    if (/^\.{2,}$/.test(flat)) return null;
+    return trimmed;
+  };
+
   function pushProf(step: number, text?: string | null, opts?: { animate?: boolean }) {
-    if (!text || !text.trim()) return;
-    const t = text.trim();
+    const cleaned = sanitizeProfText(text);
+    if (!cleaned) return;
+    const t = cleaned;
     const shouldAnimate = opts?.animate ?? true;
     const id = createId("prof");
     const job: TypingJob = { step, text: t, id, speak: ttsEnabled };
@@ -640,11 +652,10 @@ async function callExamAPI(
 
     const data: ApiReply = (await res.json()) as ApiReply;
 
-    const hadSolution =
-      typeof data.say_to_student === "string" &&
-      /^lösung\s*:/i.test(data.say_to_student.trim());
+    const sayNormalized = sanitizeProfText(data.say_to_student);
+    const hadSolution = typeof sayNormalized === "string" && /^lösung\s*:/i.test(sayNormalized);
 
-    if (hadSolution) pushProf(activeIndex, data.say_to_student);
+    if (hadSolution) pushProf(activeIndex, sayNormalized);
 
     if (data.evaluation && opts.mode === "answer") {
       const { correctness, feedback, tips } = data.evaluation;
@@ -702,8 +713,12 @@ async function callExamAPI(
     }
 
     // Zusätzliche Prüfer-Nachrichten (Tip/Explain)
-    if (!hadSolution && (!data.evaluation || !data.evaluation.feedback) && data.say_to_student) {
-      pushProf(activeIndex, data.say_to_student);
+    if (!hadSolution && (!data.evaluation || !data.evaluation.feedback)) {
+      const theoretical = describeRule(stepRule as StepRule | null, c.title, currentPrompt);
+      const fallback = theoretical
+        ? `Hinweis: ${theoretical}`
+        : "Ich konnte gerade keinen sinnvollen Hinweis generieren. Versuche es bitte gleich noch einmal.";
+      pushProf(activeIndex, sayNormalized ?? fallback);
     }
   } catch (e: unknown) {
     alert(e instanceof Error ? e.message : String(e));
