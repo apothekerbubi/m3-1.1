@@ -12,6 +12,7 @@ import {
   ShoppingBagIcon,
   BookOpenIcon,
   ClipboardDocumentListIcon,
+  ChatBubbleLeftRightIcon,
   ChevronDownIcon, // Icon fürs Auf-/Zuklappen
 } from "@heroicons/react/24/outline";
 
@@ -26,6 +27,7 @@ const NAV: Item[] = [
   { href: "/overview", label: "Übersicht", icon: HomeIcon },
   { href: "/subjects", label: "Bibliothek", icon: BookOpenIcon },
   { href: "/cases", label: "Leitsymptome", icon: ClipboardDocumentListIcon },
+  { href: "/pruefung", label: "Prüfungsmodus", icon: ChatBubbleLeftRightIcon },
   { href: "/simulate", label: "Examenssimulation", icon: AcademicCapIcon },
   { href: "/account", label: "Account", icon: UserCircleIcon },
   {
