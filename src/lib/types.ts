@@ -103,11 +103,13 @@ export type Step = {
 
 // ---------- Interaktiver Prüfungsmodus ----------
 export type ExamModeAction = {
-  keywords: string[];         // welche Eingaben diese Aktion triggern
-  response: string;           // Tutor-Antwort
+  question: string;           // Tutor-Frage, die beantwortet werden soll
+  expected: string[];         // erwartete Nennungen in der Antwort
+  minHits?: number;           // wie viele erwartete Punkte mindestens vorkommen sollen
+  response: string;           // Tutor-Antwort (inkl. Musterlösung / typischer Befund)
   image?: StepImage;          // optionales Bild zum Schritt
   unlocks?: string[];         // weitere Aktionen, die danach verfügbar werden
-  repeatResponse?: string;    // optionale Antwort, wenn erneut angefragt
+  hint?: string;              // optionaler Hinweis bei fehlenden Angaben
 };
 
 export type ExamModeCase = {
@@ -120,7 +122,7 @@ export type ExamModeCase = {
   completionMessage?: string;
   lockedMessage?: string;
   unknownMessage?: string;
-  repeatMessage?: string;
+  needsMoreMessage?: string;
 };
 
 export type LearningObjective = {

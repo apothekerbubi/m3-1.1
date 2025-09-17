@@ -250,85 +250,183 @@ export const aszites_001_exam: ExamModeCase = {
   completionActions: ["sekundaerprophylaxe"],
   completionMessage:
     "Sehr gut, Sie haben den kompletten Fall von der Erstvorstellung bis zur Sekundärprophylaxe begleitet.",
-  lockedMessage: "Diese Maßnahme steht aktuell nicht zur Verfügung.",
-  unknownMessage: "Ich habe Sie nicht verstanden. Bitte benennen Sie die gewünschte Maßnahme präziser.",
-  repeatMessage: "Dieser Schritt wurde bereits durchgeführt.",
+  unknownMessage: "Ich habe Sie nicht verstanden. Bitte antworten Sie auf die aktuelle Frage.",
+  needsMoreMessage: "Nennen Sie bitte weitere Aspekte.",
   actions: {
     anamnese: {
-      keywords: ["anamnese", "fragen", "vorerkrank", "alkohol", "medikament"],
+      question: "Welche anamnestischen Fragen stellen Sie?",
+      expected: [
+        "Alkoholkonsum",
+        "Risikofaktoren",
+        "Vorerkrankungen",
+        "(Vor-) Operationen",
+        "Medikamente",
+        "B-Symptomatik",
+      ],
+      minHits: 2,
       response:
-        "Sie erheben die Anamnese: Alkoholkonsum, Risikofaktoren, Vorerkrankungen, Operationen, Medikamente, B-Symptomatik.",
-      unlocks: ["koerperliche_untersuchung", "labor", "sonografie"],
+        "Typischerweise erfragen Sie Alkoholkonsum, Risikofaktoren für Lebererkrankungen, relevante Vorerkrankungen inklusive Voroperationen, Dauermedikation und B-Symptomatik (Gewichtsverlust, Nachtschweiß, Fieber).",
+      hint: "Denken Sie an Lebererkrankungen, Blutungszeichen und Risikofaktoren.",
+      unlocks: ["koerperliche_untersuchung"],
     },
     koerperliche_untersuchung: {
-      keywords: ["körperlich", "untersuchung", "bauch", "status"],
+      question: "Sie untersuchen den Patienten. Welche Befunde erwarten Sie?",
+      expected: [
+        "Bauchumfang vergrößert",
+        "prall gefüllter Bauch",
+        "Aszites",
+        "Ödeme",
+        "Splenomegalie",
+        "Ikterus",
+      ],
+      minHits: 2,
       response:
-        "Körperlicher Status: vergrößerter Bauchumfang, prall gefüllter Bauch, Aszites nachweisbar (Flüssigkeitswelle, shifting dullness), periphere Ödeme, mögliche Splenomegalie und Ikterus.",
-      unlocks: ["sonografie", "labor"],
+        "Der klinische Status zeigt meist einen vergrößerten, prall gespannten Bauch mit nachweisbarem Aszites (Flüssigkeitswelle, shifting dullness), periphere Ödeme sowie Zeichen der portalen Hypertension wie Splenomegalie und Ikterus.",
+      hint: "Nennen Sie typische Zeichen eines ausgeprägten Aszites.",
+      unlocks: ["initialdiagnostik"],
     },
-    sonografie: {
-      keywords: ["sono", "ultraschall", "bild", "abdomen"],
-      response: "Sonografie des Abdomens: echoleere Flüssigkeit um die Leber, freie Flüssigkeit im Abdomen.",
+    initialdiagnostik: {
+      question: "Welche initiale Diagnostik veranlassen Sie?",
+      expected: [
+        "Sonografie des Abdomens",
+        "Labor",
+        "Gerinnung",
+        "Aszitespunktion",
+      ],
+      minHits: 2,
+      response:
+        "Sie veranlassen eine Abdomensonografie, umfassende Laboranalysen inklusive Leber- und Gerinnungswerte sowie eine diagnostische Aszitespunktion zur weiteren Einordnung.",
+      hint: "Bildgebung, Labor und Punktion helfen bei der Ursachenklärung.",
+      unlocks: ["sonografie_befund"],
+    },
+    sonografie_befund: {
+      question: "Die Sonografie liegt vor. Wie beschreiben Sie den Befund?",
+      expected: ["Aszites", "freie Flüssigkeit", "echoleer", "Leberzirrhose"],
+      minHits: 2,
+      response:
+        "Die Sonografie zeigt eine echoleere Flüssigkeitsansammlung um die Leber mit freiem Aszites im Abdomen – typisch bei portaler Hypertension infolge einer Leberzirrhose.",
       image: {
         path: "Ultraschall/Aszites.JPG",
         alt: "Sonografie mit freier Flüssigkeit im Abdomen",
         caption: "Sonografie des Abdomens",
       },
-      unlocks: ["aszitespunktion"],
+      hint: "Beschreiben Sie Lage und Charakter der Flüssigkeit.",
+      unlocks: ["aszitespunktion_parameter"],
     },
-    labor: {
-      keywords: ["labor", "werte", "blutbild", "transaminasen", "inr", "albumin"],
-      response: "Labor: Transaminasen erhöht, Albumin erniedrigt, INR verlängert.",
+    aszitespunktion_parameter: {
+      question: "Welche Parameter lassen Sie aus dem Aszitespunktat untersuchen?",
+      expected: ["Zellzahl", "Eiweiß", "Mikrobiologie", "Albumin", "SAAG"],
+      minHits: 2,
+      response:
+        "Aus dem Punktat bestimmen Sie Zellzahl und Differenzierung, den Eiweißgehalt (z. B. SAAG) sowie mikrobiologische Untersuchungen zum Ausschluss einer spontanen bakteriellen Peritonitis.",
+      hint: "Denken Sie an Entzündungs- und Eiweißparameter.",
+      unlocks: ["labor_befund"],
+    },
+    labor_befund: {
+      question: "Das Laborergebnis des Blutes ist da. Welche Auffälligkeiten erkennen Sie?",
+      expected: [
+        "Transaminasen",
+        "Hypoalbuminämie",
+        "INR",
+        "Gerinnung",
+        "Leberwerte",
+        "Cholestasewerte",
+      ],
+      minHits: 3,
+      response:
+        "Typisch finden sich erhöhte Transaminasen und Cholestaseparameter, eine Hypoalbuminämie sowie eine verlängerte INR als Zeichen einer eingeschränkten Lebersyntheseleistung bei Zirrhose.",
       image: {
         path: "Labor/Leberzirrhose.png",
-        alt: "Laborbefund",
+        alt: "Laborbefund mit eingeschränkter Lebersynthese",
         caption: "Laborbefund mit eingeschränkter Leberfunktion",
       },
-      unlocks: ["differenzialdiagnose"],
+      hint: "Achten Sie auf Synthese- und Cholestaseparameter.",
+      unlocks: ["ursachen_portale_hypertension"],
     },
-    aszitespunktion: {
-      keywords: ["punktion", "aszites", "flüssigkeit", "punktat"],
-      response: "Aszitespunktion: Analyse von Eiweißgehalt, Zellzahl und Mikrobiologie (transsudativ).",
-      unlocks: ["differenzialdiagnose"],
-    },
-    differenzialdiagnose: {
-      keywords: ["diagnose", "differenzial", "dd"],
+    ursachen_portale_hypertension: {
+      question: "Welche typischen Ursachen einer portalen Hypertension kennen Sie?",
+      expected: [
+        "Leberzirrhose",
+        "Pfortaderthrombose",
+        "Schistosomiasis",
+        "Budd-Chiari-Syndrom",
+        "Rechtsherzinsuffizienz",
+        "Pericarditis constrictiva",
+        "Sinusoidales Okklusionssyndrom",
+      ],
+      minHits: 3,
       response:
-        "Differenzialdiagnosen der portalen Hypertension: Leberzirrhose, Pfortaderthrombose, Schistosomiasis, Budd-Chiari-Syndrom, Rechtsherzinsuffizienz, Pericarditis constrictiva.",
-      unlocks: ["notfall_varizenblutung"],
+        "Die häufigste Ursache ist die intrahepatische Leberzirrhose. Prähepatisch kommen etwa Pfortaderthrombosen oder Schistosomiasis in Betracht, posthepatisch Budd-Chiari-Syndrom oder eine schwere Rechtsherzinsuffizienz bis hin zur Pericarditis constrictiva.",
+      hint: "Denken Sie an prä-, intra- und posthepatische Ursachen.",
+      unlocks: ["varizenblutung_symptome"],
     },
-    notfall_varizenblutung: {
-      keywords: ["notfall", "blutet", "blutung", "varizen"],
+    varizenblutung_symptome: {
+      question: "Der Patient verschlechtert sich akut. Welche Symptome sprechen für eine Varizenblutung?",
+      expected: [
+        "Hämatemesis",
+        "Schockzeichen",
+        "Schwindel",
+        "Synkope",
+        "frisches Blut",
+      ],
+      minHits: 2,
       response:
-        "Der Patient wird plötzlich blass, klagt über Schwindel und erbricht frisches Blut (Hämatemesis, Schockzeichen).",
+        "Eine akute Ösophagusvarizenblutung zeigt sich durch Hämatemesis mit frischblutigem Erbrechen, Kreislaufinstabilität bis hin zum Schock sowie begleitenden Schwindel oder Synkopen.",
+      hint: "Achten Sie auf hämodynamische Zeichen und das Erbrochene.",
       unlocks: ["notfall_massnahmen"],
     },
     notfall_massnahmen: {
-      keywords: ["maßnahmen", "stabilisierung", "schock", "kreislauf"],
+      question: "Welche Maßnahmen zur Kreislaufstabilisierung leiten Sie sofort ein?",
+      expected: [
+        "Schocklage",
+        "Volumentherapie",
+        "Sauerstoff",
+        "großlumige Zugänge",
+        "Magensonde",
+        "Absaugen",
+        "Schutzintubation",
+        "Bluttransfusion",
+      ],
+      minHits: 2,
       response:
-        "Akutmaßnahmen: Schocklage, großlumige Zugänge, Volumentherapie, Sauerstoffgabe, Absaugen/Magensonde, ggf. Schutzintubation, Vorbereitung der Bluttransfusion.",
-      unlocks: ["endoskopie"],
+        "Sie legen großlumige Zugänge, beginnen eine Volumen- und ggf. Bluttransfusion, geben Sauerstoff, sichern mit Magensonde und Absaugen die Atemwege und erwägen eine Schutzintubation – begleitet von Schocklagerung.",
+      hint: "Denken Sie an Kreislaufstützung, Atemwegssicherung und Blutprodukte.",
+      unlocks: ["endoskopie_verfahren"],
     },
-    endoskopie: {
-      keywords: ["endoskopie", "ligatur", "varizen", "gummiband"],
-      response: "Endoskopische Therapie: Ösophagusvarizenligatur (Gummibandligatur).",
+    endoskopie_verfahren: {
+      question: "Welches Verfahren wird endoskopisch zur akuten Blutstillung eingesetzt?",
+      expected: ["Ösophagusvarizenligatur", "Gummibandligatur", "Ligatur"],
+      minHits: 1,
+      response: "Endoskopisch erfolgt eine Gummibandligatur der Ösophagusvarizen zur akuten Blutstillung.",
       image: {
         path: "Endoskopie/Oesophagusvarizenligatur.png",
         alt: "Endoskopische Ligatur von Ösophagusvarizen",
         caption: "Endoskopische Ligatur",
       },
-      unlocks: ["blutstillung_medikament"],
+      unlocks: ["blutstillung_optionen"],
     },
-    blutstillung_medikament: {
-      keywords: ["medikament", "blutstillung", "therapie", "terlipressin", "octreotid"],
+    blutstillung_optionen: {
+      question: "Welche weiteren spezifischen Therapien zur Blutstillung setzen Sie ein?",
+      expected: ["Terlipressin", "Somatostatin", "Octreotid", "Sklerotherapie", "Ballontamponade", "Stent", "TIPS"],
+      minHits: 1,
       response:
-        "Medikamentöse Unterstützung: Terlipressin oder Somatostatin/Octreotid. Alternativen: Sklerotherapie, Ballontamponade, Ösophagus-Stent, TIPS.",
+        "Zusätzlich geben Sie vasoaktive Substanzen wie Terlipressin oder Somatostatin/Octreotid. Falls nötig folgen Sklerotherapie, Ballontamponade (Sengstaken-Blakemore), Ösophagus-Stent oder als definitive Maßnahme ein TIPS.",
+      hint: "Nennen Sie Pharmakotherapie und invasive Alternativen.",
       unlocks: ["sekundaerprophylaxe"],
     },
     sekundaerprophylaxe: {
-      keywords: ["sekundär", "prophylaxe", "betablocker", "rezidiv"],
+      question: "Welche Maßnahmen ergreifen Sie zur Sekundärprophylaxe?",
+      expected: [
+        "Nicht-selektive Betablocker",
+        "endoskopische Ligatur",
+        "TIPS",
+        "Alkoholkarenz",
+        "Therapie der Grunderkrankung",
+      ],
+      minHits: 2,
       response:
-        "Sekundärprophylaxe: nicht-selektive Betablocker, regelmäßige endoskopische Ligaturen, TIPS bei Rezidiv, Alkoholkarenz, Behandlung der Grunderkrankung.",
+        "Zur Sekundärprophylaxe gehören nicht-selektive Betablocker (z. B. Propranolol), regelmäßige endoskopische Ligaturen, bei Rezidiven ein TIPS sowie konsequente Alkoholkarenz und Behandlung der Leberzirrhose.",
+      hint: "Kombinieren Sie medikamentöse, endoskopische und ursächliche Ansätze.",
     },
   },
 };

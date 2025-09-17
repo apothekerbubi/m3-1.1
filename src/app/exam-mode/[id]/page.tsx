@@ -6,12 +6,7 @@ import Link from "next/link";
 import CaseImagePublic from "@/components/CaseImagePublic";
 import { getExamModeCase } from "@/data/exam-mode";
 import type { ExamModeCase } from "@/lib/types";
-import {
-  createInitialExamModeState,
-  evaluateExamModeInput,
-  type ExamModeEvaluation,
-  type ExamModeState,
-} from "@/lib/exam-mode";
+import { createInitialExamModeState, evaluateExamModeInput, type ExamModeState } from "@/lib/exam-mode";
 
 type Message = {
   role: "tutor" | "student";
@@ -48,21 +43,13 @@ function MessageBubble({ message }: { message: Message }) {
   );
 }
 
-function defaultText(kind: ExamModeEvaluation["kind"], caseData: ExamModeCase, actionKey?: string): string {
-  switch (kind) {
-    case "locked":
-      return caseData.lockedMessage || "Diese Maßnahme ist im Moment nicht verfügbar.";
-    case "unknown":
-      return caseData.unknownMessage || "Ich habe Sie nicht verstanden. Bitte formulieren Sie Ihre Maßnahme genauer.";
-    case "repeat":
-      if (actionKey) {
-        const action = caseData.actions[actionKey];
-        if (action?.repeatResponse) return action.repeatResponse;
-      }
-      return caseData.repeatMessage || "Dieser Schritt wurde bereits durchgeführt.";
-    default:
-      return "";
-  }
+function formatList(items: string[]): string {
+  if (items.length === 0) return "";
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} und ${items[1]}`;
+  const [last, ...restReversed] = items.slice().reverse();
+  const rest = restReversed.reverse();
+  return `${rest.join(", ")} und ${last}`;
 }
 
 export default function ExamModePage() {
@@ -75,16 +62,24 @@ export default function ExamModePage() {
   const [state, setState] = useState<ExamModeState | null>(() =>
     caseData ? createInitialExamModeState(caseData) : null
   );
-  const [messages, setMessages] = useState<Message[]>(() =>
-    caseData
-      ? [
-          {
-            role: "tutor",
-            text: `${caseData.vignette} Wie gehen Sie vor?`,
-          },
-        ]
-      : []
-  );
+  const [messages, setMessages] = useState<Message[]>(() => {
+    if (!caseData) return [];
+    const initialState = createInitialExamModeState(caseData);
+    const initialMessages: Message[] = [
+      {
+        role: "tutor",
+        text: caseData.vignette,
+      },
+    ];
+    const firstKey = initialState.activeAction;
+    if (firstKey) {
+      const firstAction = caseData.actions[firstKey];
+      if (firstAction) {
+        initialMessages.push({ role: "tutor", text: firstAction.question });
+      }
+    }
+    return initialMessages;
+  });
   const [input, setInput] = useState("");
 
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -95,13 +90,21 @@ export default function ExamModePage() {
       setMessages([]);
       return;
     }
-    setState(createInitialExamModeState(caseData));
-    setMessages([
+    const initialState = createInitialExamModeState(caseData);
+    setState(initialState);
+    const nextMessages: Message[] = [
       {
         role: "tutor",
-        text: `${caseData.vignette} Wie gehen Sie vor?`,
+        text: caseData.vignette,
       },
-    ]);
+    ];
+    if (initialState.activeAction) {
+      const firstAction = caseData.actions[initialState.activeAction];
+      if (firstAction) {
+        nextMessages.push({ role: "tutor", text: firstAction.question });
+      }
+    }
+    setMessages(nextMessages);
     setInput("");
   }, [caseData]);
 
@@ -118,6 +121,7 @@ export default function ExamModePage() {
     const trimmed = input.trim();
     if (!trimmed) return;
 
+    const previousState = state;
     const { evaluation, nextState } = evaluateExamModeInput(caseData, state, trimmed);
     setState(nextState);
     setInput("");
@@ -126,33 +130,66 @@ export default function ExamModePage() {
       const base: Message[] = [...prev, { role: "student", text: trimmed }];
 
       if (evaluation.kind === "success") {
+        const hitsText = evaluation.hits.length
+          ? `Gute Punkte: ${formatList(evaluation.hits)}.`
+          : "Danke für Ihre Antwort.";
+        const tutorText = `${hitsText} ${evaluation.action.response}`.trim();
+
         const followUps: Message[] = [
           {
             role: "tutor",
-            text: evaluation.action.response,
+            text: tutorText,
             image: evaluation.action.image,
           },
         ];
+
         if (evaluation.finished && caseData.completionMessage) {
           followUps.push({ role: "tutor", text: caseData.completionMessage });
+        } else if (!evaluation.finished && nextState.activeAction && nextState.activeAction !== previousState?.activeAction) {
+          const nextAction = caseData.actions[nextState.activeAction];
+          if (nextAction) {
+            followUps.push({ role: "tutor", text: nextAction.question });
+          }
         }
+
         return [...base, ...followUps];
       }
 
-      const text = defaultText(evaluation.kind, caseData, "actionKey" in evaluation ? evaluation.actionKey : undefined);
-      return [...base, { role: "tutor", text }];
+      if (evaluation.kind === "needs_more") {
+        const hitsText = evaluation.hits.length
+          ? `Sie nannten bereits: ${formatList(evaluation.hits)}. `
+          : "";
+        const baseText = caseData.needsMoreMessage || "Bitte ergänzen Sie Ihre Antwort.";
+        const hintText = evaluation.action.hint ? ` Hinweis: ${evaluation.action.hint}.` : "";
+        const reminder = ` ${evaluation.action.question}`;
+
+        const tutorText = `${hitsText}${baseText}${hintText}${reminder}`.trim();
+
+        return [...base, { role: "tutor", text: tutorText }];
+      }
+
+      const fallback = caseData.unknownMessage || "Ich habe Sie nicht verstanden. Bitte antworten Sie auf die aktuelle Frage.";
+      return [...base, { role: "tutor", text: fallback }];
     });
   }
 
   function handleReset() {
     if (!caseData) return;
-    setState(createInitialExamModeState(caseData));
-    setMessages([
+    const initialState = createInitialExamModeState(caseData);
+    setState(initialState);
+    const resetMessages: Message[] = [
       {
         role: "tutor",
-        text: `${caseData.vignette} Wie gehen Sie vor?`,
+        text: caseData.vignette,
       },
-    ]);
+    ];
+    if (initialState.activeAction) {
+      const firstAction = caseData.actions[initialState.activeAction];
+      if (firstAction) {
+        resetMessages.push({ role: "tutor", text: firstAction.question });
+      }
+    }
+    setMessages(resetMessages);
     setInput("");
   }
 
