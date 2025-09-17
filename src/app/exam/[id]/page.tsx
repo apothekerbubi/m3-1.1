@@ -138,6 +138,7 @@ export default function ExamPage() {
 
   // Chats pro Schritt
   const [chats, setChats] = useState<Turn[][]>([]);
+  const [customQuestions, setCustomQuestions] = useState<Record<number, string>>({});
   const listRef = useRef<HTMLDivElement | null>(null);
 
   // 🔽 Sidebar: Container + letztes Item für Auto-Scroll
@@ -164,6 +165,11 @@ export default function ExamPage() {
   const stepsOrdered = useMemo<Step[]>(
     () => (c ? [...c.steps].sort((a, b) => a.order - b.order) : []),
     [c]
+  );
+
+  const stepsPrompts = useMemo<string[]>(
+    () => stepsOrdered.map((step) => step?.prompt ?? ""),
+    [stepsOrdered]
   );
 
   const nSteps = stepsOrdered.length;
@@ -467,7 +473,7 @@ async function callExamAPI(
       completion: c.completion ?? null,
 
       stepIndex: activeIndex,
-      stepsPrompts: [],
+      stepsPrompts,
       stepRule,
       focusQuestion: currentPrompt,
 
@@ -553,6 +559,14 @@ async function callExamAPI(
     if (!hadSolution && (!data.evaluation || !data.evaluation.feedback) && data.say_to_student) {
       pushProf(activeIndex, data.say_to_student);
     }
+
+    const nextQuestion = data.next_question?.trim();
+    if (nextQuestion) {
+      const idx = activeIndex + 1;
+      if (idx < nSteps) {
+        setCustomQuestions((prev) => ({ ...prev, [idx]: nextQuestion }));
+      }
+    }
   } catch (e: unknown) {
     alert(e instanceof Error ? e.message : String(e));
   } finally {
@@ -604,43 +618,104 @@ async function callExamAPI(
   }
   // -------------------------------------------------
 
- // *** Flow-Funktionen ***
-async function startExam() {
-  if (!c) return;
+  // *** Flow-Funktionen ***
+  async function fetchKickoff(): Promise<{ intro: string | null; question: string | null }> {
+    if (!c) return { intro: null, question: null };
 
-  // 🔹 Zähler in Supabase hochziehen
-  try {
-    await fetch("/api/progress/start", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ caseId: c.id }),
-    });
-  } catch {
-    console.warn("Start-Tracking fehlgeschlagen");
+    try {
+      const res = await fetch("/api/exam/turn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          caseId: c.id,
+          caseText: c.vignette,
+          transcript: [],
+          outline: [],
+          style,
+          objectives: c.objectives ?? [],
+          completion: c.completion ?? null,
+          stepIndex: 0,
+          stepsPrompts,
+          stepRule: stepsOrdered[0]?.rule ?? null,
+          focusQuestion: stepsPrompts[0] ?? "",
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const data: ApiReply = (await res.json()) as ApiReply;
+      return {
+        intro: data.say_to_student ?? null,
+        question: data.next_question ?? null,
+      };
+    } catch (err) {
+      console.warn("Kickoff fehlgeschlagen", err);
+      return { intro: null, question: null };
+    }
   }
 
-  const n = stepsOrdered.length;
+  async function startExam() {
+    if (!c) return;
 
-  // Reset
-  setAsked([]);
-  setPerStepScores(Array(n).fill(0));
-  setLastCorrectness(null);
-  setAttemptCount(0);
-  setActiveIndex(0);
-  setViewIndex(0);
-  setEnded(false);
+    // 🔹 Zähler in Supabase hochziehen
+    try {
+      await fetch("/api/progress/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caseId: c.id }),
+      });
+    } catch {
+      console.warn("Start-Tracking fehlgeschlagen");
+    }
 
-    // Chats vorbereiten
+    const n = stepsOrdered.length;
+
+    // Reset
+    setAsked([]);
+    setPerStepScores(Array(n).fill(0));
+    setLastCorrectness(null);
+    setAttemptCount(0);
+    setActiveIndex(0);
+    setViewIndex(0);
+    setEnded(false);
+
     const initChats: Turn[][] = Array.from({ length: n }, () => []);
-    const q0 = stepsOrdered[0]?.prompt ?? "";
-    initChats[0] = [
-      { role: "prof", text: `Vignette: ${c.vignette}` },
-      { role: "prof", text: q0 },
-    ];
     setChats(initChats);
 
-    // Erste Frage sichtbar + evtl. on_enter-Reveal
-    setAsked([{ index: 0, text: q0, status: "pending" }]);
+    const firstPrompt = stepsPrompts[0] ?? "";
+
+    let kickoff = { intro: null as string | null, question: null as string | null };
+    setLoading(true);
+    try {
+      kickoff = await fetchKickoff();
+    } finally {
+      setLoading(false);
+    }
+
+    const introText = kickoff.intro?.trim() || `Vignette: ${c.vignette}`;
+    const questionText = kickoff.question?.trim() || firstPrompt;
+
+    setCustomQuestions({ 0: questionText || firstPrompt });
+
+    setChats((prev) => {
+      const copy = prev.map((arr) => [...arr]);
+      copy[0] = [];
+      if (introText) {
+        copy[0].push({ role: "prof", text: introText });
+      }
+      if (questionText) {
+        copy[0].push({ role: "prof", text: questionText });
+      }
+      return copy;
+    });
+
+    const firstAskedText = questionText || firstPrompt;
+    if (firstAskedText) {
+      setAsked([{ index: 0, text: firstAskedText, status: "pending" }]);
+    }
+
     maybeRevealOnEnter(0);
   }
 
@@ -684,7 +759,7 @@ async function startExam() {
     }
 
     const idx = activeIndex + 1;
-    const q = stepsOrdered[idx]?.prompt ?? "";
+    const q = customQuestions[idx]?.trim() || stepsPrompts[idx] || "";
 
     // neue Frage freischalten (immer erlaubt)
     setAsked((prev) => {
