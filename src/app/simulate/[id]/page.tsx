@@ -94,6 +94,10 @@ export default function ExamPage() {
   );
 
   const nSteps = stepsOrdered.length;
+  const stepPrompts = useMemo<string[]>(
+    () => stepsOrdered.map((s) => (typeof s.prompt === "string" ? s.prompt : "")),
+    [stepsOrdered]
+  );
   const currentPrompt = stepsOrdered[activeIndex]?.prompt ?? "";
   const stepRule: unknown = stepsOrdered[activeIndex]?.rule ?? null;
 
@@ -249,11 +253,45 @@ export default function ExamPage() {
     }
   }
 
+  function openStep(idx: number) {
+    if (!c) return;
+    if (idx < 0 || idx >= stepsOrdered.length) return;
+    const promptText = stepPrompts[idx] ?? stepsOrdered[idx]?.prompt ?? "";
+    if (!promptText.trim()) return;
+
+    setAsked((prev) => {
+      if (prev.find((a) => a.index === idx)) return prev;
+      return [...prev, { index: idx, text: promptText, status: "pending" }];
+    });
+
+    setChats((prev) => {
+      const next: Turn[][] = Array.from({ length: stepsOrdered.length }, (_, i) => [...((prev[i] ?? []) as Turn[])]);
+      const arr: Turn[] = next[idx] ?? [];
+      const hasPrompt = arr.some((turn) => turn.role === "prof" && normalize(turn.text) === normalize(promptText));
+      if (!hasPrompt) {
+        next[idx] = [...arr, { role: "prof", text: promptText }];
+      }
+      return next;
+    });
+
+    setActiveIndex(idx);
+    setViewIndex(idx);
+    setAttemptCount(0);
+    setLastCorrectness(null);
+    maybeRevealOnEnter(idx);
+  }
+
   // *** API ***
   async function callExamAPI(current: Turn[], opts: { mode: "answer" | "tip" | "explain" }) {
     if (!c) return;
     setLoading(true);
     try {
+      const stepsStateForApi = asked.map((a) => ({
+        index: a.index,
+        status: a.status,
+        prompt: stepsOrdered[a.index]?.prompt ?? a.text,
+      }));
+
       const payload: Record<string, unknown> = {
         caseId: c.id,
         points: totalPoints,
@@ -268,7 +306,8 @@ export default function ExamPage() {
         objectives: c.objectives ?? [],
         completion: c.completion ?? null,
         stepIndex: activeIndex,
-        stepsPrompts: [],
+        stepsPrompts: stepPrompts,
+        stepsState: stepsStateForApi,
         stepRule,
         focusQuestion: currentPrompt,
       };
@@ -341,6 +380,21 @@ export default function ExamPage() {
       if (!hadSolution && (!data.evaluation || !data.evaluation.feedback) && data.say_to_student) {
         pushProf(activeIndex, data.say_to_student);
       }
+
+      if (opts.mode === "answer" && data.next_question) {
+        const target = data.next_question.trim();
+        const idx = stepsOrdered.findIndex((step) => normalize(step.prompt) === normalize(target));
+        if (idx >= 0) {
+          openStep(idx);
+        } else if (!hadSolution) {
+          pushProf(activeIndex, data.next_question);
+        }
+      }
+
+      if (opts.mode === "answer" && data.end) {
+        setEnded(true);
+        void persistProgress({ completed: true });
+      }
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : String(e));
     } finally {
@@ -405,18 +459,15 @@ export default function ExamPage() {
     void callExamAPI(current, { mode: "answer" });
   }
 
-  function goToStep(idx: number) {
-    if (!c) return;
-    if (!asked.find((a) => a.index === idx)) return;
-    setViewIndex(idx);
-  }
-
   function nextStep() {
     if (!c) return;
 
-    const last = activeIndex >= nSteps - 1;
-    if (last) {
-      // 🔁 Serie aktiv? -> direkt zum nächsten Fall springen
+    const askedSet = new Set(asked.map((a) => a.index));
+    const remaining = stepsOrdered
+      .map((_, idx) => idx)
+      .filter((idx) => !askedSet.has(idx));
+
+    if (remaining.length === 0) {
       if (seriesTotal > 0 && seriesIdx < seriesTotal - 1) {
         void persistProgress({ completed: true });
         const nextIdx = seriesIdx + 1;
@@ -425,33 +476,14 @@ export default function ExamPage() {
         return;
       }
 
-      // sonst „normal“ abschließen (und per Effekt zurück)
       setEnded(true);
       void persistProgress({ completed: true });
       return;
     }
 
-    const idx = activeIndex + 1;
-    const q = stepsOrdered[idx]?.prompt ?? "";
-
-    setAsked((prev) => {
-      if (prev.find((a) => a.index === idx)) return prev;
-      return [...prev, { index: idx, text: q, status: "pending" }];
-    });
-
-    setChats((prev) => {
-      const copy: Turn[][] = prev.map((x): Turn[] => [...x]);
-      if (!copy[idx] || copy[idx].length === 0) {
-        copy[idx] = [{ role: "prof" as const, text: q }];
-      }
-      return copy;
-    });
-
-    setActiveIndex(idx);
-    setViewIndex(idx);
-    setAttemptCount(0);
-    setLastCorrectness(null);
-    maybeRevealOnEnter(idx);
+    const sequential = stepsOrdered.findIndex((_, idx) => idx > activeIndex && !askedSet.has(idx));
+    const nextIdx = sequential !== -1 ? sequential : remaining[0];
+    openStep(nextIdx);
   }
 
   async function requestTip() {
