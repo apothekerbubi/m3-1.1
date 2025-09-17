@@ -63,6 +63,7 @@ type BodyIn = {
   stepIndex?: number;
   stepsPrompts?: string[];
   stepRule?: RuleJson | null;
+  stepsState?: Array<{ index?: number; status?: string; prompt?: string }>;
 };
 
 /* ---------------------- Utils ---------------------- */
@@ -273,16 +274,87 @@ export async function POST(req: NextRequest) {
     const progressPct = typeof body.progressPct === "number" ? body.progressPct : undefined;
 
     // Schritt-Kontext
-    const stepIndex = typeof body.stepIndex === "number" ? body.stepIndex : 0;
-    const stepsPrompts = Array.isArray(body.stepsPrompts) ? body.stepsPrompts : [];
+    const rawStepIndex = typeof body.stepIndex === "number" ? body.stepIndex : 0;
+    const rawPrompts = Array.isArray(body.stepsPrompts) ? body.stepsPrompts : [];
+    const stepsPrompts = rawPrompts.map((v) => (typeof v === "string" ? v : ""));
+    const stepsPromptsClean = stepsPrompts.map((p) => p.trim());
+    const stepIndex = stepsPrompts.length > 0
+      ? Math.max(0, Math.min(stepsPrompts.length - 1, Math.trunc(rawStepIndex)))
+      : Math.max(0, Math.trunc(rawStepIndex));
+
+    type StepStateNormalized = { index: number; status: "pending" | "correct" | "partial" | "incorrect"; prompt: string };
+    const stepStateRaw = Array.isArray(body.stepsState) ? body.stepsState : [];
+    const stepStates: StepStateNormalized[] = [];
+    const upsertState = (state: StepStateNormalized) => {
+      const idx = stepStates.findIndex((s) => s.index === state.index);
+      if (idx >= 0) {
+        stepStates[idx] = state;
+      } else {
+        stepStates.push(state);
+      }
+    };
+    for (const item of stepStateRaw) {
+      if (!item) continue;
+      const idxRaw =
+        typeof item.index === "number"
+          ? item.index
+          : typeof item.index === "string"
+          ? Number.parseInt(item.index, 10)
+          : NaN;
+      if (!Number.isFinite(idxRaw)) continue;
+      const idxSanitized = Math.trunc(idxRaw);
+      const idx = stepsPrompts.length > 0 ? Math.max(0, Math.min(stepsPrompts.length - 1, idxSanitized)) : Math.max(0, idxSanitized);
+      const statusRaw = typeof item.status === "string" ? item.status.trim().toLowerCase() : "";
+      const status: StepStateNormalized["status"] =
+        statusRaw === "correct" || statusRaw === "partial" || statusRaw === "incorrect" ? (statusRaw as StepStateNormalized["status"]) : "pending";
+      const promptCandidate = typeof item.prompt === "string" ? item.prompt.trim() : "";
+      const prompt = promptCandidate || stepsPromptsClean[idx] || stepsPrompts[idx] || "";
+      upsertState({ index: idx, status, prompt });
+    }
+
+    const askedIndices = new Set<number>(stepStates.map((s) => s.index));
+    askedIndices.add(stepIndex);
+
+    const doneIndices = new Set<number>(stepStates.filter((s) => s.status !== "pending").map((s) => s.index));
+
+    const allStepsState = stepsPrompts.map((prompt, idx) => {
+      const cleanPrompt = stepsPromptsClean[idx] || prompt || "";
+      const meta = stepStates.find((s) => s.index === idx);
+      const lastStatus = meta?.status ?? (askedIndices.has(idx) ? "pending" : "unasked");
+      const status =
+        idx === stepIndex
+          ? "current"
+          : lastStatus !== "pending" && lastStatus !== "unasked"
+          ? "done"
+          : askedIndices.has(idx)
+          ? "asked"
+          : "pending";
+      return {
+        index: idx,
+        prompt: cleanPrompt,
+        status,
+        lastStatus,
+      };
+    });
+
+    const remainingIndices = allStepsState
+      .filter((s) => s.index !== stepIndex && s.status !== "done")
+      .map((s) => s.index);
+    const fallbackNextIndex =
+      remainingIndices.find((idx) => !doneIndices.has(idx) && !askedIndices.has(idx)) ?? remainingIndices[0];
+    const fallbackNextPrompt =
+      typeof fallbackNextIndex === "number" && fallbackNextIndex >= 0 && fallbackNextIndex < stepsPromptsClean.length
+        ? stepsPromptsClean[fallbackNextIndex] || stepsPrompts[fallbackNextIndex] || null
+        : null;
+
     const stepRule = body.stepRule ?? null;
 
     // Abgeleitete Prompts
     const currentPrompt =
-      (stepsPrompts[stepIndex] || "").trim()
+      stepsPromptsClean[stepIndex]
       || focusQuestion
       || ([...transcript].reverse().find(t => t.role === "examiner" && /\?\s*$/.test(t.text))?.text?.trim() || "");
-    const nextPrompt = (stepsPrompts[stepIndex + 1] || "").trim() || null;
+    const nextPrompt = fallbackNextPrompt ? fallbackNextPrompt : null;
 
     if (!caseText) {
       return NextResponse.json({ error: "Bad request: caseText ist erforderlich." }, { status: 400 });
@@ -583,6 +655,15 @@ KUMULATIVE WERTUNG (wichtig)
 - Doppelnennungen zählen nicht mehrfach;
 - Falls etwas falsch geschrieben ist, z.b. Rechtschreibung stark abweichend; Tippfehler, ausgelassene Buchstaben, verdrehte Buchstaben und Schreibweisen nach Lautsprache (z. B. „Kolezüstitis“ für „Cholezystitis“), dann auch als richtig zählen.
 
+FLEXIBLER FRAGENFLOW
+- ALL_STEPS_STATE (JSON) liefert dir {index, prompt, status, lastStatus} für jeden Schritt.
+- Status "current" = aktuelle Frage; "asked" = schon eröffnet, aber noch offen; "done" = abgeschlossen; "pending" = noch nicht gestartet.
+- Greife Entscheidungen der/des Studierenden aktiv auf: Wenn sie/er eine Untersuchung (z. B. Labor, Ultraschall, CT, körperliche Untersuchung) einleiten möchte, stelle unmittelbar die dazu passende Frage (Prompt) aus ALL_STEPS_STATE – auch wenn sie im ursprünglichen Ablauf später käme.
+- Wähle "next_question" immer als exakten Prompt aus ALL_STEPS_STATE mit Status "pending" oder "asked", außer wenn keine sinnvolle Anschlussfrage mehr besteht.
+- Vermeide Wiederholungen von Schritten mit Status "done", außer eine klare Rückfrage ist zwingend nötig.
+- Falls du unsicher bist, darfst du FALLBACK_NEXT_PROMPT (sofern ≠ "(keine)") als sichere Reihenfolge nutzen.
+- Gib den Prompt-Text unverändert zurück (keine Umformulierungen oder zusätzlichen Sätze).
+
 NO-LEAK GUARD (streng)
 - In attemptStage 1/2 (und im Tipp-Modus) keine neuen Diagnosen/Beispiele/Synonyme/Hinweise, die nicht von der/dem Studierenden stammen.
 - Nur Meta-Feedback (z. B. Organsysteme/Struktur/Anzahl), keine Inhalte verraten.
@@ -600,10 +681,10 @@ VERSUCHSLOGIK (hart)
   • next_question = null.
 - attemptStage 3 ODER Give-up:
   • say_to_student MUSS mit "Lösung:" beginnen. Danach 1 Kernsatz + was noch gefehlt hat + 2–3 knappe Bullets (• Kerngedanke • Abgrenzung • nächster Schritt).
-  • next_question = NEXT_STEP_PROMPT (falls vorhanden), sonst null.
+  • Wähle next_question aus ALL_STEPS_STATE (Status "pending"/"asked") oder setze sie auf null, wenn alles abgearbeitet ist.
 - Antwort ist korrekt:
   • evaluation.feedback = 1 kurzer Bestätigungssatz + 2–3 Meta-Bullets ( warum passend • Kategorie/Pathomechanismus auf Meta-Ebene • Priorität).
-  • next_question = NEXT_STEP_PROMPT (falls vorhanden); end=true falls letzter Schritt.
+  • Wähle next_question passend aus ALL_STEPS_STATE (Prompt unverändert übernehmen). Wenn keine offene Frage bleibt, setze next_question = null und end = true.
 
 TIPP-MODUS (tipRequest=true)
 - Nur "say_to_student" mit 1–2 neutralen Strukturhinweisen (keine Diagnosen/Beispiele). "evaluation" und "next_question" bleiben null.
@@ -629,7 +710,9 @@ AUSGABE NUR als JSON exakt:
     const usrExam = `Vignette: ${caseText}
 
 CURRENT_STEP_PROMPT: ${currentPrompt || "(unbekannt)"}
-NEXT_STEP_PROMPT: ${nextPrompt ?? "(keine – letzter Schritt)"}
+FALLBACK_NEXT_PROMPT: ${nextPrompt ?? "(keine)"}
+ALL_STEPS_STATE:
+${JSON.stringify(allStepsState, null, 2)}
 RULE_JSON (für CURRENT_STEP_PROMPT):
 ${JSON.stringify(stepRule ?? {}, null, 2)}
 
@@ -692,31 +775,34 @@ Erzeuge NUR das JSON-Objekt.`.trim();
 
     // --- Guards für 3-Versuche-System ---
     const isCorrect = payload.evaluation?.correctness === "correct";
+    const allowAdvance = effectiveAttempt >= 3 || isCorrect;
 
-    // attempt < 3 & nicht korrekt: NICHT weiter
-    if (effectiveAttempt < 3 && !isCorrect) {
+    if (!allowAdvance) {
       payload.next_question = null;
       payload.end = false;
     }
 
-    // Bei korrekt → zwingend zum nächsten Schritt
-    if (isCorrect) {
-      payload.next_question = nextPrompt ?? null;
-      payload.end = !nextPrompt;
+    if (isCorrect && allowAdvance) {
       if (!payload.say_to_student) {
         payload.say_to_student = "Gut, weiter geht’s.";
       }
     }
 
-    // Beim dritten Versuch (oder Give-up) MUSS Lösung kommen, dann weiter (falls möglich)
+    // Beim dritten Versuch (oder Give-up) MUSS Lösung kommen
     if (effectiveAttempt === 3) {
       if (!payload.say_to_student || !/lösung/i.test(payload.say_to_student)) {
         payload.say_to_student = (payload.say_to_student && payload.say_to_student.trim().length > 0)
           ? `Lösung: ${payload.say_to_student}`
           : "Lösung: (Hier 1–2 Sätze zur Kernlösung + 1–3 kurze Begründungen/Merksätze.)";
       }
-      payload.next_question = nextPrompt ?? null;
-      payload.end = !nextPrompt;
+    }
+
+    if (allowAdvance) {
+      if (!payload.next_question && nextPrompt) {
+        payload.next_question = nextPrompt;
+      }
+      const hasNext = Boolean(payload.next_question);
+      payload.end = hasNext ? false : remainingIndices.length === 0;
     }
 
     // 🔐 Persistenz (nicht blockierend)

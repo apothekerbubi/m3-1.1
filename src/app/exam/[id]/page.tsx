@@ -168,6 +168,11 @@ export default function ExamPage() {
 
   const nSteps = stepsOrdered.length;
 
+  const stepPrompts = useMemo<string[]>(
+    () => stepsOrdered.map((s) => (typeof s.prompt === "string" ? s.prompt : "")),
+    [stepsOrdered]
+  );
+
   const currentPrompt = stepsOrdered[activeIndex]?.prompt ?? "";
   const stepRule: unknown = stepsOrdered[activeIndex]?.rule ?? null;
 
@@ -426,6 +431,34 @@ export default function ExamPage() {
     }
   }
 
+  function openStep(idx: number) {
+    if (!c) return;
+    if (idx < 0 || idx >= stepsOrdered.length) return;
+    const promptText = stepPrompts[idx] ?? stepsOrdered[idx]?.prompt ?? "";
+    if (!promptText.trim()) return;
+
+    setAsked((prev) => {
+      if (prev.find((a) => a.index === idx)) return prev;
+      return [...prev, { index: idx, text: promptText, status: "pending" }];
+    });
+
+    setChats((prev) => {
+      const next: Turn[][] = Array.from({ length: stepsOrdered.length }, (_, i) => [...((prev[i] ?? []) as Turn[])]);
+      const arr: Turn[] = next[idx] ?? [];
+      const hasPrompt = arr.some((turn) => turn.role === "prof" && normalize(turn.text) === normalize(promptText));
+      if (!hasPrompt) {
+        next[idx] = [...arr, { role: "prof", text: promptText }];
+      }
+      return next;
+    });
+
+    setActiveIndex(idx);
+    setViewIndex(idx);
+    setAttemptCount(0);
+    setLastCorrectness(null);
+    maybeRevealOnEnter(idx);
+  }
+
 // *** API ***
 async function callExamAPI(
   current: Turn[],
@@ -452,6 +485,12 @@ async function callExamAPI(
       )
     );
 
+    const stepsStateForApi = asked.map((a) => ({
+      index: a.index,
+      status: a.status,
+      prompt: stepsOrdered[a.index]?.prompt ?? a.text,
+    }));
+
     const payload: Record<string, unknown> = {
       caseId: c.id,
       points: totalPoints,
@@ -467,7 +506,8 @@ async function callExamAPI(
       completion: c.completion ?? null,
 
       stepIndex: activeIndex,
-      stepsPrompts: [],
+      stepsPrompts: stepPrompts,
+      stepsState: stepsStateForApi,
       stepRule,
       focusQuestion: currentPrompt,
 
@@ -552,6 +592,21 @@ async function callExamAPI(
     // Zusätzliche Prüfer-Nachrichten (Tip/Explain)
     if (!hadSolution && (!data.evaluation || !data.evaluation.feedback) && data.say_to_student) {
       pushProf(activeIndex, data.say_to_student);
+    }
+
+    if (opts.mode === "answer" && data.next_question) {
+      const target = data.next_question.trim();
+      const idx = stepsOrdered.findIndex((step) => normalize(step.prompt) === normalize(target));
+      if (idx >= 0) {
+        openStep(idx);
+      } else if (!hadSolution) {
+        pushProf(activeIndex, data.next_question);
+      }
+    }
+
+    if (opts.mode === "answer" && data.end) {
+      setEnded(true);
+      void persistProgress({ completed: true });
     }
   } catch (e: unknown) {
     alert(e instanceof Error ? e.message : String(e));
@@ -664,51 +719,22 @@ async function startExam() {
     void callExamAPI(current, { mode: "answer" });
   }
 
-  function goToStep(idx: number) {
-    if (!c) return;
-    // Nur bereits freigegebene Fragen wählbar
-    if (!asked.find((a) => a.index === idx)) return;
-
-    setViewIndex(idx);
-  }
-
   function nextStep() {
     if (!c) return;
+    const askedSet = new Set(asked.map((a) => a.index));
+    const remaining = stepsOrdered
+      .map((_, idx) => idx)
+      .filter((idx) => !askedSet.has(idx));
 
-    const last = activeIndex >= nSteps - 1;
-    if (last) {
+    if (remaining.length === 0) {
       setEnded(true);
-      // beim Abschließen Fortschritt speichern (+ lokal)
       void persistProgress({ completed: true });
       return;
     }
 
-    const idx = activeIndex + 1;
-    const q = stepsOrdered[idx]?.prompt ?? "";
-
-    // neue Frage freischalten (immer erlaubt)
-    setAsked((prev) => {
-      if (prev.find((a) => a.index === idx)) return prev; // schon freigeschaltet
-      return [...prev, { index: idx, text: q, status: "pending" }];
-    });
-
-    // neuen Chat ggf. anlegen
-    setChats((prev) => {
-      const copy = prev.map((x) => [...x]);
-      if (!copy[idx] || copy[idx].length === 0) {
-        copy[idx] = [{ role: "prof", text: q }];
-      }
-      return copy;
-    });
-
-    // Status/Steuerung
-    setActiveIndex(idx);
-    setViewIndex(idx);
-    setAttemptCount(0);
-    setLastCorrectness(null);
-
-    // on_enter-Reveal
-    maybeRevealOnEnter(idx);
+    const sequential = stepsOrdered.findIndex((_, idx) => idx > activeIndex && !askedSet.has(idx));
+    const nextIdx = sequential !== -1 ? sequential : remaining[0];
+    openStep(nextIdx);
   }
 
   async function requestTip() {
@@ -738,8 +764,6 @@ async function startExam() {
 
   const hasStarted = asked.length > 0;
   const isLastStep = activeIndex >= nSteps - 1;
-  const viewingPast = viewIndex !== activeIndex;
-
   // Bild des gerade betrachteten Schritts (für Chat-Panel)
   const stepImg = stepsOrdered[viewIndex]?.image;
 
