@@ -11,6 +11,33 @@ export type StepImage = {
   caption?: string;      // optionale Bildunterschrift
 };
 
+// ---------- Interaktiver Prüfungsmodus ----------
+export type InteractiveAction = {
+  keywords: string[];          // Schlüsselwörter, die die Aktion triggern
+  response: string;            // Antworttext des Tutors
+  image?: StepImage;           // optionales Bild zur Aktion
+  unlocks?: string[];          // weitere Aktionen, die danach freigeschaltet werden
+};
+
+export type InteractiveCompletion = {
+  afterActions?: string[];     // nach welchen Aktionen der Fall als abgeschlossen gilt
+  message?: string;            // Abschlusstext
+};
+
+export type InteractiveFallbacks = {
+  locked?: string;             // Meldung, wenn Aktion noch gesperrt ist
+  unknown?: string;            // Meldung, wenn keine Aktion erkannt wird
+  finished?: string;           // Meldung nach Abschluss des Falls
+};
+
+export type InteractiveFlow = {
+  initial?: string[];                          // initial freigeschaltete Aktionen
+  intro?: string;                              // optionaler Intro-Satz nach der Vignette
+  actions: Record<string, InteractiveAction>;  // alle Aktionen
+  completion?: InteractiveCompletion;          // Abschlusslogik
+  fallbacks?: InteractiveFallbacks;            // Standardtexte für Sonderfälle
+};
+
 // ---------- Regeln (Auswertung) ----------
 export type CategoriesRule = {
   mode: "categories";
@@ -132,6 +159,7 @@ export type Case = {
 
   // Inhalt
   steps: Step[];              // die einzelnen Prüfungs-/Lernschritte
+  interactive?: InteractiveFlow; // optionaler interaktiver Prüfungsmodus
 
   // Lernziele/Abschluss
   objectives: LearningObjective[];
