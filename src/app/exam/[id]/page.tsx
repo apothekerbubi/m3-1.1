@@ -337,7 +337,8 @@ export default function ExamPage() {
   const sanitizeProfText = (raw: string | null | undefined): string | null => {
     if (!raw) return null;
     const replaced = raw.replace(/\u2026/g, "...").replace(/\r\n/g, "\n");
-    const trimmed = replaced.trim();
+    const withoutTrailing = replaced.replace(/(?:\s*[.·•\-–—_]{2,}\s*)+$/g, "");
+    const trimmed = withoutTrailing.trim();
     if (!trimmed) return null;
     const flat = trimmed.replace(/[\s]+/g, " ");
     if (/^[.·•\-–—_\s]+$/.test(flat)) return null;
@@ -695,14 +696,23 @@ async function callExamAPI(
         return copy;
       });
 
+      const feedbackClean = sanitizeProfText(feedback);
+      const tipsClean = sanitizeProfText(tips);
+
       const parts = [
         latestStudentText ? `Du hast genannt: „${latestStudentText}“.` : "",
-        `${label(correctness)} — ${feedback}`,
-        correctness !== "correct" && tips ? `Tipp: ${tips}` : "",
+        feedbackClean ? `${label(correctness)} — ${feedbackClean}` : label(correctness),
+        correctness !== "correct" && tipsClean ? `Tipp: ${tipsClean}` : "",
       ].filter(Boolean);
 
       const theoretical = describeRule(stepRule as StepRule | null, c.title, currentPrompt);
       if (theoretical) parts.push(theoretical);
+
+      if (!feedbackClean && !tipsClean && !theoretical) {
+        parts.push(
+          "Ich konnte gerade keine detaillierte Auswertung erstellen, werde aber gleich mit einer passenden Musterlösung antworten."
+        );
+      }
 
       if (!hadSolution) pushProf(activeIndex, parts.join(" "));
 
