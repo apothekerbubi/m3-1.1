@@ -68,6 +68,7 @@ export default function ExamPage() {
 
   const [chats, setChats] = useState<Turn[][]>([]);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const streamTimers = useRef<number[]>([]);
 
   const [perStepScores, setPerStepScores] = useState<number[]>([]);
   const [lastCorrectness, setLastCorrectness] =
@@ -125,6 +126,13 @@ export default function ExamPage() {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [viewChat, loading]);
 
+  useEffect(() => {
+    return () => {
+      streamTimers.current.forEach((id) => window.clearInterval(id));
+      streamTimers.current = [];
+    };
+  }, []);
+
   // ✅ Nach Abschluss: nur dann zur Übersicht, wenn KEINE Serie mehr offen ist
   useEffect(() => {
     if (!ended) return;
@@ -143,19 +151,29 @@ export default function ExamPage() {
   const normalize = (s: string) =>
     s.toLowerCase().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "").trim();
 
-  function pushProf(step: number, text?: string | null) {
+  function pushProf(step: number, text?: string | null, opts?: { streaming?: boolean }) {
     if (!text || !text.trim()) return;
     const t = text.trim();
+    let createdIndex = -1;
     setChats((prev) => {
       const copy: Turn[][] = prev.map((x): Turn[] => [...x]);
       const arr: Turn[] = copy[step] ?? [];
       const lastProf = [...arr].reverse().find((x) => x.role === "prof");
       if (!lastProf || normalize(lastProf.text) !== normalize(t)) {
-        const next: Turn[] = [...arr, { role: "prof" as const, text: t }];
-        copy[step] = next;
+        if (opts?.streaming) {
+          const next: Turn[] = [...arr, { role: "prof" as const, text: "" }];
+          createdIndex = next.length - 1;
+          copy[step] = next;
+        } else {
+          const next: Turn[] = [...arr, { role: "prof" as const, text: t }];
+          copy[step] = next;
+        }
       }
       return copy;
     });
+    if (opts?.streaming && createdIndex >= 0) {
+      streamText(step, createdIndex, t);
+    }
   }
   function pushStudent(step: number, text: string) {
     setChats((prev) => {
@@ -164,6 +182,35 @@ export default function ExamPage() {
       copy[step] = [...arr, { role: "student" as const, text }];
       return copy;
     });
+  }
+
+  function streamText(step: number, messageIndex: number, fullText: string) {
+    const pieces = fullText.match(/\S+\s*/g) ?? [fullText];
+    let i = 0;
+    const timer = window.setInterval(() => {
+      if (!pieces[i]) {
+        window.clearInterval(timer);
+        streamTimers.current = streamTimers.current.filter((id) => id !== timer);
+        return;
+      }
+      const nextText = pieces.slice(0, i + 1).join("").trimEnd();
+      setChats((prev) => {
+        const copy: Turn[][] = prev.map((x): Turn[] => [...x]);
+        const arr: Turn[] = copy[step] ?? [];
+        if (!arr[messageIndex]) return prev;
+        const updated: Turn[] = arr.map((turn, idx) =>
+          idx === messageIndex ? { ...turn, text: nextText } : turn
+        );
+        copy[step] = updated;
+        return copy;
+      });
+      i += 1;
+      if (i >= pieces.length) {
+        window.clearInterval(timer);
+        streamTimers.current = streamTimers.current.filter((id) => id !== timer);
+      }
+    }, 45);
+    streamTimers.current.push(timer);
   }
 
   function shouldReveal(
@@ -293,7 +340,7 @@ export default function ExamPage() {
         typeof data.say_to_student === "string" &&
         /^lösung\s*:/i.test(data.say_to_student.trim());
 
-      if (hadSolution) pushProf(activeIndex, data.say_to_student);
+      if (hadSolution) pushProf(activeIndex, data.say_to_student, { streaming: true });
 
       if (data.evaluation && opts.mode === "answer") {
         const { correctness, feedback, tips } = data.evaluation;
@@ -331,7 +378,7 @@ export default function ExamPage() {
           `${label(correctness)} — ${feedback}`,
           correctness !== "correct" && tips ? `Tipp: ${tips}` : "",
         ].filter(Boolean);
-        if (!hadSolution) pushProf(activeIndex, parts.join(" "));
+        if (!hadSolution) pushProf(activeIndex, parts.join(" "), { streaming: true });
 
         if (stepReveal && shouldReveal(stepReveal, data.evaluation, hadSolution)) {
           pushProf(activeIndex, formatReveal(stepReveal.content));
@@ -339,7 +386,7 @@ export default function ExamPage() {
       }
 
       if (!hadSolution && (!data.evaluation || !data.evaluation.feedback) && data.say_to_student) {
-        pushProf(activeIndex, data.say_to_student);
+        pushProf(activeIndex, data.say_to_student, { streaming: true });
       }
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : String(e));
@@ -377,9 +424,10 @@ export default function ExamPage() {
 
     const initChats: Turn[][] = Array.from({ length: n }, () => []);
     const q0 = stepsOrdered[0]?.prompt ?? "";
+    const startQuestion = q0 ? `Fangen wir an: ${q0}` : null;
     initChats[0] = [
       { role: "prof" as const, text: `Vignette: ${c.vignette}` },
-      { role: "prof" as const, text: q0 },
+      ...(startQuestion ? [{ role: "prof" as const, text: startQuestion }] : []),
     ];
     setChats(initChats);
 
@@ -442,7 +490,8 @@ export default function ExamPage() {
     setChats((prev) => {
       const copy: Turn[][] = prev.map((x): Turn[] => [...x]);
       if (!copy[idx] || copy[idx].length === 0) {
-        copy[idx] = [{ role: "prof" as const, text: q }];
+        const nextQuestion = q ? `Weiter geht's: ${q}` : null;
+        copy[idx] = nextQuestion ? [{ role: "prof" as const, text: nextQuestion }] : [];
       }
       return copy;
     });
@@ -592,6 +641,11 @@ export default function ExamPage() {
                 </div>
               </div>
             ))}
+            {loading && viewIndex === activeIndex && (
+              <div className="mb-3 flex items-center">
+                <span className="inline-flex h-2.5 w-2.5 rounded-full bg-blue-500 animate-pulse" />
+              </div>
+            )}
             {!hasStarted && (
               <div className="text-sm text-gray-600">
                 Klicke auf <b>Prüfung starten</b>, um zu beginnen.
