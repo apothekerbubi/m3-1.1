@@ -277,6 +277,12 @@ export async function POST(req: NextRequest) {
     const stepsPrompts = Array.isArray(body.stepsPrompts) ? body.stepsPrompts : [];
     const stepRule = body.stepRule ?? null;
 
+    const stepsOutlineBlock = stepsPrompts.length
+      ? stepsPrompts
+          .map((p, idx) => `${idx + 1}. ${(p || "").trim()}`)
+          .join("\n")
+      : "";
+
     // Abgeleitete Prompts
     const currentPrompt =
       (stepsPrompts[stepIndex] || "").trim()
@@ -604,6 +610,7 @@ VERSUCHSLOGIK (hart)
 - Antwort ist korrekt:
   • evaluation.feedback = 1 kurzer Bestätigungssatz + 2–3 Meta-Bullets ( warum passend • Kategorie/Pathomechanismus auf Meta-Ebene • Priorität).
   • next_question = NEXT_STEP_PROMPT (falls vorhanden); end=true falls letzter Schritt.
+  • Gestalte eine flüssige Überleitung im say_to_student (z. B. "Dann wenden wir uns ... zu"), bevor du zur nächsten Frage wechselst.
 
 TIPP-MODUS (tipRequest=true)
 - Nur "say_to_student" mit 1–2 neutralen Strukturhinweisen (keine Diagnosen/Beispiele). "evaluation" und "next_question" bleiben null.
@@ -629,6 +636,7 @@ AUSGABE NUR als JSON exakt:
     const usrExam = `Vignette: ${caseText}
 
 CURRENT_STEP_PROMPT: ${currentPrompt || "(unbekannt)"}
+${stepsOutlineBlock ? `GESAMTE FRAGENFOLGE:\n${stepsOutlineBlock}` : ""}
 NEXT_STEP_PROMPT: ${nextPrompt ?? "(keine – letzter Schritt)"}
 RULE_JSON (für CURRENT_STEP_PROMPT):
 ${JSON.stringify(stepRule ?? {}, null, 2)}
