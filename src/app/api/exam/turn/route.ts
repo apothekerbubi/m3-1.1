@@ -491,39 +491,32 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
         transcript[0]?.role === "examiner" &&
         !/[?？]\s*$/.test(transcript[0]?.text || "");
 
-      if (noStudentAfterExaminer || isJustVignetteStart) {
-        if (stepsPrompts[0]) {
-          const payload: ApiOut = {
-            say_to_student: null,
-            evaluation: null,
-            next_question: stepsPrompts[0],
-            end: false,
-          };
+      const shouldKickoff =
+        transcript.length === 0 || noStudentAfterExaminer || isJustVignetteStart;
 
-          if (userId) {
-            void logTurn(supabase, {
-              userId,
-              caseId,
-              attemptStage: 1,
-              tipRequest: false,
-              explainRequest: false,
-              clarifyQuestion: null,
-              focusQuestion: stepsPrompts[0],
-              lastStudentAnswer: null,
-              modelOut: payload,
-            });
-          }
-
-          return NextResponse.json(payload);
-        }
+      if (shouldKickoff) {
+        const firstPrompt = (stepsPrompts[0] || currentPrompt || focusQuestion || "").trim();
 
         const sysKickoff = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
-Stelle GENAU EINE präzise Einstiegsfrage zur Vignette (ein Satz, Fragezeichen).
-KEINE Bewertung, KEIN Feedback, KEIN Tipp. Nur die Frage. Deutsch.`;
+Ziel: realistischer Prüfungsauftakt.
+Vorgehen:
+1. Begrüße die/den Studierenden kurz und wertschätzend in der Du-Form (1 Satz).
+2. Schilder die Fallvignette in 3–5 Sätzen frei paraphrasiert auf Basis von CASE_VIGNETTE – ergänze nur glaubhafte Details, die den Fall rahmen, ohne der Falllogik zu widersprechen.
+3. Formuliere eine natürliche Übergangsfrage in der Du-Form, die CURRENT_STEP_PROMPT aufgreift und eine Gesprächsüberleitung enthält (z. B. „Starten wir mit…“, „Lass uns zuerst…“).
+Ausgabe ausschließlich als JSON:
+{
+  "intro": "...",   // Begrüßung + Vignette, kein Fragezeichen am Ende
+  "question": "..." // Übergangsfrage, endet mit ?
+}
+Sprache: Deutsch, du/dir/dein.`;
 
-        const usrKickoff = `Vignette: ${caseText}
-${outline.length ? `Prüfungs-Outline (optional): ${outline.join(" • ")}` : ""}
-Erzeuge NUR die Frage (ein Satz, Fragezeichen).`;
+        const usrKickoff = `CASE_ID: ${caseId ?? "(unbekannt)"}
+CASE_VIGNETTE: ${caseText}
+CURRENT_STEP_PROMPT: ${firstPrompt || "(unbekannt)"}
+STIL: ${style}
+${outline.length ? `OUTLINE: ${outline.join(" • ")}` : ""}
+${objectives.length ? `ZIELE: ${objectives.map(o => `${o.id}: ${o.label}`).join(" | ")}` : ""}
+Gib NUR das JSON-Objekt mit intro und question zurück.`;
 
         const outKick = await client.chat.completions.create({
           model,
@@ -531,16 +524,38 @@ Erzeuge NUR die Frage (ein Satz, Fragezeichen).`;
             { role: "system", content: sysKickoff },
             { role: "user", content: usrKickoff },
           ],
-          temperature: 0.2,
+          temperature: 0.3,
         });
 
-        const qRaw = (outKick.choices?.[0]?.message?.content || "").trim();
-        const q = stripMd(qRaw);
+        const rawKick = (outKick.choices?.[0]?.message?.content || "").trim();
+        let jsonKick = rawKick.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+        if (!(jsonKick.startsWith("{") && jsonKick.endsWith("}"))) {
+          const s = jsonKick.indexOf("{");
+          const e = jsonKick.lastIndexOf("}");
+          if (s >= 0 && e > s) jsonKick = jsonKick.slice(s, e + 1);
+        }
+
+        let intro = "";
+        let question = "";
+        try {
+          const parsed = JSON.parse(jsonKick) as { intro?: string; question?: string };
+          intro = typeof parsed.intro === "string" ? parsed.intro : "";
+          question = typeof parsed.question === "string" ? parsed.question : "";
+        } catch {
+          // Fallback weiter unten
+        }
+
+        const introClean = stripMd(intro).replace(/\n{3,}/g, "\n\n").trim();
+        let questionClean = stripMd(question).trim();
+        if (!questionClean) questionClean = firstPrompt;
+        if (questionClean && !/[?？]\s*$/.test(questionClean)) {
+          questionClean = `${questionClean}?`;
+        }
 
         const payload: ApiOut = {
-          say_to_student: null,
+          say_to_student: introClean || null,
           evaluation: null,
-          next_question: q.endsWith("?") ? q : `${q}?`,
+          next_question: questionClean || null,
           end: false,
         };
 
@@ -552,7 +567,7 @@ Erzeuge NUR die Frage (ein Satz, Fragezeichen).`;
             tipRequest: false,
             explainRequest: false,
             clarifyQuestion: null,
-            focusQuestion: payload.next_question,
+            focusQuestion: questionClean || null,
             lastStudentAnswer: null,
             modelOut: payload,
           });
@@ -583,27 +598,40 @@ KUMULATIVE WERTUNG (wichtig)
 - Doppelnennungen zählen nicht mehrfach;
 - Falls etwas falsch geschrieben ist, z.b. Rechtschreibung stark abweichend; Tippfehler, ausgelassene Buchstaben, verdrehte Buchstaben und Schreibweisen nach Lautsprache (z. B. „Kolezüstitis“ für „Cholezystitis“), dann auch als richtig zählen.
 
+GESPRÄCHSFLUSS & FRAGENSTELLUNG
+- Formuliere jede next_question als natürlichen Übergang, verknüpfe sie mit dem bisherigen Verlauf und integriere den Kern von NEXT_STEP_PROMPT, ohne ihn wörtlich zu kopieren (z. B. „Kommen wir nun zu…“).
+- Greife vorhandene Informationen kurz auf, wenn das den Übergang erleichtert.
+
+PATIENT:INNEN-ROLLENSPIEL
+- Wenn CURRENT_STEP_PROMPT die Erhebung von Patient:inneninformationen verlangt (z. B. Anamnese, Nachfragen, Gesprächssimulation), gib nach der Bewertung knapp wieder, wie der/die Patient:in auf die genannten oder besonders wichtigen Fragen reagiert (1–3 Sätze, eingeleitet mit „Patient berichtet …“ o. Ä.).
+- Diese Antworten müssen fallkonsistent sein und dürfen auch in attemptStage 1/2 genannt werden.
+
 NO-LEAK GUARD (streng)
 - In attemptStage 1/2 (und im Tipp-Modus) keine neuen Diagnosen/Beispiele/Synonyme/Hinweise, die nicht von der/dem Studierenden stammen.
 - Nur Meta-Feedback (z. B. Organsysteme/Struktur/Anzahl), keine Inhalte verraten.
 - Genutzte Begriffe darfst du korrigieren, aber **keine** neuen Inhalte einführen.
+- Ausnahme: Patient:innenantworten laut Abschnitt PATIENT:INNEN-ROLLENSPIEL dürfen ergänzt werden, sofern sie sich plausibel aus der Falllogik ergeben.
 
 AUSDRUCK & TON
 -  Keine Emojis/Auslassungspunkte/Klammer-Meta.
-- Bei correct/partial/incorrect kurze, klare Begründung auf Meta-Ebene.
+- Sprich in klaren, vollständigen Sätzen und nimm Bezug auf den laufenden Prüfungsdialog.
+
+BEWERTUNG & EINORDNUNG
+- evaluation.feedback besteht aus einem klaren Bewertungssatz plus einem begründenden Satz (Priorität/Kontext). Auch bei incorrect oder partial musst du erläutern, warum etwas nicht passt bzw. was relevanter wäre.
+- Bei correct kannst du zusätzlich 2–3 Meta-Bullets nutzen ( warum passend • Kategorie/Pathomechanismus • Priorität).
 
 VERSUCHSLOGIK (hart)
 - Drei Versuche (attemptStage 1..3). Give-up zählt wie 3.
 - attemptStage 1/2 UND nicht korrekt:
-  • evaluation.feedback = 1 kurzer Satz Bewertung + 1 kurzer Satz Lücke/Strukturhinweis (ohne Beispiele/Diagnosen).
+  • evaluation.feedback = 1 kurzer Satz Bewertung + 1 kurzer Satz Lücke/Strukturhinweis mit Begründung (ohne konkrete Beispiele/Diagnosen zu verraten).
   • evaluation.tips = weglassen (nur im Tipp-Modus).
   • next_question = null.
 - attemptStage 3 ODER Give-up:
-  • say_to_student MUSS mit "Lösung:" beginnen. Danach 1 Kernsatz + was noch gefehlt hat + 2–3 knappe Bullets (• Kerngedanke • Abgrenzung • nächster Schritt).
-  • next_question = NEXT_STEP_PROMPT (falls vorhanden), sonst null.
+  • say_to_student MUSS mit "Lösung:" beginnen. Danach 1 Kernsatz + was noch gefehlt hat + 2–3 knappe Bullets (• Kerngedanke • Abgrenzung • nächster Schritt); falls der Schritt Patient:innenantworten verlangt, hänge 1–2 Sätze mit den passenden Antworten an.
+  • next_question = Formuliere aus NEXT_STEP_PROMPT eine natürliche Übergangsfrage (siehe oben), sonst null.
 - Antwort ist korrekt:
   • evaluation.feedback = 1 kurzer Bestätigungssatz + 2–3 Meta-Bullets ( warum passend • Kategorie/Pathomechanismus auf Meta-Ebene • Priorität).
-  • next_question = NEXT_STEP_PROMPT (falls vorhanden); end=true falls letzter Schritt.
+  • next_question = Formuliere aus NEXT_STEP_PROMPT eine natürliche Übergangsfrage (mit Übergangsphrase); end=true falls letzter Schritt.
 
 TIPP-MODUS (tipRequest=true)
 - Nur "say_to_student" mit 1–2 neutralen Strukturhinweisen (keine Diagnosen/Beispiele). "evaluation" und "next_question" bleiben null.
@@ -701,7 +729,9 @@ Erzeuge NUR das JSON-Objekt.`.trim();
 
     // Bei korrekt → zwingend zum nächsten Schritt
     if (isCorrect) {
-      payload.next_question = nextPrompt ?? null;
+      if (!payload.next_question) {
+        payload.next_question = nextPrompt ?? null;
+      }
       payload.end = !nextPrompt;
       if (!payload.say_to_student) {
         payload.say_to_student = "Gut, weiter geht’s.";
@@ -715,7 +745,9 @@ Erzeuge NUR das JSON-Objekt.`.trim();
           ? `Lösung: ${payload.say_to_student}`
           : "Lösung: (Hier 1–2 Sätze zur Kernlösung + 1–3 kurze Begründungen/Merksätze.)";
       }
-      payload.next_question = nextPrompt ?? null;
+      if (!payload.next_question) {
+        payload.next_question = nextPrompt ?? null;
+      }
       payload.end = !nextPrompt;
     }
 
