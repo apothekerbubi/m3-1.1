@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import type { Case } from "@/lib/types";  
+import type { Case } from "@/lib/types";
 import { useEffect, useMemo, useState } from "react";
 import { slugify, subjectFromSlug } from "@/lib/slug";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
+import { SparklesIcon } from "@heroicons/react/24/outline";
+import { hasExamModeCase } from "@/data/exam-mode";
 
 export default function CategoryCasesPage() {
   const params = useParams<{ subject: string; category: string }>();
@@ -50,10 +52,18 @@ export default function CategoryCasesPage() {
           >
             <h3 className="font-medium">{c.title}</h3>
             <p className="text-sm text-gray-600 mt-1 line-clamp-2">{c.vignette}</p>
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
               <Link href={`/cases/${c.id}`} className="rounded-md border px-3 py-1.5 text-sm hover:bg-black/[.04]">
                 Details
               </Link>
+              {hasExamModeCase(c.id) && (
+                <Link
+                  href={`/exam-mode/${c.id}`}
+                  className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700"
+                >
+                  Neuer Prüfungsmodus <SparklesIcon className="h-4 w-4" />
+                </Link>
+              )}
               <Link href={`/exam/${c.id}`} className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700">
                 Prüfungsmodus
               </Link>

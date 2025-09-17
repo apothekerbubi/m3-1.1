@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { FolderIcon } from "@heroicons/react/24/outline";
+import { FolderIcon, SparklesIcon } from "@heroicons/react/24/outline";
 import type { Case } from "@/lib/types";
 import Badge from "@/components/Badge";
+import { hasExamModeCase } from "@/data/exam-mode";
 
 // -----------------------------
 // Utils (ohne any)
@@ -195,13 +196,21 @@ export default function SubjectsExplorer({ cases }: { cases: Case[] }) {
                     <Badge key={t}>{t}</Badge>
                   ))}
                 </div>
-                <div className="mt-4 flex gap-2">
+                <div className="mt-4 flex flex-wrap gap-2">
                   <Link
                     href={`/cases/${c.id}`}
                     className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-black/[.04]"
                   >
                     Details
                   </Link>
+                  {hasExamModeCase(c.id) && (
+                    <Link
+                      href={`/exam-mode/${c.id}`}
+                      className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700"
+                    >
+                      Neuer Prüfungsmodus <SparklesIcon className="h-4 w-4" />
+                    </Link>
+                  )}
                   <Link
                     href={`/exam/${c.id}`}
                     className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"

@@ -101,6 +101,28 @@ export type Step = {
   reveal?: StepReveal;    // optionale Zusatzinfos
 };
 
+// ---------- Interaktiver Prüfungsmodus ----------
+export type ExamModeAction = {
+  keywords: string[];         // welche Eingaben diese Aktion triggern
+  response: string;           // Tutor-Antwort
+  image?: StepImage;          // optionales Bild zum Schritt
+  unlocks?: string[];         // weitere Aktionen, die danach verfügbar werden
+  repeatResponse?: string;    // optionale Antwort, wenn erneut angefragt
+};
+
+export type ExamModeCase = {
+  id: string;
+  title: string;
+  vignette: string;
+  startActions: string[];
+  actions: Record<string, ExamModeAction>;
+  completionActions?: string[];
+  completionMessage?: string;
+  lockedMessage?: string;
+  unknownMessage?: string;
+  repeatMessage?: string;
+};
+
 export type LearningObjective = {
   id: string;             // z. B. "ddx", "therapie"
   label: string;          // UI-Text

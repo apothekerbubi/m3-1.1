@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { CASES } from "@/data/cases";
 import type { Case } from "@/lib/types";
+import { hasExamModeCase } from "@/data/exam-mode";
+import { SparklesIcon } from "@heroicons/react/24/outline";
 
 // Lokale Erweiterung um optionale Meta-Felder aus deinen Daten
 type CaseWithMeta = Case & Partial<{
@@ -99,13 +101,21 @@ export default function SearchPage() {
                   </span>
                 )}
               </div>
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
                 <Link
                   href={`/cases/${c.id}`}
                   className="rounded-md border px-3 py-1 text-xs hover:bg-black/[.04]"
                 >
                   Details
                 </Link>
+                {hasExamModeCase(c.id) && (
+                  <Link
+                    href={`/exam-mode/${c.id}`}
+                    className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1 text-xs text-white hover:bg-emerald-700"
+                  >
+                    Neuer Prüfungsmodus <SparklesIcon className="h-4 w-4" />
+                  </Link>
+                )}
                 <Link
                   href={`/exam/${c.id}`}
                   className="rounded-md bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700"

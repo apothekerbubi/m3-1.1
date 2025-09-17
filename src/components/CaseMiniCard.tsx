@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { FolderIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
+import { FolderIcon, ArrowRightIcon, SparklesIcon } from "@heroicons/react/24/outline";
 import type { Case } from "@/lib/types";
+import { hasExamModeCase } from "@/data/exam-mode";
 
 function deriveShort(title: string) {
   // nimmt Teil vor –/—/- oder kürzt sanft
@@ -38,6 +39,15 @@ export default function CaseMiniCard({ c }: { c: Case }) {
         >
           Details
         </Link>
+        {hasExamModeCase(c.id) && (
+          <Link
+            href={`/exam-mode/${c.id}`}
+            className="hidden sm:inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-sm text-white hover:bg-emerald-700"
+            title="Neuer Prüfungsmodus"
+          >
+            Neu <SparklesIcon className="h-4 w-4" />
+          </Link>
+        )}
         <Link
           href={`/exam/${c.id}`}
           className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-sm text-white hover:bg-blue-700"

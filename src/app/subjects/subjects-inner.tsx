@@ -4,9 +4,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { FolderIcon, ArrowRightIcon, ChevronRightIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
+import { FolderIcon, ArrowRightIcon, ChevronRightIcon, CheckCircleIcon, SparklesIcon } from "@heroicons/react/24/outline";
 import type { Case } from "@/lib/types";
 import { CASES } from "@/data/cases";
+import { hasExamModeCase } from "@/data/exam-mode";
 
 /* ---------- Utils ---------- */
 function shortName(c: Case) {
@@ -285,6 +286,15 @@ export default function SubjectsPageInner() {
                       >
                         Details
                       </Link>
+                      {hasExamModeCase(c.id) && (
+                        <Link
+                          href={`/exam-mode/${c.id}`}
+                          className="hidden sm:inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-sm text-white hover:bg-emerald-700"
+                          title="Neuer Prüfungsmodus"
+                        >
+                          Neu <SparklesIcon className="h-4 w-4" />
+                        </Link>
+                      )}
                       <Link
                         href={`/exam/${c.id}`}
                         className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-sm text-white hover:bg-blue-700"
