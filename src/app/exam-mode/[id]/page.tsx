@@ -7,6 +7,7 @@ import CaseImagePublic from "@/components/CaseImagePublic";
 import { getExamModeCase } from "@/data/exam-mode";
 import type { ExamModeCase } from "@/lib/types";
 import { createInitialExamModeState, evaluateExamModeInput, type ExamModeState } from "@/lib/exam-mode";
+import { buildExamModeSystemPrompt } from "@/lib/exam-mode-prompt";
 
 type Message = {
   role: "tutor" | "student";
@@ -59,6 +60,12 @@ export default function ExamModePage() {
   const caseId = Array.isArray(rawId) ? rawId[0] : rawId || "";
   const caseData = useMemo<ExamModeCase | null>(() => getExamModeCase(caseId), [caseId]);
 
+  const initialPrompt = useMemo(() => {
+    if (!caseData) return "";
+    const initialState = createInitialExamModeState(caseData);
+    return buildExamModeSystemPrompt(caseData, initialState);
+  }, [caseData]);
+
   const [state, setState] = useState<ExamModeState | null>(() =>
     caseData ? createInitialExamModeState(caseData) : null
   );
@@ -81,6 +88,7 @@ export default function ExamModePage() {
     return initialMessages;
   });
   const [input, setInput] = useState("");
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
 
   const listRef = useRef<HTMLDivElement | null>(null);
 
@@ -114,6 +122,23 @@ export default function ExamModePage() {
   }, [messages]);
 
   const disabled = !caseData || !state || state.finished;
+
+  async function handleCopyPrompt() {
+    if (!initialPrompt) return;
+    if (typeof navigator === "undefined" || !navigator.clipboard) {
+      setCopyState("error");
+      setTimeout(() => setCopyState("idle"), 2000);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(initialPrompt);
+      setCopyState("copied");
+      setTimeout(() => setCopyState("idle"), 2000);
+    } catch {
+      setCopyState("error");
+      setTimeout(() => setCopyState("idle"), 2000);
+    }
+  }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -242,6 +267,34 @@ export default function ExamModePage() {
           </button>
         </div>
       </header>
+
+      {initialPrompt && (
+        <details className="mb-4 space-y-3 rounded-xl border border-black/10 bg-gray-50/80 p-4 text-sm text-gray-700">
+          <summary className="cursor-pointer select-none text-sm font-semibold text-gray-900">
+            System-Prompt für diesen Fall anzeigen
+          </summary>
+          <p>
+            Dieser Prompt fasst alle Regeln des neuen Prüfungsmodus zusammen und eignet sich, um den Fall direkt mit einem LLM
+            zu simulieren.
+          </p>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleCopyPrompt}
+              className="inline-flex items-center gap-2 rounded-md border border-black/10 bg-white px-3 py-1 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-black/[.04]"
+            >
+              {copyState === "copied"
+                ? "Kopiert!"
+                : copyState === "error"
+                ? "Konnte nicht kopiert werden"
+                : "In Zwischenablage kopieren"}
+            </button>
+          </div>
+          <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border border-black/10 bg-white p-3 text-xs text-gray-800">
+            {initialPrompt}
+          </pre>
+        </details>
+      )}
 
       <section
         ref={listRef}
