@@ -6,6 +6,8 @@ import Link from "next/link";
 import { CASES } from "@/data/cases";
 import type { Case } from "@/lib/types";
 import CaseImagePublic from "@/components/CaseImagePublic"; // ✅ Bild-Komponente einbinden
+import { hasExamModeCase } from "@/data/exam-mode";
+import { SparklesIcon } from "@heroicons/react/24/outline";
 
 type ExtendedCase = Case & {
   specialty?: string;     // Fach (legacy-kompatibel)
@@ -43,6 +45,8 @@ export default function CaseDetail() {
 
   // robuste Navigation (unabhängig von <Link>)
   const goStart = () => router.push(`/exam/${c.id}`);
+  const goStartNewMode = () => router.push(`/exam-mode/${c.id}`);
+  const supportsNewMode = hasExamModeCase(c.id);
 
   return (
     <main className="mx-auto max-w-3xl p-6">
@@ -57,6 +61,15 @@ export default function CaseDetail() {
           >
             Prüfung starten
           </button>
+          {supportsNewMode && (
+            <button
+              type="button"
+              onClick={goStartNewMode}
+              className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+            >
+              Neuer Prüfungsmodus <SparklesIcon className="h-4 w-4" />
+            </button>
+          )}
           <Link
             href="/subjects"
             className="inline-flex items-center rounded-md border border-black/10 bg-white px-4 py-2 text-sm hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
@@ -115,6 +128,15 @@ export default function CaseDetail() {
         >
           Prüfung starten
         </button>
+        {supportsNewMode && (
+          <button
+            type="button"
+            onClick={goStartNewMode}
+            className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+          >
+            Neuer Prüfungsmodus <SparklesIcon className="h-4 w-4" />
+          </button>
+        )}
         <Link
           href="/subjects"
           className="inline-flex items-center rounded-md border border-black/10 bg-white px-4 py-2 text-sm hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
