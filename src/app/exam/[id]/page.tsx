@@ -30,6 +30,21 @@ type ObjMin = { id: string; label: string };
 type CompletionRules = { minObjectives: number; maxLLMTurns?: number; hardStopTurns?: number };
 type CaseWithRules = Case & { objectives?: ObjMin[]; completion?: CompletionRules | null };
 
+function summarizePromptForTransition(prompt: string, maxLength = 80): string {
+  const normalized = prompt.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength).trimEnd()}…`;
+}
+
+function buildTransitionPrompt(previous: string | undefined, next: string): string {
+  const nextClean = summarizePromptForTransition(next, 200);
+  if (!previous) {
+    return nextClean;
+  }
+  const prevClean = summarizePromptForTransition(previous, 80);
+  return `Weiter geht's: Nach unserer Frage zu „${prevClean}“ interessiert mich nun: ${nextClean}`;
+}
+
 /* ------- Serien-Store für Summary ------- */
 type SeriesResultRow = {
   title: string;
@@ -633,14 +648,15 @@ async function startExam() {
     // Chats vorbereiten
     const initChats: Turn[][] = Array.from({ length: n }, () => []);
     const q0 = stepsOrdered[0]?.prompt ?? "";
+    const firstQuestion = buildTransitionPrompt(undefined, q0);
     initChats[0] = [
       { role: "prof", text: `Vignette: ${c.vignette}` },
-      { role: "prof", text: q0 },
+      { role: "prof", text: firstQuestion },
     ];
     setChats(initChats);
 
     // Erste Frage sichtbar + evtl. on_enter-Reveal
-    setAsked([{ index: 0, text: q0, status: "pending" }]);
+    setAsked([{ index: 0, text: firstQuestion, status: "pending" }]);
     maybeRevealOnEnter(0);
   }
 
@@ -687,16 +703,18 @@ async function startExam() {
     const q = stepsOrdered[idx]?.prompt ?? "";
 
     // neue Frage freischalten (immer erlaubt)
+    const prevPrompt = stepsOrdered[idx - 1]?.prompt;
+    const transitionText = buildTransitionPrompt(prevPrompt, q);
     setAsked((prev) => {
       if (prev.find((a) => a.index === idx)) return prev; // schon freigeschaltet
-      return [...prev, { index: idx, text: q, status: "pending" }];
+      return [...prev, { index: idx, text: transitionText, status: "pending" }];
     });
 
     // neuen Chat ggf. anlegen
     setChats((prev) => {
       const copy = prev.map((x) => [...x]);
       if (!copy[idx] || copy[idx].length === 0) {
-        copy[idx] = [{ role: "prof", text: q }];
+        copy[idx] = [{ role: "prof", text: transitionText }];
       }
       return copy;
     });
@@ -893,6 +911,12 @@ async function startExam() {
               <div className="mt-2 text-sm text-green-700">
                 ✅ Fall abgeschlossen — Score {Number.isInteger(totalPoints) ? totalPoints : totalPoints.toFixed(1)}/
                 {maxPoints} ({Math.round(((totalPoints || 0) / Math.max(1, maxPoints)) * 100)}%)
+              </div>
+            )}
+            {loading && hasStarted && !ended && viewIndex === activeIndex && (
+              <div className="mt-3 flex items-center gap-2 text-xs text-gray-500" aria-live="polite">
+                <span className="sr-only">Warte auf die Prüferantwort…</span>
+                <span aria-hidden className="inline-flex h-2.5 w-2.5 rounded-full bg-blue-500 animate-pulse" />
               </div>
             )}
           </div>
