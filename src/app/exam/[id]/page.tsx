@@ -138,6 +138,7 @@ export default function ExamPage() {
 
   // Chats pro Schritt
   const [chats, setChats] = useState<Turn[][]>([]);
+  const [nextQuestionOverrides, setNextQuestionOverrides] = useState<Record<number, string>>({});
   const listRef = useRef<HTMLDivElement | null>(null);
 
   // 🔽 Sidebar: Container + letztes Item für Auto-Scroll
@@ -493,6 +494,16 @@ async function callExamAPI(
 
     const data: ApiReply = (await res.json()) as ApiReply;
 
+    if (
+      typeof data.next_question === "string" &&
+      data.next_question.trim() &&
+      activeIndex < nSteps - 1
+    ) {
+      const nextIdx = activeIndex + 1;
+      const text = data.next_question.trim();
+      setNextQuestionOverrides((prev) => ({ ...prev, [nextIdx]: text }));
+    }
+
     const hadSolution =
       typeof data.say_to_student === "string" &&
       /^lösung\s*:/i.test(data.say_to_student.trim());
@@ -604,31 +615,32 @@ async function callExamAPI(
   }
   // -------------------------------------------------
 
- // *** Flow-Funktionen ***
-async function startExam() {
-  if (!c) return;
+  // *** Flow-Funktionen ***
+  async function startExam() {
+    if (!c) return;
 
-  // 🔹 Zähler in Supabase hochziehen
-  try {
-    await fetch("/api/progress/start", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ caseId: c.id }),
-    });
-  } catch {
-    console.warn("Start-Tracking fehlgeschlagen");
-  }
+    // 🔹 Zähler in Supabase hochziehen
+    try {
+      await fetch("/api/progress/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caseId: c.id }),
+      });
+    } catch {
+      console.warn("Start-Tracking fehlgeschlagen");
+    }
 
-  const n = stepsOrdered.length;
+    const n = stepsOrdered.length;
 
-  // Reset
-  setAsked([]);
-  setPerStepScores(Array(n).fill(0));
-  setLastCorrectness(null);
-  setAttemptCount(0);
-  setActiveIndex(0);
-  setViewIndex(0);
-  setEnded(false);
+    // Reset
+    setAsked([]);
+    setPerStepScores(Array(n).fill(0));
+    setLastCorrectness(null);
+    setAttemptCount(0);
+    setActiveIndex(0);
+    setViewIndex(0);
+    setEnded(false);
+    setNextQuestionOverrides({});
 
     // Chats vorbereiten
     const initChats: Turn[][] = Array.from({ length: n }, () => []);
@@ -684,19 +696,20 @@ async function startExam() {
     }
 
     const idx = activeIndex + 1;
-    const q = stepsOrdered[idx]?.prompt ?? "";
+    const basePrompt = stepsOrdered[idx]?.prompt ?? "";
+    const nextText = nextQuestionOverrides[idx]?.trim() || basePrompt;
 
     // neue Frage freischalten (immer erlaubt)
     setAsked((prev) => {
       if (prev.find((a) => a.index === idx)) return prev; // schon freigeschaltet
-      return [...prev, { index: idx, text: q, status: "pending" }];
+      return [...prev, { index: idx, text: nextText, status: "pending" }];
     });
 
     // neuen Chat ggf. anlegen
     setChats((prev) => {
       const copy = prev.map((x) => [...x]);
       if (!copy[idx] || copy[idx].length === 0) {
-        copy[idx] = [{ role: "prof", text: q }];
+        copy[idx] = [{ role: "prof", text: nextText }];
       }
       return copy;
     });
@@ -884,6 +897,15 @@ async function startExam() {
                 </div>
               </div>
             ))}
+            {loading && viewIndex === activeIndex && (
+              <div className="mb-3 flex items-center gap-2">
+                <span
+                  className="inline-flex h-3 w-3 animate-pulse rounded-full bg-blue-500"
+                  aria-hidden
+                />
+                <span className="sr-only">Antwort des Prüfers wird geladen…</span>
+              </div>
+            )}
             {!hasStarted && (
               <div className="text-sm text-gray-600">
                 Klicke auf <b>Prüfung starten</b>, um zu beginnen.
