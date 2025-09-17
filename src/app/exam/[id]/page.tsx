@@ -653,10 +653,11 @@ async function callExamAPI(
 
     const data: ApiReply = (await res.json()) as ApiReply;
 
-    const sayNormalized = sanitizeProfText(data.say_to_student);
-    const hadSolution = typeof sayNormalized === "string" && /^lösung\s*:/i.test(sayNormalized);
-
-    if (hadSolution) pushProf(activeIndex, sayNormalized);
+    const rawSay = typeof data.say_to_student === "string" ? data.say_to_student : "";
+    const sayNormalized = sanitizeProfText(rawSay);
+    const solutionCandidate = (sayNormalized ?? rawSay)?.trim();
+    const hadSolution = solutionCandidate ? /^lösung\s*:/i.test(solutionCandidate) : false;
+    const theoretical = describeRule(stepRule as StepRule | null, c.title, currentPrompt);
 
     if (data.evaluation && opts.mode === "answer") {
       const { correctness, feedback, tips } = data.evaluation;
@@ -705,7 +706,6 @@ async function callExamAPI(
         correctness !== "correct" && tipsClean ? `Tipp: ${tipsClean}` : "",
       ].filter(Boolean);
 
-      const theoretical = describeRule(stepRule as StepRule | null, c.title, currentPrompt);
       if (theoretical) parts.push(theoretical);
 
       if (!feedbackClean && !tipsClean && !theoretical) {
@@ -723,12 +723,15 @@ async function callExamAPI(
     }
 
     // Zusätzliche Prüfer-Nachrichten (Tip/Explain)
-    if (!hadSolution && (!data.evaluation || !data.evaluation.feedback)) {
-      const theoretical = describeRule(stepRule as StepRule | null, c.title, currentPrompt);
+    if (!sayNormalized && (!data.evaluation || !data.evaluation.feedback)) {
       const fallback = theoretical
         ? `Hinweis: ${theoretical}`
         : "Ich konnte gerade keinen sinnvollen Hinweis generieren. Versuche es bitte gleich noch einmal.";
-      pushProf(activeIndex, sayNormalized ?? fallback);
+      pushProf(activeIndex, fallback);
+    }
+
+    if (sayNormalized) {
+      pushProf(activeIndex, sayNormalized);
     }
   } catch (e: unknown) {
     alert(e instanceof Error ? e.message : String(e));
