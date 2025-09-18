@@ -65,6 +65,76 @@ type BodyIn = {
   stepRule?: RuleJson | null;
 };
 
+function normalizeLineForMerge(line: string): string {
+  return line
+    .replace(/^[\s•\-–—:]+/, "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9äöüß\s]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function mergePatientDetails(base: string | null | undefined, extra: string | null | undefined): string | null {
+  const baseTrim = (base || "").trim();
+  const extraTrim = (extra || "").trim();
+  if (!extraTrim) return baseTrim || null;
+  if (!baseTrim) return extraTrim;
+
+  const baseLines = baseTrim.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const extraLines = extraTrim.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+
+  const seen = new Set(baseLines.map(normalizeLineForMerge));
+  const additions: string[] = [];
+
+  for (const line of extraLines) {
+    const norm = normalizeLineForMerge(line);
+    if (!seen.has(norm)) {
+      additions.push(line);
+      seen.add(norm);
+    }
+  }
+
+  if (additions.length === 0) {
+    return baseTrim;
+  }
+
+  return `${baseLines.join("\n")}\n${additions.join("\n")}`;
+}
+
+function summarizePrompt(prompt: string): string {
+  const raw = (prompt || "").replace(/\s+/g, " ").trim();
+  if (!raw) return "diesen Schritt";
+  if (raw.length <= 110) return `den Schritt „${raw}“`;
+  return `den Schritt „${raw.slice(0, 107)}…“`;
+}
+
+function fallbackEvaluation(
+  attempt: number,
+  prompt: string,
+  studentTexts: string[]
+): { correctness: "correct" | "partially_correct" | "incorrect"; feedback: string } {
+  const hasContent = studentTexts.some((s) => (s || "").trim().length > 0);
+  const correctness: "correct" | "partially_correct" | "incorrect" = hasContent
+    ? "partially_correct"
+    : "incorrect";
+
+  const context = summarizePrompt(prompt);
+  const outlook =
+    attempt >= 3
+      ? "Fasse anschließend die fallentscheidenden Punkte noch einmal strukturiert zusammen, bevor wir zum nächsten Abschnitt übergehen."
+      : "Nutze die nächste Runde, um die fallentscheidenden Aspekte klar zu benennen und kurz zu begründen, warum sie in dieser Konstellation Priorität haben.";
+
+  const qualifier = hasContent
+    ? "Bisher aufgegriffene Punkte streifen die Frage"
+    : "Es liegen noch keine verwertbaren Angaben vor";
+
+  const feedback = `${qualifier} zu ${context}, aber die zentralen falltypischen Schwerpunkte fehlen. ${outlook}`;
+
+  return { correctness, feedback };
+}
+
 /* ---------------------- Utils ---------------------- */
 
 function stripMd(s: string): string {
@@ -391,8 +461,62 @@ export async function POST(req: NextRequest) {
     }
 
     // --- Nachfrage automatisch erkennen (nur echte Fragen triggern) ---
-    const autoClarify = !clarifyQuestion && looksLikePatientInfoQuery(lastStudentText);
-    const clarify = (clarifyQuestion || (autoClarify ? lastStudentText : "")).trim();
+    const manualClarify = typeof clarifyQuestion === "string" ? clarifyQuestion.trim() : "";
+    const autoClarifyQuestion = !manualClarify && looksLikePatientInfoQuery(lastStudentText)
+      ? lastStudentText.trim()
+      : "";
+
+    const runClarify = async (question: string): Promise<string> => {
+      const sysClarify = `Du bist Prüfer:in.
+        Auf Nachfrage gibst du ZUSÄTZLICHE PATIENTENDETAILS, realistisch zur Vignette und zum aktuellen Schritt.
+        Form: 1–3 Sätze ODER 2–3 Bulletpoints (mit "- ").
+        Kein Spoiler (keine Enddiagnose, keine definitive Therapie).
+        Keine erfundenen Labor-/Bildbefunde; bleibe auf Anamnese/Untersuchungsebene, außer wenn der Schritt ausdrücklich Diagnostik betrifft.
+        Deutsch.`;
+
+      const usrClarify = `Vignette: ${caseText}
+CURRENT_STEP_PROMPT: ${currentPrompt || "(unbekannt)"}
+Nachfrage des Studierenden: ${question}
+Gib NUR die Zusatzinformation (ohne Präambel/Bewertung).`;
+
+      const outClarify = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: sysClarify },
+          { role: "user", content: usrClarify },
+        ],
+        temperature: 0.2,
+      });
+
+      return stripMd((outClarify.choices?.[0]?.message?.content || "").trim())
+        || "Keine weiteren relevanten Details verfügbar.";
+    };
+
+    if (manualClarify) {
+      const info = await runClarify(manualClarify);
+      const payload: ApiOut = { say_to_student: info, evaluation: null, next_question: null, end: false };
+
+      if (userId) {
+        void logTurn(supabase, {
+          userId,
+          caseId,
+          attemptStage: attemptStage ?? 1,
+          tipRequest: false,
+          explainRequest: false,
+          clarifyQuestion: manualClarify,
+          focusQuestion: currentPrompt || null,
+          lastStudentAnswer: lastStudentText || null,
+          modelOut: payload,
+        });
+      }
+
+      return NextResponse.json(payload);
+    }
+
+    let autoClarifyInfo: string | null = null;
+    if (autoClarifyQuestion) {
+      autoClarifyInfo = await runClarify(autoClarifyQuestion);
+    }
 
     // --- Drei-Versuche-Logik + Give-up ---
     const inferredAttempt = inferAttemptFromTranscript(transcript);
@@ -750,14 +874,16 @@ Erzeuge NUR das JSON-Objekt.`.trim();
       ? {
           ...payload.evaluation,
           feedback: stripMd(payload.evaluation.feedback || ""),
-          // KEINE Auto-Tipps mehr (nur im Tipp-Modus) – falls LLM doch eins schickt, lassen wir es still zu.
           tips: payload.evaluation.tips ? stripMd(payload.evaluation.tips) : undefined,
         }
       : null;
     payload.next_question = stripMd((payload.next_question ?? "") as string) || null;
     payload.end = Boolean(payload.end);
 
-    // Spoiler-Schutz NUR für frühe Versuche und NICHT bei korrekter Antwort
+    if (!payload.evaluation) {
+      payload.evaluation = fallbackEvaluation(effectiveAttempt, currentPrompt, studentTextsWindow);
+    }
+
     if (payload.evaluation && effectiveAttempt < 3 && payload.evaluation.correctness !== "correct") {
       payload.evaluation.feedback = sanitizeForEarlyAttempts(payload.evaluation.feedback || "");
       if (!payload.evaluation.feedback) {
@@ -780,8 +906,20 @@ Erzeuge NUR das JSON-Objekt.`.trim();
     }
 
     if (effectiveAttempt < 3 && !isCorrect && payload.say_to_student) {
-      const stripped = stripSolutionLead(payload.say_to_student);
-      payload.say_to_student = stripped || null;
+      let cleaned = stripSolutionLead(payload.say_to_student);
+      cleaned = cleaned
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .filter((line) => !/^•?\s*(kerngedanke|abgrenzung|nächster schritt)\b/i.test(line))
+        .join("\n");
+      cleaned = cleaned.replace(/\b(kerngedanke|abgrenzung|nächster schritt)\b[^\n]*$/gim, "");
+      cleaned = cleaned.replace(/[\s,:;.-]+$/g, "");
+      payload.say_to_student = cleaned.trim() || null;
+    }
+
+    if (autoClarifyInfo) {
+      payload.say_to_student = mergePatientDetails(payload.say_to_student, autoClarifyInfo);
     }
 
     // Bei korrekt → zwingend zum nächsten Schritt
