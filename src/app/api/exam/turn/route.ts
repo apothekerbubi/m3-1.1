@@ -128,11 +128,51 @@ function studentSinceLastExaminerQuestion(transcript: TranscriptItem[]): string[
 
 function collectCanonAndSynonyms(rule: RuleJson | null): Array<{ canon: string; alts: string[] }> {
   const out = new Map<string, Set<string>>();
+
+  const expandVariants = (input: string): string[] => {
+    const raw = (input || "").replace(/[•\-]\s*/g, "").trim();
+    if (!raw) return [];
+    const variants = new Set<string>();
+    variants.add(raw);
+
+    const withoutParens = raw.replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
+    if (withoutParens && withoutParens !== raw) variants.add(withoutParens);
+
+    const parenMatches = Array.from(raw.matchAll(/\(([^)]+)\)/g));
+    for (const match of parenMatches) {
+      const inside = match[1];
+      inside
+        .split(/[;,/]/)
+        .flatMap(part => part.split(/\b(?:und|oder|bzw\.?|sowie)\b/i))
+        .map(part => part.replace(/[•\-]\s*/g, "").trim())
+        .filter(Boolean)
+        .forEach(part => variants.add(part));
+    }
+
+    raw
+      .split(/[;,/]/)
+      .flatMap(part => part.split(/\b(?:und|oder|bzw\.?|sowie)\b/i))
+      .map(part => part.replace(/[•\-]\s*/g, "").trim())
+      .filter(Boolean)
+      .forEach(part => variants.add(part));
+
+    return Array.from(variants).filter(v => v.length >= 2);
+  };
+
   const push = (canon: string, alt?: string) => {
     const c = normalizeText(canon);
     if (!c) return;
     if (!out.has(c)) out.set(c, new Set<string>());
-    if (alt) out.get(c)!.add(normalizeText(alt));
+
+    const altVariants = new Set<string>();
+    expandVariants(canon).forEach(v => altVariants.add(normalizeText(v)));
+    if (alt) expandVariants(alt).forEach(v => altVariants.add(normalizeText(v)));
+
+    for (const variant of altVariants) {
+      if (variant && variant !== c) {
+        out.get(c)!.add(variant);
+      }
+    }
   };
 
   const walk = (node: unknown): void => {
@@ -254,6 +294,9 @@ export async function POST(req: NextRequest) {
       || ([...transcript].reverse().find(t => t.role === "examiner" && /\?\s*$/.test(t.text))?.text?.trim() || "");
     const nextPrompt = (stepsPrompts[stepIndex + 1] || "").trim() || null;
 
+    const promptLower = (currentPrompt || "").toLowerCase();
+    const isAnamnesisStep = /anamnes|anamnese|nachfragen|fragen stellen|weitere fragen/i.test(promptLower);
+
     if (!caseText) {
       return NextResponse.json({ error: "Bad request: caseText ist erforderlich." }, { status: 400 });
     }
@@ -264,13 +307,14 @@ export async function POST(req: NextRequest) {
     const userId = userRes?.user?.id ?? null;
 
     // --- Nachfrage/Letzte Antwort vorbereiten ---
-const lastStudentText =
-  [...transcript].reverse().find((t) => t.role === "student")?.text?.trim() || "";
+    const lastStudentText =
+      [...transcript].reverse().find(t => t.role === "student")?.text?.trim() || "";
+    const studentAskedPatient = /\?|\b(erzähl|schilder|berichten|sagen)\b/i.test(lastStudentText);
 
-  // --- Drei-Versuche-Logik + Give-up ---
-const inferredAttempt = inferAttemptFromTranscript(transcript);
-const gaveUp = looksLikeGiveUp(lastStudentText);
-const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 1);
+    // --- Drei-Versuche-Logik + Give-up ---
+    const inferredAttempt = inferAttemptFromTranscript(transcript);
+    const gaveUp = looksLikeGiveUp(lastStudentText);
+    const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 1);
 
     // --- KUMULATIV: alle student-Antworten seit der letzten Frage sammeln ---
     const studentTextsWindow = studentSinceLastExaminerQuestion(transcript);
@@ -512,6 +556,11 @@ Ansprache: du/dir/dein.
 Sprache: Deutsch.
 Im Transkript: Rollen student/examiner/patient – bewerte ausschließlich student.
 
+${isAnamnesisStep ? `ANAMNESE-MODUS (wichtig)
+- Prüfe die letzte Nachricht des Studierenden auf konkrete Fragen an den Patienten.
+- Formuliere in say_to_student eine natürliche Antwort des Patienten auf jede dieser Fragen.
+- Die Antworten sind kurz, alltagsnah und passen logisch zur Fallvignette.` : ""}
+
 KONTEXT-REGELN
 - Beziehe dich NUR auf Vignette + bereits preisgegebene Infos.
 - Keine neuen Befunde erfinden.
@@ -644,6 +693,26 @@ Erzeuge NUR das JSON-Objekt.`.trim();
       : null;
     payload.next_question = stripMd((payload.next_question ?? "") as string) || null;
     payload.end = Boolean(payload.end);
+
+    if (payload.evaluation) {
+      if (payload.evaluation.correctness === "partially_correct") {
+        payload.evaluation.feedback =
+          "Du bist auf einem guten Weg, aber es fehlen noch wichtige Informationen aus diesem Schritt.";
+      } else if (payload.evaluation.correctness === "incorrect") {
+        payload.evaluation.feedback =
+          "Hier fehlen leider noch zentrale Informationen – strukturiere die wichtigsten Punkte erneut.";
+      }
+    }
+
+    if (isAnamnesisStep && studentAskedPatient) {
+      const say = (payload.say_to_student || "").trim();
+      if (!say) {
+        payload.say_to_student =
+          "Der Patient berichtet, dass er dazu im Moment keine weiteren Angaben machen kann.";
+      } else if (!/^(der patient|die patientin|lösung)/i.test(say)) {
+        payload.say_to_student = `Der Patient berichtet: ${say}`;
+      }
+    }
 
     // Spoiler-Schutz NUR für frühe Versuche und NICHT bei korrekter Antwort
     if (payload.evaluation && effectiveAttempt < 3 && payload.evaluation.correctness !== "correct") {
