@@ -65,6 +65,76 @@ type BodyIn = {
   stepRule?: RuleJson | null;
 };
 
+function normalizeLineForMerge(line: string): string {
+  return line
+    .replace(/^[\s•\-–—:]+/, "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9äöüß\s]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function mergePatientDetails(base: string | null | undefined, extra: string | null | undefined): string | null {
+  const baseTrim = (base || "").trim();
+  const extraTrim = (extra || "").trim();
+  if (!extraTrim) return baseTrim || null;
+  if (!baseTrim) return extraTrim;
+
+  const baseLines = baseTrim.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const extraLines = extraTrim.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+
+  const seen = new Set(baseLines.map(normalizeLineForMerge));
+  const additions: string[] = [];
+
+  for (const line of extraLines) {
+    const norm = normalizeLineForMerge(line);
+    if (!seen.has(norm)) {
+      additions.push(line);
+      seen.add(norm);
+    }
+  }
+
+  if (additions.length === 0) {
+    return baseTrim;
+  }
+
+  return `${baseLines.join("\n")}\n${additions.join("\n")}`;
+}
+
+function summarizePrompt(prompt: string): string {
+  const raw = (prompt || "").replace(/\s+/g, " ").trim();
+  if (!raw) return "diesen Schritt";
+  if (raw.length <= 110) return `den Schritt „${raw}“`;
+  return `den Schritt „${raw.slice(0, 107)}…“`;
+}
+
+function fallbackEvaluation(
+  attempt: number,
+  prompt: string,
+  studentTexts: string[]
+): { correctness: "correct" | "partially_correct" | "incorrect"; feedback: string } {
+  const hasContent = studentTexts.some((s) => (s || "").trim().length > 0);
+  const correctness: "correct" | "partially_correct" | "incorrect" = hasContent
+    ? "partially_correct"
+    : "incorrect";
+
+  const context = summarizePrompt(prompt);
+  const outlook =
+    attempt >= 3
+      ? "Fasse anschließend die fallentscheidenden Punkte noch einmal strukturiert zusammen, bevor wir zum nächsten Abschnitt übergehen."
+      : "Nutze die nächste Runde, um die fallentscheidenden Aspekte klar zu benennen und kurz zu begründen, warum sie in dieser Konstellation Priorität haben.";
+
+  const qualifier = hasContent
+    ? "Bisher aufgegriffene Punkte streifen die Frage"
+    : "Es liegen noch keine verwertbaren Angaben vor";
+
+  const feedback = `${qualifier} zu ${context}, aber die zentralen falltypischen Schwerpunkte fehlen. ${outlook}`;
+
+  return { correctness, feedback };
+}
+
 /* ---------------------- Utils ---------------------- */
 
 function stripMd(s: string): string {
@@ -134,6 +204,41 @@ function sanitizeForEarlyAttempts(txt: string): string {
   let s = (txt || "");
   s = s.replace(/\b(z\.?\s?b\.?|u\.a\.|unter anderem|zum beispiel)\b[^.]*\./gi, " (Beispiele weggelassen).");
   s = s.replace(/^\s*tipp:\s*/i, "");
+  const spoilers = [
+    "lösung",
+    "musterlösung",
+    "richtige antwort",
+    "korrekte antwort",
+    "die antwort ist",
+    "die antwort wäre",
+    "korrekt wäre",
+  ];
+  const lower = s.toLowerCase();
+  let cutIdx = -1;
+  for (const phrase of spoilers) {
+    const idx = lower.indexOf(phrase);
+    if (idx >= 0 && (cutIdx === -1 || idx < cutIdx)) {
+      cutIdx = idx;
+    }
+  }
+  if (cutIdx >= 0) {
+    s = s.slice(0, cutIdx);
+  }
+
+  // Entferne typische Lösungs-Bullets, falls das LLM sie trotzdem sendet
+  s = s.replace(/•\s*(kerngedanke|abgrenzung|nächster schritt)[^•\n]*(?:\n|$)/gi, "");
+  s = s.replace(/\b(kerngedanke|abgrenzung|nächster schritt)\b[^\n]*$/gim, "");
+
+  s = s.replace(/[\s,:;.-]+$/g, "");
+  return s.trim();
+}
+
+function stripSolutionLead(txt: string): string {
+  let s = (txt || "").trim();
+  if (!s) return "";
+  s = s.replace(/\b(lösung|musterlösung|richtige antwort|korrekte antwort)\b\s*[:–-]?/gi, "");
+  s = s.replace(/\b(die antwort (?:ist|wäre)|korrekt wäre)\b\s*/gi, "");
+  s = s.replace(/^[\s,:;.-]+/g, "");
   return s.trim();
 }
 
@@ -356,26 +461,22 @@ export async function POST(req: NextRequest) {
     }
 
     // --- Nachfrage automatisch erkennen (nur echte Fragen triggern) ---
-    const autoClarify = !clarifyQuestion && looksLikePatientInfoQuery(lastStudentText);
-    const clarify = (clarifyQuestion || (autoClarify ? lastStudentText : "")).trim();
+    const manualClarify = typeof clarifyQuestion === "string" ? clarifyQuestion.trim() : "";
+    const autoClarifyQuestion = !manualClarify && looksLikePatientInfoQuery(lastStudentText)
+      ? lastStudentText.trim()
+      : "";
 
-    // --- Drei-Versuche-Logik + Give-up ---
-    const inferredAttempt = inferAttemptFromTranscript(transcript);
-    const gaveUp = looksLikeGiveUp(lastStudentText);
-    const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 1);
-
-    /* ---------- MODE B: Zusatzinfos (Clarify) ---------- */
-    if (clarify) {
+    const runClarify = async (question: string): Promise<string> => {
       const sysClarify = `Du bist Prüfer:in.
         Auf Nachfrage gibst du ZUSÄTZLICHE PATIENTENDETAILS, realistisch zur Vignette und zum aktuellen Schritt.
         Form: 1–3 Sätze ODER 2–3 Bulletpoints (mit "- ").
         Kein Spoiler (keine Enddiagnose, keine definitive Therapie).
         Keine erfundenen Labor-/Bildbefunde; bleibe auf Anamnese/Untersuchungsebene, außer wenn der Schritt ausdrücklich Diagnostik betrifft.
-  Deutsch.`;
+        Deutsch.`;
 
       const usrClarify = `Vignette: ${caseText}
 CURRENT_STEP_PROMPT: ${currentPrompt || "(unbekannt)"}
-Nachfrage des Studierenden: ${clarify}
+Nachfrage des Studierenden: ${question}
 Gib NUR die Zusatzinformation (ohne Präambel/Bewertung).`;
 
       const outClarify = await client.chat.completions.create({
@@ -387,17 +488,22 @@ Gib NUR die Zusatzinformation (ohne Präambel/Bewertung).`;
         temperature: 0.2,
       });
 
-      const info = stripMd((outClarify.choices?.[0]?.message?.content || "").trim()) || "Keine weiteren relevanten Details verfügbar.";
+      return stripMd((outClarify.choices?.[0]?.message?.content || "").trim())
+        || "Keine weiteren relevanten Details verfügbar.";
+    };
+
+    if (manualClarify) {
+      const info = await runClarify(manualClarify);
       const payload: ApiOut = { say_to_student: info, evaluation: null, next_question: null, end: false };
 
       if (userId) {
         void logTurn(supabase, {
           userId,
           caseId,
-          attemptStage: effectiveAttempt,
+          attemptStage: attemptStage ?? 1,
           tipRequest: false,
           explainRequest: false,
-          clarifyQuestion: clarify,
+          clarifyQuestion: manualClarify,
           focusQuestion: currentPrompt || null,
           lastStudentAnswer: lastStudentText || null,
           modelOut: payload,
@@ -407,10 +513,21 @@ Gib NUR die Zusatzinformation (ohne Präambel/Bewertung).`;
       return NextResponse.json(payload);
     }
 
+    let autoClarifyInfo: string | null = null;
+    if (autoClarifyQuestion) {
+      autoClarifyInfo = await runClarify(autoClarifyQuestion);
+    }
+
+    // --- Drei-Versuche-Logik + Give-up ---
+    const inferredAttempt = inferAttemptFromTranscript(transcript);
+    const gaveUp = looksLikeGiveUp(lastStudentText);
+    const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 1);
+
     /* ---------- MODE D: Erklärung (kumulativ) ---------- */
-if (explainRequest) {
-  const sysExplain = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
+    if (explainRequest) {
+      const sysExplain = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
 Ziel: eine kurze, flüssige Einordnung der STUDIERENDENANTWORTEN zur CURRENT_STEP_PROMPT.
+Verknüpfe deine Aussagen immer mit dem Krankheitsbild bzw. der Falllogik dieses Schritts und gib einen Mini-Ausblick auf den nächsten sinnvollen gedanklichen Schritt.
 Beziehe dich NUR auf Vignette + bereits preisgegebene Informationen dieses Falls/Schritts.
 
 WICHTIG: KUMULATIV BEWERTEN
@@ -420,20 +537,20 @@ WICHTIG: KUMULATIV BEWERTEN
 - Erkläre bezogen auf die Gesamtheit dieser Angaben (nicht nur die letzte Nachricht).
 
 FORMAT
-- ZUERST 1–2 Sätze in natürlicher Prosa (keine Liste), die die Antwort einordnen (richtig/teilweise/falsch) und kurz warum – kontextbezogen.
-- DANACH optional maximal 2 sehr knappe Bulletpoints (mit "- "), nur wenn sie echten Mehrwert bieten (Struktur/Prio/Falle).
+- ZUERST 1–2 Sätze in natürlicher Prosa (keine Liste), die die Antwort einordnen (richtig/teilweise/falsch) und kurz warum – kontextbezogen und mit Bezug zu Pathophysiologie/Prioritäten dieses Falls.
+- DANACH optional maximal 2 sehr knappe Bulletpoints (mit "- "), nur wenn sie echten Mehrwert bieten (Struktur/Prio/Falle) und den Ausblick stützen.
 - Keine neue Frage stellen. Keine Meta-Sprache in der Ich-/Du-Form („deine Antwort ist…“ vermeiden), keine Emojis, keine Auslassungspunkte, keine Platzhalter.
 
 SPOILER-SCHUTZ
 - Bei attemptStage 1/2: Striktes Spoilerverbot. Keine neuen Diagnosen, Beispiele, Labor-/Bild-Befunde oder Schlüsselbegriffe, die NICHT von der/dem Studierenden genannt oder offiziell preisgegeben wurden.
 - Duzen (du/dir/dein). Deutsch.`;
 
-  const fallbackQuestion =
-    (currentPrompt || explainContext?.question?.trim()) ||
-     ([...transcript].reverse().find((t) => t.role === "examiner" && /\?\s*$/.test(t.text))?.text || "");
+      const fallbackQuestion =
+        (currentPrompt || explainContext?.question?.trim()) ||
+        ([...transcript].reverse().find((t) => t.role === "examiner" && /\?\s*$/.test(t.text))?.text || "");
 
-  // <- WICHTIG: wir erklären jetzt kumulativ (nicht nur die letzte Antwort)
-  const usrExplain = `Vignette: ${caseText}
+      // <- WICHTIG: wir erklären jetzt kumulativ (nicht nur die letzte Antwort)
+      const usrExplain = `Vignette: ${caseText}
 CURRENT_STEP_PROMPT: ${fallbackQuestion || "(unbekannt)"}
 attemptStage: ${effectiveAttempt}
 
@@ -449,35 +566,35 @@ ${JSON.stringify(student_union)}
 ${outline.length ? `Prüfungs-Outline: ${outline.join(" • ")}` : ""}
 Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bullets mit "- ").`;
 
-  const outExplain = await client.chat.completions.create({
-    model,
-    messages: [
-      { role: "system", content: sysExplain },
-      { role: "user", content: usrExplain },
-    ],
-    temperature: 0.2,
-  });
+      const outExplain = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: sysExplain },
+          { role: "user", content: usrExplain },
+        ],
+        temperature: 0.2,
+      });
 
-  const say = stripMd((outExplain.choices?.[0]?.message?.content || "").trim()) ||
-    "Kurz eingeordnet: Inhaltlich passend und kontextgerecht begründet.";
-  const payload: ApiOut = { say_to_student: say, evaluation: null, next_question: null, end: false };
+      const say = stripMd((outExplain.choices?.[0]?.message?.content || "").trim())
+        || "Kurz eingeordnet: Inhaltlich passend und kontextgerecht begründet.";
+      const payload: ApiOut = { say_to_student: say, evaluation: null, next_question: null, end: false };
 
-  if (userId) {
-    void logTurn(supabase, {
-      userId,
-      caseId,
-      attemptStage: effectiveAttempt,
-      tipRequest: false,
-      explainRequest: true,
-      clarifyQuestion: null,
-      focusQuestion: fallbackQuestion || null,
-      lastStudentAnswer: student_so_far_text || null, // <- kumulativ loggen
-      modelOut: payload,
-    });
-  }
+      if (userId) {
+        void logTurn(supabase, {
+          userId,
+          caseId,
+          attemptStage: effectiveAttempt,
+          tipRequest: false,
+          explainRequest: true,
+          clarifyQuestion: null,
+          focusQuestion: fallbackQuestion || null,
+          lastStudentAnswer: student_so_far_text || null, // <- kumulativ loggen
+          modelOut: payload,
+        });
+      }
 
-  return NextResponse.json(payload);
-}
+      return NextResponse.json(payload);
+    }
 
     /* ---------- KICKOFF ---------- */
     {
@@ -491,39 +608,32 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
         transcript[0]?.role === "examiner" &&
         !/[?？]\s*$/.test(transcript[0]?.text || "");
 
-      if (noStudentAfterExaminer || isJustVignetteStart) {
-        if (stepsPrompts[0]) {
-          const payload: ApiOut = {
-            say_to_student: null,
-            evaluation: null,
-            next_question: stepsPrompts[0],
-            end: false,
-          };
+      const shouldKickoff =
+        transcript.length === 0 || noStudentAfterExaminer || isJustVignetteStart;
 
-          if (userId) {
-            void logTurn(supabase, {
-              userId,
-              caseId,
-              attemptStage: 1,
-              tipRequest: false,
-              explainRequest: false,
-              clarifyQuestion: null,
-              focusQuestion: stepsPrompts[0],
-              lastStudentAnswer: null,
-              modelOut: payload,
-            });
-          }
-
-          return NextResponse.json(payload);
-        }
+      if (shouldKickoff) {
+        const firstPrompt = (stepsPrompts[0] || currentPrompt || focusQuestion || "").trim();
 
         const sysKickoff = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
-Stelle GENAU EINE präzise Einstiegsfrage zur Vignette (ein Satz, Fragezeichen).
-KEINE Bewertung, KEIN Feedback, KEIN Tipp. Nur die Frage. Deutsch.`;
+Ziel: realistischer Prüfungsauftakt.
+Vorgehen:
+1. Begrüße die/den Studierenden kurz und wertschätzend in der Du-Form (1 Satz).
+2. Schilder die Fallvignette in 3–5 Sätzen frei paraphrasiert auf Basis von CASE_VIGNETTE – ergänze nur glaubhafte Details, die den Fall rahmen, ohne der Falllogik zu widersprechen.
+3. Formuliere eine natürliche Übergangsfrage in der Du-Form, die CURRENT_STEP_PROMPT aufgreift und eine Gesprächsüberleitung enthält (z. B. „Starten wir mit…“, „Lass uns zuerst…“).
+Ausgabe ausschließlich als JSON:
+{
+  "intro": "...",   // Begrüßung + Vignette, kein Fragezeichen am Ende
+  "question": "..." // Übergangsfrage, endet mit ?
+}
+Sprache: Deutsch, du/dir/dein.`;
 
-        const usrKickoff = `Vignette: ${caseText}
-${outline.length ? `Prüfungs-Outline (optional): ${outline.join(" • ")}` : ""}
-Erzeuge NUR die Frage (ein Satz, Fragezeichen).`;
+        const usrKickoff = `CASE_ID: ${caseId ?? "(unbekannt)"}
+CASE_VIGNETTE: ${caseText}
+CURRENT_STEP_PROMPT: ${firstPrompt || "(unbekannt)"}
+STIL: ${style}
+${outline.length ? `OUTLINE: ${outline.join(" • ")}` : ""}
+${objectives.length ? `ZIELE: ${objectives.map(o => `${o.id}: ${o.label}`).join(" | ")}` : ""}
+Gib NUR das JSON-Objekt mit intro und question zurück.`;
 
         const outKick = await client.chat.completions.create({
           model,
@@ -531,16 +641,38 @@ Erzeuge NUR die Frage (ein Satz, Fragezeichen).`;
             { role: "system", content: sysKickoff },
             { role: "user", content: usrKickoff },
           ],
-          temperature: 0.2,
+          temperature: 0.3,
         });
 
-        const qRaw = (outKick.choices?.[0]?.message?.content || "").trim();
-        const q = stripMd(qRaw);
+        const rawKick = (outKick.choices?.[0]?.message?.content || "").trim();
+        let jsonKick = rawKick.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+        if (!(jsonKick.startsWith("{") && jsonKick.endsWith("}"))) {
+          const s = jsonKick.indexOf("{");
+          const e = jsonKick.lastIndexOf("}");
+          if (s >= 0 && e > s) jsonKick = jsonKick.slice(s, e + 1);
+        }
+
+        let intro = "";
+        let question = "";
+        try {
+          const parsed = JSON.parse(jsonKick) as { intro?: string; question?: string };
+          intro = typeof parsed.intro === "string" ? parsed.intro : "";
+          question = typeof parsed.question === "string" ? parsed.question : "";
+        } catch {
+          // Fallback weiter unten
+        }
+
+        const introClean = stripMd(intro).replace(/\n{3,}/g, "\n\n").trim();
+        let questionClean = stripMd(question).trim();
+        if (!questionClean) questionClean = firstPrompt;
+        if (questionClean && !/[?？]\s*$/.test(questionClean)) {
+          questionClean = `${questionClean}?`;
+        }
 
         const payload: ApiOut = {
-          say_to_student: null,
+          say_to_student: introClean || null,
           evaluation: null,
-          next_question: q.endsWith("?") ? q : `${q}?`,
+          next_question: questionClean || null,
           end: false,
         };
 
@@ -552,7 +684,7 @@ Erzeuge NUR die Frage (ein Satz, Fragezeichen).`;
             tipRequest: false,
             explainRequest: false,
             clarifyQuestion: null,
-            focusQuestion: payload.next_question,
+            focusQuestion: questionClean || null,
             lastStudentAnswer: null,
             modelOut: payload,
           });
@@ -563,7 +695,7 @@ Erzeuge NUR die Frage (ein Satz, Fragezeichen).`;
     }
 
     /* ---------- MODE C: Normaler Prüfungszug ---------- */
-   const sysExam = `Du bist Prüfer:in am 2. Tag (Theorie) des 3. Staatsexamens (M3).
+    const sysExam = `Du bist Prüfer:in am 2. Tag (Theorie) des 3. Staatsexamens (M3).
 Stil: ${style === "strict" ? "knapp, streng-sachlich" : "freundlich-klar, coaching-orientiert"}.
 Ansprache: du/dir/dein.
 Sprache: Deutsch.
@@ -582,28 +714,52 @@ KUMULATIVE WERTUNG (wichtig)
 - **Zähle erfüllte Regeln über alle bisherigen Versuche zusammen** (Union). Wenn die Summe aus alten+aktuellen Antworten die Regel erfüllt, ist die Antwort 'correct' – auch wenn die letzte Einzelnachricht allein nicht ausreichen würde.
 - Doppelnennungen zählen nicht mehrfach;
 - Falls etwas falsch geschrieben ist, z.b. Rechtschreibung stark abweichend; Tippfehler, ausgelassene Buchstaben, verdrehte Buchstaben und Schreibweisen nach Lautsprache (z. B. „Kolezüstitis“ für „Cholezystitis“), dann auch als richtig zählen.
+- In deiner Formulierung beziehst du dich auf diese Gesamtleistung – nicht nur auf den letzten Satz – und fasst die wesentlichen bereits erarbeiteten Punkte zusammen.
+
+GESPRÄCHSFLUSS & FRAGENSTELLUNG
+- Formuliere jede next_question als natürlichen Übergang, verknüpfe sie mit dem bisherigen Verlauf und integriere den Kern von NEXT_STEP_PROMPT, ohne ihn wörtlich zu kopieren (z. B. „Kommen wir nun zu…“).
+- Greife vorhandene Informationen kurz auf, wenn das den Übergang erleichtert.
+- Formuliere in say_to_student NIEMALS die nächste Frage; Übergangsfragen erscheinen ausschließlich in next_question.
+
+PATIENT:INNEN-ROLLENSPIEL
+- Wenn CURRENT_STEP_PROMPT die Erhebung von Patient:inneninformationen verlangt (z. B. Anamnese, Nachfragen, Gesprächssimulation), gib nach der Bewertung knapp wieder, wie der/die Patient:in auf die genannten oder besonders wichtigen Fragen reagiert (1–3 Sätze, eingeleitet mit „Patient berichtet …“ o. Ä.).
+- Reagiere dabei ausdrücklich auf die konkret gestellten Fragen der/des Studierenden (z. B. Alkohol, Medikamente, Risikofaktoren) und liefere pro Frage eine plausible, fallkonsistente Antwort.
+- Auch wenn die Studierendenantwort sinngemäß „ich würde nach … fragen“ lautet, behandle diese Punkte so, als wären sie gestellt worden, und gib die passenden Patient:innenreaktionen an.
+- Leite diese Patientenreaktion mit einem kurzen Satz ein, der würdigt, was an den Fragen hilfreich war, und motiviere ggf. zu weiteren relevanten Nachfragen.
+- Gehe die Studierendenfragen der Reihe nach durch, damit jede konkrete Nachfrage beantwortet wird und im Fallkontext bleibt.
+- Diese Antworten müssen fallkonsistent sein und dürfen auch in attemptStage 1/2 genannt werden.
 
 NO-LEAK GUARD (streng)
 - In attemptStage 1/2 (und im Tipp-Modus) keine neuen Diagnosen/Beispiele/Synonyme/Hinweise, die nicht von der/dem Studierenden stammen.
 - Nur Meta-Feedback (z. B. Organsysteme/Struktur/Anzahl), keine Inhalte verraten.
 - Genutzte Begriffe darfst du korrigieren, aber **keine** neuen Inhalte einführen.
+- Vermeide Formulierungen wie „Lösung …“, „richtige Antwort …“ oder die komplette Musterlösung, solange attemptStage < 3 und die Antwort nicht korrekt ist.
+- In attemptStage 1/2 darfst du diese Begriffe überhaupt nicht verwenden – nutze stattdessen motivierende Hinweise.
+- Ausnahme: Patient:innenantworten laut Abschnitt PATIENT:INNEN-ROLLENSPIEL dürfen ergänzt werden, sofern sie sich plausibel aus der Falllogik ergeben.
 
 AUSDRUCK & TON
 -  Keine Emojis/Auslassungspunkte/Klammer-Meta.
-- Bei correct/partial/incorrect kurze, klare Begründung auf Meta-Ebene.
+- Sprich in klaren, vollständigen Sätzen und nimm Bezug auf den laufenden Prüfungsdialog.
+
+BEWERTUNG & EINORDNUNG
+- evaluation.feedback besteht aus einem klaren Bewertungssatz plus einem begründenden Satz, der explizit den Krankheitskontext bzw. die Falllogik heranzieht (Pathophysiologie, Differenzialdiagnose, typische Prioritäten). Nenne dabei immer, was an der Antwort bereits hilfreich war, und was als nächstes noch wichtig wäre – inklusive eines kurzen Ausblicks, warum der nächste Schritt sinnvoll ist.
+- Wenn etwas nicht passt oder nachrangig ist, erkläre knapp, warum es in dieser Konstellation keine Priorität hat.
+- evaluation darf NIEMALS null sein.
+- Bei correct kannst du zusätzlich 2–3 Meta-Bullets nutzen ( warum passend • Kategorie/Pathomechanismus auf Meta-Ebene • Priorität / nächster Schritt auf Fall-Ebene).
 
 VERSUCHSLOGIK (hart)
 - Drei Versuche (attemptStage 1..3). Give-up zählt wie 3.
 - attemptStage 1/2 UND nicht korrekt:
-  • evaluation.feedback = 1 kurzer Satz Bewertung + 1 kurzer Satz Lücke/Strukturhinweis (ohne Beispiele/Diagnosen).
+  • evaluation.feedback = 1 kurzer Satz Bewertung + 1 kurzer Satz Lücke/Strukturhinweis mit Begründung (ohne konkrete Beispiele/Diagnosen zu verraten).
   • evaluation.tips = weglassen (nur im Tipp-Modus).
   • next_question = null.
+  • say_to_student enthält KEINE vollständige Musterlösung, keine Formulierungen wie „Die richtige Antwort wäre…“ und keine definitive Diagnostik/Therapie – nur Würdigung, motivierendes Coaching und ggf. Patient:innenantworten.
 - attemptStage 3 ODER Give-up:
-  • say_to_student MUSS mit "Lösung:" beginnen. Danach 1 Kernsatz + was noch gefehlt hat + 2–3 knappe Bullets (• Kerngedanke • Abgrenzung • nächster Schritt).
-  • next_question = NEXT_STEP_PROMPT (falls vorhanden), sonst null.
+  • say_to_student MUSS mit "Lösung:" beginnen. Danach 1 Kernsatz + was noch gefehlt hat + 2–3 knappe Bullets (• Kerngedanke • Abgrenzung • nächster Schritt); falls der Schritt Patient:innenantworten verlangt, hänge 1–2 Sätze mit den passenden Antworten an. Keine neue Frage in diesem Feld.
+  • next_question = Formuliere aus NEXT_STEP_PROMPT eine natürliche Übergangsfrage (siehe oben), sonst null.
 - Antwort ist korrekt:
   • evaluation.feedback = 1 kurzer Bestätigungssatz + 2–3 Meta-Bullets ( warum passend • Kategorie/Pathomechanismus auf Meta-Ebene • Priorität).
-  • next_question = NEXT_STEP_PROMPT (falls vorhanden); end=true falls letzter Schritt.
+  • next_question = Formuliere aus NEXT_STEP_PROMPT eine natürliche Übergangsfrage (mit Übergangsphrase); end=true falls letzter Schritt.
 
 TIPP-MODUS (tipRequest=true)
 - Nur "say_to_student" mit 1–2 neutralen Strukturhinweisen (keine Diagnosen/Beispiele). "evaluation" und "next_question" bleiben null.
@@ -675,18 +831,25 @@ Erzeuge NUR das JSON-Objekt.`.trim();
       ? {
           ...payload.evaluation,
           feedback: stripMd(payload.evaluation.feedback || ""),
-          // KEINE Auto-Tipps mehr (nur im Tipp-Modus) – falls LLM doch eins schickt, lassen wir es still zu.
           tips: payload.evaluation.tips ? stripMd(payload.evaluation.tips) : undefined,
         }
       : null;
     payload.next_question = stripMd((payload.next_question ?? "") as string) || null;
     payload.end = Boolean(payload.end);
 
-    // Spoiler-Schutz NUR für frühe Versuche und NICHT bei korrekter Antwort
+    if (!payload.evaluation) {
+      payload.evaluation = fallbackEvaluation(effectiveAttempt, currentPrompt, studentTextsWindow);
+    }
+
     if (payload.evaluation && effectiveAttempt < 3 && payload.evaluation.correctness !== "correct") {
       payload.evaluation.feedback = sanitizeForEarlyAttempts(payload.evaluation.feedback || "");
+      if (!payload.evaluation.feedback) {
+        payload.evaluation.feedback =
+          "Für eine vollständige Antwort fehlen noch zentrale fallrelevante Punkte – bleib im Fallkontext und ergänze die wichtigsten Aspekte dieser Frage.";
+      }
       if (payload.evaluation.tips) {
-        payload.evaluation.tips = sanitizeForEarlyAttempts(payload.evaluation.tips);
+        const cleaned = sanitizeForEarlyAttempts(payload.evaluation.tips);
+        payload.evaluation.tips = cleaned || undefined;
       }
     }
 
@@ -699,9 +862,28 @@ Erzeuge NUR das JSON-Objekt.`.trim();
       payload.end = false;
     }
 
+    if (effectiveAttempt < 3 && !isCorrect && payload.say_to_student) {
+      let cleaned = stripSolutionLead(payload.say_to_student);
+      cleaned = cleaned
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .filter((line) => !/^•?\s*(kerngedanke|abgrenzung|nächster schritt)\b/i.test(line))
+        .join("\n");
+      cleaned = cleaned.replace(/\b(kerngedanke|abgrenzung|nächster schritt)\b[^\n]*$/gim, "");
+      cleaned = cleaned.replace(/[\s,:;.-]+$/g, "");
+      payload.say_to_student = cleaned.trim() || null;
+    }
+
+    if (autoClarifyInfo) {
+      payload.say_to_student = mergePatientDetails(payload.say_to_student, autoClarifyInfo);
+    }
+
     // Bei korrekt → zwingend zum nächsten Schritt
     if (isCorrect) {
-      payload.next_question = nextPrompt ?? null;
+      if (!payload.next_question) {
+        payload.next_question = nextPrompt ?? null;
+      }
       payload.end = !nextPrompt;
       if (!payload.say_to_student) {
         payload.say_to_student = "Gut, weiter geht’s.";
@@ -715,7 +897,9 @@ Erzeuge NUR das JSON-Objekt.`.trim();
           ? `Lösung: ${payload.say_to_student}`
           : "Lösung: (Hier 1–2 Sätze zur Kernlösung + 1–3 kurze Begründungen/Merksätze.)";
       }
-      payload.next_question = nextPrompt ?? null;
+      if (!payload.next_question) {
+        payload.next_question = nextPrompt ?? null;
+      }
       payload.end = !nextPrompt;
     }
 
