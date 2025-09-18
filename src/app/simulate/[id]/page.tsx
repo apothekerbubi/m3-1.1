@@ -250,6 +250,73 @@ export default function ExamPage() {
   }
 
   // *** API ***
+  async function kickoffExam(initialPrompt: string, initialRule: unknown) {
+    if (!c) return;
+
+    const trimmedPrompt = initialPrompt.trim();
+    setLoading(true);
+    try {
+      const payload: Record<string, unknown> = {
+        caseId: c.id,
+        points: 0,
+        progressPct: 0,
+        caseText: c.vignette,
+        transcript: [],
+        outline: [],
+        style,
+        objectives: c.objectives ?? [],
+        completion: c.completion ?? null,
+        stepIndex: 0,
+        stepsPrompts: [],
+        stepRule: initialRule ?? null,
+        focusQuestion: trimmedPrompt,
+      };
+
+      const res = await fetch("/api/exam/turn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string })?.error || `HTTP ${res.status}`);
+      }
+
+      const data: ApiReply = (await res.json()) as ApiReply;
+      const intro = (data.say_to_student ?? "").trim();
+      const questionRaw = (data.next_question ?? "").trim();
+      const question = questionRaw || trimmedPrompt;
+
+      setChats((prev) => {
+        const copy: Turn[][] = prev.map((x): Turn[] => [...x]);
+        const arr: Turn[] = [];
+        if (intro) arr.push({ role: "prof" as const, text: intro });
+        if (question) arr.push({ role: "prof" as const, text: question });
+        copy[0] = arr;
+        return copy;
+      });
+
+      setAsked([{ index: 0, text: question || trimmedPrompt, status: "pending" }]);
+    } catch {
+      const fallbackIntro = `Vignette: ${c.vignette}`.trim();
+      const fallbackQuestion = trimmedPrompt;
+
+      setChats((prev) => {
+        const copy: Turn[][] = prev.map((x): Turn[] => [...x]);
+        const arr: Turn[] = [];
+        if (fallbackIntro) arr.push({ role: "prof" as const, text: fallbackIntro });
+        if (fallbackQuestion) arr.push({ role: "prof" as const, text: fallbackQuestion });
+        copy[0] = arr;
+        return copy;
+      });
+
+      setAsked([{ index: 0, text: fallbackQuestion || trimmedPrompt, status: "pending" }]);
+    } finally {
+      setLoading(false);
+      maybeRevealOnEnter(0);
+    }
+  }
+
   async function callExamAPI(current: Turn[], opts: { mode: "answer" | "tip" | "explain" }) {
     if (!c) return;
     setLoading(true);
@@ -376,15 +443,13 @@ export default function ExamPage() {
     setEnded(false);
 
     const initChats: Turn[][] = Array.from({ length: n }, () => []);
-    const q0 = stepsOrdered[0]?.prompt ?? "";
-    initChats[0] = [
-      { role: "prof" as const, text: `Vignette: ${c.vignette}` },
-      { role: "prof" as const, text: q0 },
-    ];
     setChats(initChats);
 
-    setAsked([{ index: 0, text: q0, status: "pending" }]);
-    maybeRevealOnEnter(0);
+    if (n === 0) return;
+
+    const q0 = stepsOrdered[0]?.prompt ?? "";
+    const rule0 = stepsOrdered[0]?.rule ?? null;
+    void kickoffExam(q0, rule0);
   }
 
   function onSend() {
