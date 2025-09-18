@@ -346,15 +346,16 @@ export default function ExamPage() {
         pushProf(activeIndex, data.say_to_student);
       }
 
-      if (data.next_question) {
-        pushProf(activeIndex, data.next_question);
+      const nextQuestion = data.next_question;
+      if (typeof nextQuestion === "string" && nextQuestion) {
+        pushProf(activeIndex, nextQuestion);
         setAsked((prev) => {
           const copy = [...prev];
           const idx = copy.findIndex((x) => x.index === activeIndex);
           if (idx >= 0) {
-            copy[idx] = { ...copy[idx], text: data.next_question };
+            copy[idx] = { ...copy[idx], text: nextQuestion };
           } else {
-            copy.push({ index: activeIndex, text: data.next_question, status: "pending" });
+            copy.push({ index: activeIndex, text: nextQuestion, status: "pending" });
           }
           return copy;
         });
