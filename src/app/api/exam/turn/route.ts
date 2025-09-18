@@ -154,7 +154,21 @@ function sanitizeForEarlyAttempts(txt: string): string {
   if (cutIdx >= 0) {
     s = s.slice(0, cutIdx);
   }
+
+  // Entferne typische Lösungs-Bullets, falls das LLM sie trotzdem sendet
+  s = s.replace(/•\s*(kerngedanke|abgrenzung|nächster schritt)[^•\n]*(?:\n|$)/gi, "");
+  s = s.replace(/\b(kerngedanke|abgrenzung|nächster schritt)\b[^\n]*$/gim, "");
+
   s = s.replace(/[\s,:;.-]+$/g, "");
+  return s.trim();
+}
+
+function stripSolutionLead(txt: string): string {
+  let s = (txt || "").trim();
+  if (!s) return "";
+  s = s.replace(/\b(lösung|musterlösung|richtige antwort|korrekte antwort)\b\s*[:–-]?/gi, "");
+  s = s.replace(/\b(die antwort (?:ist|wäre)|korrekt wäre)\b\s*/gi, "");
+  s = s.replace(/^[\s,:;.-]+/g, "");
   return s.trim();
 }
 
@@ -629,6 +643,7 @@ GESPRÄCHSFLUSS & FRAGENSTELLUNG
 PATIENT:INNEN-ROLLENSPIEL
 - Wenn CURRENT_STEP_PROMPT die Erhebung von Patient:inneninformationen verlangt (z. B. Anamnese, Nachfragen, Gesprächssimulation), gib nach der Bewertung knapp wieder, wie der/die Patient:in auf die genannten oder besonders wichtigen Fragen reagiert (1–3 Sätze, eingeleitet mit „Patient berichtet …“ o. Ä.).
 - Reagiere dabei ausdrücklich auf die konkret gestellten Fragen der/des Studierenden (z. B. Alkohol, Medikamente, Risikofaktoren) und liefere pro Frage eine plausible, fallkonsistente Antwort.
+- Auch wenn die Studierendenantwort sinngemäß „ich würde nach … fragen“ lautet, behandle diese Punkte so, als wären sie gestellt worden, und gib die passenden Patient:innenreaktionen an.
 - Leite diese Patientenreaktion mit einem kurzen Satz ein, der würdigt, was an den Fragen hilfreich war, und motiviere ggf. zu weiteren relevanten Nachfragen.
 - Gehe die Studierendenfragen der Reihe nach durch, damit jede konkrete Nachfrage beantwortet wird und im Fallkontext bleibt.
 - Diese Antworten müssen fallkonsistent sein und dürfen auch in attemptStage 1/2 genannt werden.
@@ -638,6 +653,7 @@ NO-LEAK GUARD (streng)
 - Nur Meta-Feedback (z. B. Organsysteme/Struktur/Anzahl), keine Inhalte verraten.
 - Genutzte Begriffe darfst du korrigieren, aber **keine** neuen Inhalte einführen.
 - Vermeide Formulierungen wie „Lösung …“, „richtige Antwort …“ oder die komplette Musterlösung, solange attemptStage < 3 und die Antwort nicht korrekt ist.
+- In attemptStage 1/2 darfst du diese Begriffe überhaupt nicht verwenden – nutze stattdessen motivierende Hinweise.
 - Ausnahme: Patient:innenantworten laut Abschnitt PATIENT:INNEN-ROLLENSPIEL dürfen ergänzt werden, sofern sie sich plausibel aus der Falllogik ergeben.
 
 AUSDRUCK & TON
@@ -764,32 +780,8 @@ Erzeuge NUR das JSON-Objekt.`.trim();
     }
 
     if (effectiveAttempt < 3 && !isCorrect && payload.say_to_student) {
-      const lower = payload.say_to_student.toLowerCase();
-      const spoilers = [
-        "lösung",
-        "richtige antwort",
-        "korrekte antwort",
-        "eigentliche antwort",
-        "die antwort ist",
-        "die antwort wäre",
-        "korrekt wäre",
-        "musterlösung",
-      ];
-      let cutIdx = -1;
-      for (const phrase of spoilers) {
-        const idx = lower.indexOf(phrase);
-        if (idx >= 0 && (cutIdx === -1 || idx < cutIdx)) {
-          cutIdx = idx;
-        }
-      }
-      if (cutIdx >= 0) {
-        const trimmed = payload.say_to_student
-          .slice(0, cutIdx)
-          .trim()
-          .replace(/[\s,:;.-]+$/, "")
-          .trim();
-        payload.say_to_student = trimmed || null;
-      }
+      const stripped = stripSolutionLead(payload.say_to_student);
+      payload.say_to_student = stripped || null;
     }
 
     // Bei korrekt → zwingend zum nächsten Schritt

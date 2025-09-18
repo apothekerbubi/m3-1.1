@@ -556,8 +556,12 @@ async function callExamAPI(
     }
 
     // Zusätzliche Prüfer-Nachrichten (Tip/Explain)
-    if (!hadSolution && (!data.evaluation || !data.evaluation.feedback) && data.say_to_student) {
-      pushProf(activeIndex, data.say_to_student);
+    if (!hadSolution && data.say_to_student) {
+      const say = data.say_to_student.trim();
+      const evalText = data.evaluation?.feedback?.trim() ?? "";
+      if (say && say !== evalText) {
+        pushProf(activeIndex, say);
+      }
     }
 
     const nextQuestion = data.next_question?.trim();
