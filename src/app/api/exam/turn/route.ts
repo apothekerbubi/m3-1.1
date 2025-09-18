@@ -75,43 +75,13 @@ function stripMd(s: string): string {
     .trim();
 }
 
-function looksLikePatientInfoQuery(s: string): boolean {
-  const t = (s || "").trim().toLowerCase();
-  if (!t) return false;
-  const kw = [
-    "raucht","raucher","rauchverhalten","pack","nikotin",
-    "fieber","fieberhöhe","temperatur","frösteln","schüttelfrost",
-    "atemfrequenz","puls","herzfrequenz","blutdruck","sauerstoff","spo2",
-    "d-dimer","troponin","crp","leuko","labor",
-    "vorerkrank","medikament","antikoag","ass","statin",
-    "familie","familiär","allergie",
-    "reisen","flug","immobilis","operation","op",
-    "belastbarkeit","anstrengung","ruhe",
-    "husten","auswurf","hämoptyse","schmerzqualität","ausstrahlung",
-    "bein","schwellung","ödeme",
-    "gewicht","appetit","nacht","nächtliches",
-    "schwanger","verhütung",
-    "anamnese"
-  ];
-  const starts = [
-    "hat","ist","sind","nimmt","gab","gibt","bestehen",
-    "wie","wann","wo","warum","welche","welcher","welches","wer",
-    "gibt es","kann ich","können sie","könnten sie","möchte wissen","dürfen wir",
-    "kann man","sagen sie mir","teilen sie mir mit"
-  ];
-  const isQuestion = t.endsWith("?") || starts.some(p => t.startsWith(p + " "));
-  if (!isQuestion) return false;
-  return kw.some(k => t.includes(k));
-}
+
 
 function looksLikeGiveUp(s: string): boolean {
   const t = (s || "").trim().toLowerCase();
   if (!t) return false;
   const kw = [
-    "weiß nicht","weiss nicht","keine ahnung","k. a.","ka","idk",
-    "komme nicht weiter","nicht weiter","hilfe","lösung","loesung","bitte lösung",
-    "aufgeben","weiter bitte","überspringen","ueberspringen","pass","skip",
-    "nächste frage","naechste frage","weiter","continue","next","mach weiter","weitermachen"
+    "weiß nicht"
   ];
   return kw.some(k => t.includes(k));
 }
@@ -263,7 +233,7 @@ export async function POST(req: NextRequest) {
     const style: "coaching" | "strict" = body.style === "strict" ? "strict" : "coaching";
     const tipRequest = Boolean(body.tipRequest);
     const explainRequest = Boolean(body.explainRequest);
-    const clarifyQuestion = typeof body.clarifyQuestion === "string" ? body.clarifyQuestion.trim() : "";
+    
     const objectives: ObjMin[] = Array.isArray(body.objectives) ? body.objectives : [];
     const completion: CompletionRules | null = body.completion ?? null;
     const attemptStage = typeof body.attemptStage === "number" ? body.attemptStage : 1;
@@ -294,7 +264,13 @@ export async function POST(req: NextRequest) {
     const userId = userRes?.user?.id ?? null;
 
     // --- Nachfrage/Letzte Antwort vorbereiten ---
-    const lastStudentText = [...transcript].reverse().find((t) => t.role === "student")?.text?.trim() || "";
+const lastStudentText =
+  [...transcript].reverse().find((t) => t.role === "student")?.text?.trim() || "";
+
+  // --- Drei-Versuche-Logik + Give-up ---
+const inferredAttempt = inferAttemptFromTranscript(transcript);
+const gaveUp = looksLikeGiveUp(lastStudentText);
+const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 1);
 
     // --- KUMULATIV: alle student-Antworten seit der letzten Frage sammeln ---
     const studentTextsWindow = studentSinceLastExaminerQuestion(transcript);
@@ -323,7 +299,7 @@ export async function POST(req: NextRequest) {
           { role: "system", content: sysTip },
           { role: "user", content: usrTip },
         ],
-        temperature: 0.2,
+        temperature: 0.5,
       });
 
       const sayRaw = (outTip.choices?.[0]?.message?.content || "").trim();
@@ -355,57 +331,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(payload);
     }
 
-    // --- Nachfrage automatisch erkennen (nur echte Fragen triggern) ---
-    const autoClarify = !clarifyQuestion && looksLikePatientInfoQuery(lastStudentText);
-    const clarify = (clarifyQuestion || (autoClarify ? lastStudentText : "")).trim();
 
-    // --- Drei-Versuche-Logik + Give-up ---
-    const inferredAttempt = inferAttemptFromTranscript(transcript);
-    const gaveUp = looksLikeGiveUp(lastStudentText);
-    const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 1);
 
-    /* ---------- MODE B: Zusatzinfos (Clarify) ---------- */
-    if (clarify) {
-      const sysClarify = `Du bist Prüfer:in.
-        Auf Nachfrage gibst du ZUSÄTZLICHE PATIENTENDETAILS, realistisch zur Vignette und zum aktuellen Schritt.
-        Form: 1–3 Sätze ODER 2–3 Bulletpoints (mit "- ").
-        Kein Spoiler (keine Enddiagnose, keine definitive Therapie).
-        Keine erfundenen Labor-/Bildbefunde; bleibe auf Anamnese/Untersuchungsebene, außer wenn der Schritt ausdrücklich Diagnostik betrifft.
-  Deutsch.`;
-
-      const usrClarify = `Vignette: ${caseText}
-CURRENT_STEP_PROMPT: ${currentPrompt || "(unbekannt)"}
-Nachfrage des Studierenden: ${clarify}
-Gib NUR die Zusatzinformation (ohne Präambel/Bewertung).`;
-
-      const outClarify = await client.chat.completions.create({
-        model,
-        messages: [
-          { role: "system", content: sysClarify },
-          { role: "user", content: usrClarify },
-        ],
-        temperature: 0.2,
-      });
-
-      const info = stripMd((outClarify.choices?.[0]?.message?.content || "").trim()) || "Keine weiteren relevanten Details verfügbar.";
-      const payload: ApiOut = { say_to_student: info, evaluation: null, next_question: null, end: false };
-
-      if (userId) {
-        void logTurn(supabase, {
-          userId,
-          caseId,
-          attemptStage: effectiveAttempt,
-          tipRequest: false,
-          explainRequest: false,
-          clarifyQuestion: clarify,
-          focusQuestion: currentPrompt || null,
-          lastStudentAnswer: lastStudentText || null,
-          modelOut: payload,
-        });
-      }
-
-      return NextResponse.json(payload);
-    }
+    
 
     /* ---------- MODE D: Erklärung (kumulativ) ---------- */
 if (explainRequest) {
@@ -455,7 +383,7 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
       { role: "system", content: sysExplain },
       { role: "user", content: usrExplain },
     ],
-    temperature: 0.2,
+    temperature: 0.5,
   });
 
   const say = stripMd((outExplain.choices?.[0]?.message?.content || "").trim()) ||
@@ -491,39 +419,32 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
         transcript[0]?.role === "examiner" &&
         !/[?？]\s*$/.test(transcript[0]?.text || "");
 
-      if (noStudentAfterExaminer || isJustVignetteStart) {
-        if (stepsPrompts[0]) {
-          const payload: ApiOut = {
-            say_to_student: null,
-            evaluation: null,
-            next_question: stepsPrompts[0],
-            end: false,
-          };
+      const shouldKickoff =
+        transcript.length === 0 || noStudentAfterExaminer || isJustVignetteStart;
 
-          if (userId) {
-            void logTurn(supabase, {
-              userId,
-              caseId,
-              attemptStage: 1,
-              tipRequest: false,
-              explainRequest: false,
-              clarifyQuestion: null,
-              focusQuestion: stepsPrompts[0],
-              lastStudentAnswer: null,
-              modelOut: payload,
-            });
-          }
-
-          return NextResponse.json(payload);
-        }
+      if (shouldKickoff) {
+        const firstPrompt = (stepsPrompts[0] || currentPrompt || focusQuestion || "").trim();
 
         const sysKickoff = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
-Stelle GENAU EINE präzise Einstiegsfrage zur Vignette (ein Satz, Fragezeichen).
-KEINE Bewertung, KEIN Feedback, KEIN Tipp. Nur die Frage. Deutsch.`;
+Ziel: realistischer Prüfungsauftakt.
+Vorgehen:
+1. Begrüße die/den Studierenden kurz und wertschätzend in der Du-Form (1 Satz).
+2. Schilder die Fallvignette in 3–5 Sätzen frei paraphrasiert auf Basis von CASE_VIGNETTE – ergänze nur glaubhafte Details, die den Fall rahmen, ohne der Falllogik zu widersprechen.
+3. Formuliere eine natürliche Übergangsfrage in der Du-Form, die CURRENT_STEP_PROMPT aufgreift und eine Gesprächsüberleitung enthält (z. B. „Starten wir mit…“, „Lass uns zuerst…“).
+Ausgabe ausschließlich als JSON:
+{
+  "intro": "...",   // Begrüßung + Vignette, kein Fragezeichen am Ende
+  "question": "..." // Übergangsfrage, endet mit ?
+}
+Sprache: Deutsch, du/dir/dein.`;
 
-        const usrKickoff = `Vignette: ${caseText}
-${outline.length ? `Prüfungs-Outline (optional): ${outline.join(" • ")}` : ""}
-Erzeuge NUR die Frage (ein Satz, Fragezeichen).`;
+        const usrKickoff = `CASE_ID: ${caseId ?? "(unbekannt)"}
+CASE_VIGNETTE: ${caseText}
+CURRENT_STEP_PROMPT: ${firstPrompt || "(unbekannt)"}
+STIL: ${style}
+${outline.length ? `OUTLINE: ${outline.join(" • ")}` : ""}
+${objectives.length ? `ZIELE: ${objectives.map(o => `${o.id}: ${o.label}`).join(" | ")}` : ""}
+Gib NUR das JSON-Objekt mit intro und question zurück.`;
 
         const outKick = await client.chat.completions.create({
           model,
@@ -531,16 +452,38 @@ Erzeuge NUR die Frage (ein Satz, Fragezeichen).`;
             { role: "system", content: sysKickoff },
             { role: "user", content: usrKickoff },
           ],
-          temperature: 0.2,
+          temperature: 0.5,
         });
 
-        const qRaw = (outKick.choices?.[0]?.message?.content || "").trim();
-        const q = stripMd(qRaw);
+        const rawKick = (outKick.choices?.[0]?.message?.content || "").trim();
+        let jsonKick = rawKick.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+        if (!(jsonKick.startsWith("{") && jsonKick.endsWith("}"))) {
+          const s = jsonKick.indexOf("{");
+          const e = jsonKick.lastIndexOf("}");
+          if (s >= 0 && e > s) jsonKick = jsonKick.slice(s, e + 1);
+        }
+
+        let intro = "";
+        let question = "";
+        try {
+          const parsed = JSON.parse(jsonKick) as { intro?: string; question?: string };
+          intro = typeof parsed.intro === "string" ? parsed.intro : "";
+          question = typeof parsed.question === "string" ? parsed.question : "";
+        } catch {
+          // Fallback weiter unten
+        }
+
+        const introClean = stripMd(intro).replace(/\n{3,}/g, "\n\n").trim();
+        let questionClean = stripMd(question).trim();
+        if (!questionClean) questionClean = firstPrompt;
+        if (questionClean && !/[?？]\s*$/.test(questionClean)) {
+          questionClean = `${questionClean}?`;
+        }
 
         const payload: ApiOut = {
-          say_to_student: null,
+          say_to_student: introClean || null,
           evaluation: null,
-          next_question: q.endsWith("?") ? q : `${q}?`,
+          next_question: questionClean || null,
           end: false,
         };
 
@@ -552,7 +495,7 @@ Erzeuge NUR die Frage (ein Satz, Fragezeichen).`;
             tipRequest: false,
             explainRequest: false,
             clarifyQuestion: null,
-            focusQuestion: payload.next_question,
+            focusQuestion: questionClean || null,
             lastStudentAnswer: null,
             modelOut: payload,
           });
@@ -563,7 +506,7 @@ Erzeuge NUR die Frage (ein Satz, Fragezeichen).`;
     }
 
     /* ---------- MODE C: Normaler Prüfungszug ---------- */
-   const sysExam = `Du bist Prüfer:in am 2. Tag (Theorie) des 3. Staatsexamens (M3).
+    const sysExam = `Du bist Prüfer:in am 2. Tag (Theorie) des 3. Staatsexamens (M3).
 Stil: ${style === "strict" ? "knapp, streng-sachlich" : "freundlich-klar, coaching-orientiert"}.
 Ansprache: du/dir/dein.
 Sprache: Deutsch.
@@ -573,6 +516,7 @@ KONTEXT-REGELN
 - Beziehe dich NUR auf Vignette + bereits preisgegebene Infos.
 - Keine neuen Befunde erfinden.
 - Bewerte ausschließlich die AKTUELLE Frage (CURRENT_STEP_PROMPT).
+- Antworte mit krankheitstypischen Infos auf anamnestische Sätze
 
 KUMULATIVE WERTUNG (wichtig)
 - Entscheide die Korrektheit nach der **Gesamtheit** der bisher genannten Inhalte in diesem Schritt.
@@ -583,27 +527,46 @@ KUMULATIVE WERTUNG (wichtig)
 - Doppelnennungen zählen nicht mehrfach;
 - Falls etwas falsch geschrieben ist, z.b. Rechtschreibung stark abweichend; Tippfehler, ausgelassene Buchstaben, verdrehte Buchstaben und Schreibweisen nach Lautsprache (z. B. „Kolezüstitis“ für „Cholezystitis“), dann auch als richtig zählen.
 
+GESPRÄCHSFLUSS & FRAGENSTELLUNG
+- Formuliere jede next_question als natürlichen Übergang, verknüpfe sie mit dem bisherigen Verlauf und integriere den Kern von NEXT_STEP_PROMPT, ohne ihn wörtlich zu kopieren (z. B. „Kommen wir nun zu…“).
+- Greife vorhandene Informationen kurz auf, wenn das den Übergang erleichtert.
+- Formuliere in say_to_student NIEMALS die nächste Frage; Übergangsfragen erscheinen ausschließlich in next_question.
+
+!Say_to_Student!
++ TRIGGER: Wenn CURRENT_STEP_PROMPT Anamnese/Nachfragen betrifft , MUSS ein Abschnitt mit Patientenantworten in say_to_student erscheinen.
++ ORT: Patientenantworten stehen IMMER in say_to_student (nie in evaluation/next_question).
++ FORMAT (MUSS, exakt so):
+- Der Patient berichtet... oder ähnliches
++ KEINE Spoiler/Diagnosen; nur direkte, alltagsnahe Anamnesedetails.
+
 NO-LEAK GUARD (streng)
 - In attemptStage 1/2 (und im Tipp-Modus) keine neuen Diagnosen/Beispiele/Synonyme/Hinweise, die nicht von der/dem Studierenden stammen.
 - Nur Meta-Feedback (z. B. Organsysteme/Struktur/Anzahl), keine Inhalte verraten.
 - Genutzte Begriffe darfst du korrigieren, aber **keine** neuen Inhalte einführen.
+- Ausnahme: Patient:innenantworten laut Abschnitt PATIENT:INNEN-ROLLENSPIEL dürfen ergänzt werden, sofern sie sich plausibel aus der Falllogik ergeben.
 
 AUSDRUCK & TON
 -  Keine Emojis/Auslassungspunkte/Klammer-Meta.
-- Bei correct/partial/incorrect kurze, klare Begründung auf Meta-Ebene.
+- Sprich in klaren, vollständigen Sätzen und nimm Bezug auf den laufenden Prüfungsdialog.
+
+BEWERTUNG & EINORDNUNG
+- evaluation.feedback besteht aus einem klaren Bewertungssatz plus einem begründenden Satz (Priorität/Kontext). Nenne dabei immer, was an der Antwort bereits hilfreich war.
+- Wenn partially correct, kurz allgemein sagen, dass noch weitere Fragen/Informationen wichtig wären. Keine konkreten Vorschläge!
+- evaluation darf NIEMALS null sein.
+- Bei correct kannst du zusätzlich 2–3 Meta-Bullets nutzen ( warum passend • Kategorie/Pathomechanismus • Priorität).
 
 VERSUCHSLOGIK (hart)
 - Drei Versuche (attemptStage 1..3). Give-up zählt wie 3.
-- attemptStage 1/2 UND nicht korrekt:
-  • evaluation.feedback = 1 kurzer Satz Bewertung + 1 kurzer Satz Lücke/Strukturhinweis (ohne Beispiele/Diagnosen).
+- attemptStage 1/2 UND nicht korrekt oder partially correct:
+  • evaluation.feedback = 1 kurzer Satz Bewertung
   • evaluation.tips = weglassen (nur im Tipp-Modus).
   • next_question = null.
 - attemptStage 3 ODER Give-up:
-  • say_to_student MUSS mit "Lösung:" beginnen. Danach 1 Kernsatz + was noch gefehlt hat + 2–3 knappe Bullets (• Kerngedanke • Abgrenzung • nächster Schritt).
-  • next_question = NEXT_STEP_PROMPT (falls vorhanden), sonst null.
+  • say_to_student MUSS mit "Lösung:" beginnen. Danach 1 Kernsatz + was noch gefehlt hat + 2–3 knappe Bullets (• Kerngedanke • Abgrenzung • nächster Schritt); falls der Schritt Patient:innenantworten verlangt, hänge 1–2 Sätze mit den passenden Antworten an. Keine neue Frage in diesem Feld.
+  • next_question = Formuliere aus NEXT_STEP_PROMPT eine natürliche Übergangsfrage (siehe oben), sonst null.
 - Antwort ist korrekt:
-  • evaluation.feedback = 1 kurzer Bestätigungssatz + 2–3 Meta-Bullets ( warum passend • Kategorie/Pathomechanismus auf Meta-Ebene • Priorität).
-  • next_question = NEXT_STEP_PROMPT (falls vorhanden); end=true falls letzter Schritt.
+  • evaluation.feedback = 1 kurzer Bestätigungssatz + 2–3 Meta-Bullets ( jeweils neue Zeile: warum passend • Kategorie/Pathomechanismus  • Priorität).
+  • next_question = Formuliere aus NEXT_STEP_PROMPT eine natürliche Übergangsfrage (mit Übergangsphrase); end=true falls letzter Schritt.
 
 TIPP-MODUS (tipRequest=true)
 - Nur "say_to_student" mit 1–2 neutralen Strukturhinweisen (keine Diagnosen/Beispiele). "evaluation" und "next_question" bleiben null.
@@ -650,7 +613,7 @@ Erzeuge NUR das JSON-Objekt.`.trim();
         { role: "system", content: sysExam },
         { role: "user", content: usrExam }
       ],
-      temperature: 0.2
+      temperature: 0.5
     });
 
     // Robust gegen Fences
@@ -701,7 +664,9 @@ Erzeuge NUR das JSON-Objekt.`.trim();
 
     // Bei korrekt → zwingend zum nächsten Schritt
     if (isCorrect) {
-      payload.next_question = nextPrompt ?? null;
+      if (!payload.next_question) {
+        payload.next_question = nextPrompt ?? null;
+      }
       payload.end = !nextPrompt;
       if (!payload.say_to_student) {
         payload.say_to_student = "Gut, weiter geht’s.";
@@ -715,7 +680,9 @@ Erzeuge NUR das JSON-Objekt.`.trim();
           ? `Lösung: ${payload.say_to_student}`
           : "Lösung: (Hier 1–2 Sätze zur Kernlösung + 1–3 kurze Begründungen/Merksätze.)";
       }
-      payload.next_question = nextPrompt ?? null;
+      if (!payload.next_question) {
+        payload.next_question = nextPrompt ?? null;
+      }
       payload.end = !nextPrompt;
     }
 

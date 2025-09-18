@@ -9,6 +9,7 @@ export const appendizitis_001: Case = {
     "Eine 32-jähriger Patientin stellt sich in der Notaufnahme mit seit 12 Stunden zunehmenden Bauchschmerzen vor.",
   specialty: "Chirurgie",
   subspecialty: "Allgemeinchirurgie",
+  pseudonym: "Unterbauchschmerz_001",
   difficulty: 1,
   tags: ["Appendizitis", "Unterbauchschmerz", "Akutes Abdomen"],
   steps: [
@@ -16,20 +17,20 @@ export const appendizitis_001: Case = {
       order: 1,
       points: 2,
       prompt: "Welche weiteren anamnestischen Informationen erfragen Sie?",
-      hint: "Schmerzbeginn, Schmerzcharakter, Schmerzverlauf, Schmerzlokalisation",
+      hint: "Schmerzlokalisation, vorbekannte Traumen, weitere Symptome",
       rule: {
         mode: "anyOf",
         expected: [
-          "Schmerzlokalisation", "Schmerzcharakter", "zeitlicher Verlauf des Schmerzes", "Trauma", "Vorerkrankungen"
+          "Schmerzlokalisation", "Trauma", "Vorerkrankungen", "weitere Symptome"
         ],
         minHits: 2,
       },
     },
-    
+
     {
       order: 2,
       points: 2,
-      prompt: "Der Patient gibt an, dass die Schmerzen vor etwa 12 Stunden begonnen hätten, zuerst im Oberbauch, im Verlauf dann im rechten Unterbauch. An welche drei häufigen Differentialdiagnosen denken Sie?",
+      prompt: "Die Patientin gibt an, dass die Schmerzen vor etwa 12 Stunden begonnen hätten, zuerst im Oberbauch, im Verlauf dann im rechten Unterbauch. An welche drei häufigen Differentialdiagnosen denken Sie?",
       hint: "",
       rule: {
         mode: "anyOf",
@@ -52,7 +53,7 @@ export const appendizitis_001: Case = {
     {
       order: 3,
       points: 2,
-      prompt: "Wie gehen Sie basierend auf den Angaben des Patienten allgemein weiter vor",
+      prompt: "Wie gehen Sie basierend auf den Angaben des Patienten allgemein weiter vor?",
       hint: "Vitalparameter",
       rule: {
         mode: "anyOf",
@@ -72,7 +73,7 @@ export const appendizitis_001: Case = {
       hint: "Entzündungswerte, Schwangerschtssausschluss",
       rule: {
         mode: "anyOf",
-        expected: ["CRP", "kleines Blutbild", "Leukozyten", "beta-HCG"],
+        expected: ["CRP", "kleines Blutbild", "Leukozyten", "beta-HCG", "Leukos"],
         minHits: 2,
       },
     },
@@ -105,7 +106,7 @@ export const appendizitis_001: Case = {
       hint: "Appendizitiszeichen",
       rule: {
         mode: "anyOf",
-        expected: ["Vorgehen bei Lanz Punkt: Druck Punkt auf der Linie zwischen beiden Spinae iliacae zwischen rechtem und mittlerem Drittel", "McBurney Punkt:  Punkt auf der Linie zwischen rechter Spina iliaca anterior superior und Bauchnabel zwischen dem lateralen und mittleren Drittel", "Rosving:  Schmerzen im rechten Unterbauch durch Ausstreichen des Kolons längs des Kolonrahmens in Richtung Appendix ","Blumberg: Kontralateraler Loslassschmerz (im rechten Unterbauch) nach Palpation des linken Unterbauchs ", "Psoas Zeichen:  Schmerzen im rechten Unterbauch durch Anheben des rechten Beins gegen Widerstand (bei Entzündung einer retrozäkal liegenden Appendix)", "Douglas Schmerz:  Schmerzen beim Palpieren des Douglas-Raums bei der digital-rektalen Untersuchung", "Baldwin Zeichen: Schmerzen in der Flanke nach Fallenlassen des gestreckten, im Liegen angehobenen rechten Beins (Hinweis auf retrozäkale Appendizitis) "],
+        expected: ["Ungefähre Antwort (sei großzügig):Vorgehen bei Lanz Punkt: Druck Punkt auf der Linie zwischen beiden Spinae iliacae zwischen rechtem und mittlerem Drittel", "Ungefähre Antwort (sei großzügig): McBurney Punkt:  Punkt auf der Linie zwischen rechter Spina iliaca anterior superior und Bauchnabel zwischen dem lateralen und mittleren Drittel", "Rosving:  Schmerzen im rechten Unterbauch durch Ausstreichen des Kolons längs des Kolonrahmens in Richtung Appendix ","Blumberg: Kontralateraler Loslassschmerz (im rechten Unterbauch) nach Palpation des linken Unterbauchs ", "Psoas Zeichen:  Schmerzen im rechten Unterbauch durch Anheben des rechten Beins gegen Widerstand (bei Entzündung einer retrozäkal liegenden Appendix)", "Douglas Schmerz:  Schmerzen beim Palpieren des Douglas-Raums bei der digital-rektalen Untersuchung", "Baldwin Zeichen: Schmerzen in der Flanke nach Fallenlassen des gestreckten, im Liegen angehobenen rechten Beins (Hinweis auf retrozäkale Appendizitis) "],
         minHits: 2,
       },
     },
@@ -141,7 +142,7 @@ export const appendizitis_001: Case = {
     {
       order: 10,
       points: 3,
-      prompt: "Aus den jetzt angekommenen Laborergebnissen ist folgendes ersichtlich: erhöhtes CRP, Leukozytose, beta-HCG negativ. Wie sieht das weitere therapeutische Vorgehen aus",
+      prompt: "Aus den jetzt angekommenen Laborergebnissen ist folgendes ersichtlich: erhöhtes CRP, Leukozytose, beta-HCG negativ. Wie sieht das weitere therapeutische Vorgehen aus und welche supportiven Maßnahmen leiten Sie ein?",
       hint: "Echogenität, Flüssigkeit",
       rule: {
         mode: "anyOf",

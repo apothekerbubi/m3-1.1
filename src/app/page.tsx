@@ -53,7 +53,7 @@ type SupabaseAssetDefinition = {
 
 
 const SUPABASE_LOGO_BUCKET = "Unilogos"; // Falls du einen anderen Bucket nutzt, hier anpassen.
-const SUPABASE_MEDIA_BUCKET = "landingpage"; // Bucket für Landingpage-Grafiken.
+const SUPABASE_MEDIA_BUCKET = "landing"; // Bucket für Landingpage-Grafiken.
 
 const LOGO_DEFINITIONS: ReadonlyArray<LogoDefinition> = [
   {
@@ -74,7 +74,7 @@ const LOGO_DEFINITIONS: ReadonlyArray<LogoDefinition> = [
 ];
 
 const FEATURE_MEDIA: SupabaseAssetDefinition = {
-  supabasePath: "landing/feature-dashboard.png",
+  supabasePath: "Bild1.jpg",
   fallbackSrc: "/window.svg",
   alt: "Interaktive M3 Fallsimulation auf einem Tablet-Interface",
 };
@@ -91,7 +91,7 @@ const OFFER_CARD_DEFINITIONS: ReadonlyArray<OfferCardDefinition> = [
     text:
       "Krankheitstypische und hochdynamische Cases mit Vitalwerten und Echtzeit‑Entscheidungen – ideal für mündliche Prüfungen.",
     image: {
-      supabasePath: "landing/fallbeispiele.jpg",
+      supabasePath: "fallbeispiele.jpg",
       fallbackSrc: "/file.svg",
       alt: "Studierende übt klinische Falldiskussion mit Tablet",
     },
@@ -101,7 +101,7 @@ const OFFER_CARD_DEFINITIONS: ReadonlyArray<OfferCardDefinition> = [
     text:
       "Vom Leitsymptom zur Diagnose. Gelange über Anamnese und Diagnostik zur korrekten Diagnose",
     image: {
-      supabasePath: "landing/leitsymptome.jpg",
+      supabasePath: "leitsymptome.jpg",
       fallbackSrc: "/globe.svg",
       alt: "Notizen zu Leitsymptomen auf einem Clip Board",
     },
@@ -111,7 +111,7 @@ const OFFER_CARD_DEFINITIONS: ReadonlyArray<OfferCardDefinition> = [
     text:
       "Verknüpfe Fälle aus der Inneren Medizin, Chirurgie, deinem Wahlfach und deinem Losfach zu einer großen Prüfung und erhalte detailliertes Feedback zu deinen Stärken und Schwächen",
     image: {
-      supabasePath: "landing/examenssimulation.jpg",
+      supabasePath: "examenssimulation.jpg",
       fallbackSrc: "/window.svg",
       alt: "Digitale Simulation einer mündlichen Examenssituation",
     },
@@ -121,7 +121,7 @@ const OFFER_CARD_DEFINITIONS: ReadonlyArray<OfferCardDefinition> = [
     text:
       "Starte mit einer Leitsymptomatik und arbeite dich zur Diagnose vor – durch natürlichem Dialog mit unserem KI-Prüfer.",
     image: {
-      supabasePath: "landing/daily-case.jpg",
+      supabasePath: "daily-case.jpg",
       fallbackSrc: "/window.svg",
       alt: "Mobile App mit täglicher klinischer Case Challenge",
     },
