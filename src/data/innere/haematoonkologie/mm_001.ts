@@ -8,7 +8,7 @@ export const mm_001: Case = {
   leadSymptom:"Anaemie",
   pseudonym: "Anamie_002",
   vignette:
-    "Ein 72-jähriger Patient stellt sich in Ihrer Hausarztpraxis vor. Er berichtet über zunehmende Schwäche, ungewollten Gewichtsverlust von etwa 6kg im letzten Halbjahr. Zudem berichtet er über seit Wochen bestehende Schmerzen in den Beinen. Nach kurzem Überlegen stellen Sie ihm welche weiteren Fragen?",
+    "Ein 72-jähriger Patient stellt sich in Ihrer Hausarztpraxis vor. Er berichtet über zunehmende Schwäche, ungewollten Gewichtsverlust von etwa 6kg im letzten Halbjahr. Zudem berichtet er über seit Wochen bestehende Schmerzen in den Beinen.",
   specialty: "Innere Medizin",
   subspecialty: "Hämatoonkologie",
   difficulty: 3,

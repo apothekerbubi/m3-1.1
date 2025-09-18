@@ -9,7 +9,7 @@ export const aszites_001: Case = {
   leadSymptom: "Abdominelle Schwellung",
   pseudonym: "Aszites_001",
   vignette:
-    "Sie sind Arzt in der Notaufnahme. Ein 58-jähriger Patient stellt sich bei Ihnen vor. Er berichtet über einen seit Wochen zunehmenden Bauchumfang, Spannungsgefühl im Abdomen und Belastungsdyspnoe. Welche anamnestischen Fragen stellen Sie?",
+    "Sie sind Arzt in der Notaufnahme. Ein 58-jähriger Patient stellt sich bei Ihnen vor. Er berichtet über einen seit Wochen zunehmenden Bauchumfang, Spannungsgefühl im Abdomen und Belastungsdyspnoe.",
 
   specialty: "Innere Medizin",
   subspecialty: "Gastroenterologie",

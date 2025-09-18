@@ -9,7 +9,7 @@ export const brustschmerz_001: Case = {
   leadSymptom: "Belastungsdyspnoe",
   pseudonym: "Brustschmerz_001",
   vignette:
-    "Ein 68-jähriger Patient stellt sich wegen seit Monaten zunehmender Belastungsdyspnoe und Schwindelattacken vor. Zudem berichtet er über gelegentliche Brustschmerzen bei körperlicher Anstrengung. Welche Fragen stellen Sie zunächst?",
+    "Ein 68-jähriger Patient stellt sich wegen seit Monaten zunehmender Belastungsdyspnoe und Schwindelattacken vor. Zudem berichtet er über gelegentliche Brustschmerzen bei körperlicher Anstrengung.",
   specialty: "Innere Medizin",
   subspecialty: "Kardiologie",
   difficulty: 3,
