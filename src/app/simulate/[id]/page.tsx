@@ -250,7 +250,10 @@ export default function ExamPage() {
   }
 
   // *** API ***
-  async function callExamAPI(current: Turn[], opts: { mode: "answer" | "tip" | "explain" }) {
+  async function callExamAPI(
+    current: Turn[],
+    opts: { mode: "answer" | "tip" | "explain" | "kickoff" }
+  ) {
     if (!c) return;
     setLoading(true);
     try {
@@ -276,6 +279,7 @@ export default function ExamPage() {
       if (opts.mode === "tip") payload["tipRequest"] = true;
       if (opts.mode === "explain") payload["explainRequest"] = true;
       if (opts.mode === "answer") payload["attemptStage"] = Math.min(3, attemptCount + 1);
+      if (opts.mode === "kickoff") payload["kickoff"] = true;
 
       const res = await fetch("/api/exam/turn", {
         method: "POST",
@@ -341,6 +345,20 @@ export default function ExamPage() {
       if (!hadSolution && (!data.evaluation || !data.evaluation.feedback) && data.say_to_student) {
         pushProf(activeIndex, data.say_to_student);
       }
+
+      if (data.next_question) {
+        pushProf(activeIndex, data.next_question);
+        setAsked((prev) => {
+          const copy = [...prev];
+          const idx = copy.findIndex((x) => x.index === activeIndex);
+          if (idx >= 0) {
+            copy[idx] = { ...copy[idx], text: data.next_question };
+          } else {
+            copy.push({ index: activeIndex, text: data.next_question, status: "pending" });
+          }
+          return copy;
+        });
+      }
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : String(e));
     } finally {
@@ -363,7 +381,7 @@ export default function ExamPage() {
   }
 
   // *** Flow-Funktionen ***
-  function startExam() {
+  async function startExam() {
     if (!c) return;
     const n = stepsOrdered.length;
 
@@ -377,14 +395,13 @@ export default function ExamPage() {
 
     const initChats: Turn[][] = Array.from({ length: n }, () => []);
     const q0 = stepsOrdered[0]?.prompt ?? "";
-    initChats[0] = [
-      { role: "prof" as const, text: `Vignette: ${c.vignette}` },
-      { role: "prof" as const, text: q0 },
-    ];
+    initChats[0] = [{ role: "prof" as const, text: `Vignette: ${c.vignette}` }];
     setChats(initChats);
 
     setAsked([{ index: 0, text: q0, status: "pending" }]);
     maybeRevealOnEnter(0);
+
+    await callExamAPI(initChats[0], { mode: "kickoff" });
   }
 
   function onSend() {
