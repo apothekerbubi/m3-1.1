@@ -134,6 +134,27 @@ function sanitizeForEarlyAttempts(txt: string): string {
   let s = (txt || "");
   s = s.replace(/\b(z\.?\s?b\.?|u\.a\.|unter anderem|zum beispiel)\b[^.]*\./gi, " (Beispiele weggelassen).");
   s = s.replace(/^\s*tipp:\s*/i, "");
+  const spoilers = [
+    "lösung",
+    "musterlösung",
+    "richtige antwort",
+    "korrekte antwort",
+    "die antwort ist",
+    "die antwort wäre",
+    "korrekt wäre",
+  ];
+  const lower = s.toLowerCase();
+  let cutIdx = -1;
+  for (const phrase of spoilers) {
+    const idx = lower.indexOf(phrase);
+    if (idx >= 0 && (cutIdx === -1 || idx < cutIdx)) {
+      cutIdx = idx;
+    }
+  }
+  if (cutIdx >= 0) {
+    s = s.slice(0, cutIdx);
+  }
+  s = s.replace(/[\s,:;.-]+$/g, "");
   return s.trim();
 }
 
@@ -609,12 +630,14 @@ PATIENT:INNEN-ROLLENSPIEL
 - Wenn CURRENT_STEP_PROMPT die Erhebung von Patient:inneninformationen verlangt (z. B. Anamnese, Nachfragen, Gesprächssimulation), gib nach der Bewertung knapp wieder, wie der/die Patient:in auf die genannten oder besonders wichtigen Fragen reagiert (1–3 Sätze, eingeleitet mit „Patient berichtet …“ o. Ä.).
 - Reagiere dabei ausdrücklich auf die konkret gestellten Fragen der/des Studierenden (z. B. Alkohol, Medikamente, Risikofaktoren) und liefere pro Frage eine plausible, fallkonsistente Antwort.
 - Leite diese Patientenreaktion mit einem kurzen Satz ein, der würdigt, was an den Fragen hilfreich war, und motiviere ggf. zu weiteren relevanten Nachfragen.
+- Gehe die Studierendenfragen der Reihe nach durch, damit jede konkrete Nachfrage beantwortet wird und im Fallkontext bleibt.
 - Diese Antworten müssen fallkonsistent sein und dürfen auch in attemptStage 1/2 genannt werden.
 
 NO-LEAK GUARD (streng)
 - In attemptStage 1/2 (und im Tipp-Modus) keine neuen Diagnosen/Beispiele/Synonyme/Hinweise, die nicht von der/dem Studierenden stammen.
 - Nur Meta-Feedback (z. B. Organsysteme/Struktur/Anzahl), keine Inhalte verraten.
 - Genutzte Begriffe darfst du korrigieren, aber **keine** neuen Inhalte einführen.
+- Vermeide Formulierungen wie „Lösung …“, „richtige Antwort …“ oder die komplette Musterlösung, solange attemptStage < 3 und die Antwort nicht korrekt ist.
 - Ausnahme: Patient:innenantworten laut Abschnitt PATIENT:INNEN-ROLLENSPIEL dürfen ergänzt werden, sofern sie sich plausibel aus der Falllogik ergeben.
 
 AUSDRUCK & TON
@@ -623,6 +646,7 @@ AUSDRUCK & TON
 
 BEWERTUNG & EINORDNUNG
 - evaluation.feedback besteht aus einem klaren Bewertungssatz plus einem begründenden Satz, der explizit den Krankheitskontext bzw. die Falllogik heranzieht (Pathophysiologie, Differenzialdiagnose, typische Prioritäten). Nenne dabei immer, was an der Antwort bereits hilfreich war, und was als nächstes noch wichtig wäre – inklusive eines kurzen Ausblicks, warum der nächste Schritt sinnvoll ist.
+- Wenn etwas nicht passt oder nachrangig ist, erkläre knapp, warum es in dieser Konstellation keine Priorität hat.
 - evaluation darf NIEMALS null sein.
 - Bei correct kannst du zusätzlich 2–3 Meta-Bullets nutzen ( warum passend • Kategorie/Pathomechanismus auf Meta-Ebene • Priorität / nächster Schritt auf Fall-Ebene).
 
@@ -720,8 +744,13 @@ Erzeuge NUR das JSON-Objekt.`.trim();
     // Spoiler-Schutz NUR für frühe Versuche und NICHT bei korrekter Antwort
     if (payload.evaluation && effectiveAttempt < 3 && payload.evaluation.correctness !== "correct") {
       payload.evaluation.feedback = sanitizeForEarlyAttempts(payload.evaluation.feedback || "");
+      if (!payload.evaluation.feedback) {
+        payload.evaluation.feedback =
+          "Für eine vollständige Antwort fehlen noch zentrale fallrelevante Punkte – bleib im Fallkontext und ergänze die wichtigsten Aspekte dieser Frage.";
+      }
       if (payload.evaluation.tips) {
-        payload.evaluation.tips = sanitizeForEarlyAttempts(payload.evaluation.tips);
+        const cleaned = sanitizeForEarlyAttempts(payload.evaluation.tips);
+        payload.evaluation.tips = cleaned || undefined;
       }
     }
 
