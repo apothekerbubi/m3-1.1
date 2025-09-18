@@ -653,7 +653,6 @@ async function startExam() {
   // Chats vorbereiten
   const initChats: Turn[][] = Array.from({ length: n }, () => []);
   const q0 = stepsOrdered[0]?.prompt ?? "";
-  initChats[0] = [{ role: "prof", text: `Vignette: ${c.vignette}` }];
   setChats(initChats);
 
   // Erste Frage sichtbar + evtl. on_enter-Reveal

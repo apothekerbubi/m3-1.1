@@ -396,7 +396,6 @@ export default function ExamPage() {
 
     const initChats: Turn[][] = Array.from({ length: n }, () => []);
     const q0 = stepsOrdered[0]?.prompt ?? "";
-    initChats[0] = [{ role: "prof" as const, text: `Vignette: ${c.vignette}` }];
     setChats(initChats);
 
     setAsked([{ index: 0, text: q0, status: "pending" }]);
