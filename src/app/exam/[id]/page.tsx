@@ -1,17 +1,18 @@
 // src/app/exam/[id]/page.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { CASES } from "@/data/cases";
-import type { Case, Step, StepReveal } from "@/lib/types";
+import type { Case, Step, StepReveal, StepRule } from "@/lib/types";
 import ProgressBar from "@/components/ProgressBar";
 import ScorePill from "@/components/ScorePill";
 import CaseImagePublic from "@/components/CaseImagePublic";
 
 // ---- Lokale UI-Typen ----
-type Turn = { role: "prof" | "student"; text: string };
+type Turn = { role: "prof" | "student"; text: string; typing?: boolean; id?: string };
+type TypingJob = { step: number; text: string; id: string; speak: boolean };
 
 type ApiReply = {
   say_to_student: string | null;
@@ -29,6 +30,61 @@ type Asked = { index: number; text: string; status: "pending" | "correct" | "par
 type ObjMin = { id: string; label: string };
 type CompletionRules = { minObjectives: number; maxLLMTurns?: number; hardStopTurns?: number };
 type CaseWithRules = Case & { objectives?: ObjMin[]; completion?: CompletionRules | null };
+
+const createId = (prefix: string): string =>
+  `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+const formatList = (items: string[]): string => {
+  const clean = items.map((i) => i.trim()).filter(Boolean);
+  if (clean.length === 0) return "";
+  if (clean.length === 1) return clean[0];
+  if (clean.length === 2) return `${clean[0]} und ${clean[1]}`;
+  return `${clean.slice(0, -1).join(", ")} und ${clean.slice(-1)[0]}`;
+};
+
+const describeRule = (
+  rule: StepRule | null | undefined,
+  caseTitle: string,
+  prompt: string
+): string => {
+  if (!rule) return "";
+
+  const context = `Im Kontext des Falls „${caseTitle}“ solltest du für die Frage „${prompt}“`;
+
+  if (rule.mode === "anyOf") {
+    const expected = formatList(rule.expected ?? []);
+    if (!expected) return "";
+    return `${context} vor allem folgende Punkte im Blick haben: ${expected}.`;
+  }
+
+  if (rule.mode === "allOf") {
+    const required = formatList(rule.required ?? []);
+    const optional = formatList(rule.optional ?? []);
+    const parts: string[] = [];
+    if (required) parts.push(`unbedingt ${required} nennen`);
+    if (optional) parts.push(`zusätzlich helfen Angaben wie ${optional}`);
+    if (!parts.length) return "";
+    return `${context} ${parts.join(" und ")}.`;
+  }
+
+  if (rule.mode === "categories") {
+    const categories = Object.entries(rule.categories ?? {}).map(([name, values]) => {
+      const list = Array.isArray(values) ? formatList(values) : "";
+      return list ? `${name} (${list})` : name;
+    });
+    const catText = formatList(categories);
+    const minCat = rule.minCategories;
+    const minHits = rule.minHits;
+    const parts: string[] = [];
+    if (catText) parts.push(`deine Antwort entlang von ${catText} strukturieren`);
+    if (minCat) parts.push(`mindestens ${minCat} dieser Kategorien abdecken`);
+    if (minHits) parts.push(`insgesamt auf wenigstens ${minHits} verwertbare Angaben kommen`);
+    if (!parts.length) return "";
+    return `${context} ${parts.join(" und ")}.`;
+  }
+
+  return "";
+};
 
 /* ------- Serien-Store für Summary ------- */
 type SeriesResultRow = {
@@ -159,6 +215,9 @@ export default function ExamPage() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [typingQueue, setTypingQueue] = useState<TypingJob[]>([]);
+  const typingActiveRef = useRef(false);
+  const typingTimeoutRef = useRef<number | null>(null);
 
   // *** Abgeleitete Daten ***
   const stepsOrdered = useMemo<Step[]>(
@@ -169,7 +228,7 @@ export default function ExamPage() {
   const nSteps = stepsOrdered.length;
 
   const currentPrompt = stepsOrdered[activeIndex]?.prompt ?? "";
-  const stepRule: unknown = stepsOrdered[activeIndex]?.rule ?? null;
+  const stepRule: StepRule | null = (stepsOrdered[activeIndex]?.rule ?? null) as StepRule | null;
 
   const stepPoints = useMemo<number>(() => {
     const p = stepsOrdered[activeIndex]?.points;
@@ -253,7 +312,7 @@ export default function ExamPage() {
     if (sym && sym.trim()) return sym;
     return "Prüfung";
   }
-  async function speak(text: string) {
+  const speak = useCallback(async (text: string) => {
     try {
       const res = await fetch("/api/speak", {
         method: "POST",
@@ -266,35 +325,131 @@ export default function ExamPage() {
       const audio = new Audio(url);
       audio.play();
     } catch {}
-  }
+  }, []);
 
+  const createTurn = (role: Turn["role"], text: string, typing = false, id?: string): Turn => ({
+    role,
+    text,
+    typing,
+    id: id ?? createId(role),
+  });
 
-  function pushProf(step: number, text?: string | null) {
-    if (!text || !text.trim()) return;
-    const t = text.trim();
+  const sanitizeProfText = (raw: string | null | undefined): string | null => {
+    if (!raw) return null;
+    const replaced = raw.replace(/\u2026/g, "...").replace(/\r\n/g, "\n");
+    const withoutTrailing = replaced.replace(/(?:\s*[.·•\-–—_]{2,}\s*)+$/g, "");
+    const trimmed = withoutTrailing.trim();
+    if (!trimmed) return null;
+    const flat = trimmed.replace(/[\s]+/g, " ");
+    if (/^[.·•\-–—_\s]+$/.test(flat)) return null;
+    if (/^\.{2,}$/.test(flat)) return null;
+    return trimmed;
+  };
+
+  function pushProf(step: number, text?: string | null, opts?: { animate?: boolean }) {
+    const cleaned = sanitizeProfText(text);
+    if (!cleaned) return;
+    const t = cleaned;
+    const shouldAnimate = opts?.animate ?? true;
+    const id = createId("prof");
+    const job: TypingJob = { step, text: t, id, speak: ttsEnabled };
+    let added = false;
+
     setChats((prev) => {
       const copy: Turn[][] = prev.map((x) => [...x]);
+      while (copy.length <= step) copy.push([]);
       const arr: Turn[] = (copy[step] ?? []) as Turn[];
-      const lastProf = [...arr].reverse().find((x) => x.role === "prof");
-      if (!lastProf || normalize(lastProf.text) !== normalize(t)) {
-        const next: Turn[] = [...arr, { role: "prof" as const, text: t }];
-        copy[step] = next;
+      const hasSame = arr.some((x) => x.role === "prof" && normalize(x.text) === normalize(t));
+      if (hasSame) return prev;
+      const nextTurn = shouldAnimate ? createTurn("prof", "", true, id) : createTurn("prof", t, false, id);
+      copy[step] = [...arr, nextTurn];
+      added = true;
+      if (!shouldAnimate && ttsEnabled) {
+        void speak(t);
       }
       return copy;
     });
-     if (ttsEnabled) {
-      void speak(t);
+
+    if (shouldAnimate && added) {
+      setTypingQueue((prevQueue) => [...prevQueue, job]);
     }
   }
 
   function pushStudent(step: number, text: string) {
     setChats((prev) => {
       const copy: Turn[][] = prev.map((x) => [...x]);
+      while (copy.length <= step) copy.push([]);
       const arr: Turn[] = (copy[step] ?? []) as Turn[];
-      copy[step] = [...arr, { role: "student" as const, text }];
+      copy[step] = [...arr, createTurn("student", text)];
       return copy;
     });
   }
+
+  useEffect(() => {
+    if (typingActiveRef.current) return;
+    const job = typingQueue[0];
+    if (!job) return;
+    typingActiveRef.current = true;
+
+    const tokens = job.text.split(/(\s+)/).filter((token) => token.length > 0);
+    let index = 0;
+    let acc = "";
+
+    const advance = () => {
+      if (index >= tokens.length) {
+        setChats((prev) => {
+          const copy = prev.map((x) => [...x]);
+          const arr = copy[job.step] ?? [];
+          const idx = arr.findIndex((turn) => turn.id === job.id);
+          if (idx >= 0) {
+            const target = arr[idx];
+            copy[job.step] = [
+              ...arr.slice(0, idx),
+              { ...target, text: job.text, typing: false },
+              ...arr.slice(idx + 1),
+            ];
+          }
+          return copy;
+        });
+        if (job.speak) {
+          void speak(job.text);
+        }
+        typingActiveRef.current = false;
+        setTypingQueue((prevQueue) => prevQueue.slice(1));
+        typingTimeoutRef.current = null;
+        return;
+      }
+
+      acc += tokens[index] ?? "";
+      index += 1;
+      setChats((prev) => {
+        const copy = prev.map((x) => [...x]);
+        const arr = copy[job.step] ?? [];
+        const idx = arr.findIndex((turn) => turn.id === job.id);
+        if (idx >= 0) {
+          const target = arr[idx];
+          copy[job.step] = [
+            ...arr.slice(0, idx),
+            { ...target, text: acc, typing: true },
+            ...arr.slice(idx + 1),
+          ];
+        }
+        return copy;
+      });
+
+      typingTimeoutRef.current = window.setTimeout(advance, 80);
+    };
+
+    advance();
+  }, [typingQueue, speak]);
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current !== null) {
+        window.clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, []);
 
 
   async function startRecording() {
@@ -429,7 +584,7 @@ export default function ExamPage() {
 // *** API ***
 async function callExamAPI(
   current: Turn[],
-  opts: { mode: "answer" | "tip" | "explain" }
+  opts: { mode: "answer" | "tip" | "explain"; latestStudent?: string }
 ) {
   if (!c) return;
   setLoading(true);
@@ -440,6 +595,11 @@ async function callExamAPI(
       .filter((t) => t.role === "student")
       .map((t) => t.text.trim())
       .filter(Boolean);
+
+    const latestStudentText =
+      opts.latestStudent?.trim() ||
+      [...current].reverse().find((t) => t.role === "student")?.text?.trim() ||
+      null;
 
     // sehr simple Itemisierung + Deduplizierung (Komma / Semikolon / Slash / Zeilenumbruch)
     const studentUnion = Array.from(
@@ -493,11 +653,11 @@ async function callExamAPI(
 
     const data: ApiReply = (await res.json()) as ApiReply;
 
-    const hadSolution =
-      typeof data.say_to_student === "string" &&
-      /^lösung\s*:/i.test(data.say_to_student.trim());
-
-    if (hadSolution) pushProf(activeIndex, data.say_to_student);
+    const rawSay = typeof data.say_to_student === "string" ? data.say_to_student : "";
+    const sayNormalized = sanitizeProfText(rawSay);
+    const solutionCandidate = (sayNormalized ?? rawSay)?.trim();
+    const hadSolution = solutionCandidate ? /^lösung\s*:/i.test(solutionCandidate) : false;
+    const theoretical = describeRule(stepRule as StepRule | null, c.title, currentPrompt);
 
     if (data.evaluation && opts.mode === "answer") {
       const { correctness, feedback, tips } = data.evaluation;
@@ -537,10 +697,23 @@ async function callExamAPI(
         return copy;
       });
 
+      const feedbackClean = sanitizeProfText(feedback);
+      const tipsClean = sanitizeProfText(tips);
+
       const parts = [
-        `${label(correctness)} — ${feedback}`,
-        correctness !== "correct" && tips ? `Tipp: ${tips}` : "",
+        latestStudentText ? `Du hast genannt: „${latestStudentText}“.` : "",
+        feedbackClean ? `${label(correctness)} — ${feedbackClean}` : label(correctness),
+        correctness !== "correct" && tipsClean ? `Tipp: ${tipsClean}` : "",
       ].filter(Boolean);
+
+      if (theoretical) parts.push(theoretical);
+
+      if (!feedbackClean && !tipsClean && !theoretical) {
+        parts.push(
+          "Ich konnte gerade keine detaillierte Auswertung erstellen, werde aber gleich mit einer passenden Musterlösung antworten."
+        );
+      }
+
       if (!hadSolution) pushProf(activeIndex, parts.join(" "));
 
       // Reveal (falls konfiguriert, nicht on_enter)
@@ -550,8 +723,15 @@ async function callExamAPI(
     }
 
     // Zusätzliche Prüfer-Nachrichten (Tip/Explain)
-    if (!hadSolution && (!data.evaluation || !data.evaluation.feedback) && data.say_to_student) {
-      pushProf(activeIndex, data.say_to_student);
+    if (!sayNormalized && (!data.evaluation || !data.evaluation.feedback)) {
+      const fallback = theoretical
+        ? `Hinweis: ${theoretical}`
+        : "Ich konnte gerade keinen sinnvollen Hinweis generieren. Versuche es bitte gleich noch einmal.";
+      pushProf(activeIndex, fallback);
+    }
+
+    if (sayNormalized) {
+      pushProf(activeIndex, sayNormalized);
     }
   } catch (e: unknown) {
     alert(e instanceof Error ? e.message : String(e));
@@ -604,39 +784,49 @@ async function callExamAPI(
   }
   // -------------------------------------------------
 
- // *** Flow-Funktionen ***
-async function startExam() {
-  if (!c) return;
+  // *** Flow-Funktionen ***
+  async function startExam() {
+    if (!c) return;
 
-  // 🔹 Zähler in Supabase hochziehen
-  try {
-    await fetch("/api/progress/start", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ caseId: c.id }),
-    });
-  } catch {
-    console.warn("Start-Tracking fehlgeschlagen");
-  }
+    // 🔹 Zähler in Supabase hochziehen
+    try {
+      await fetch("/api/progress/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caseId: c.id }),
+      });
+    } catch {
+      console.warn("Start-Tracking fehlgeschlagen");
+    }
 
-  const n = stepsOrdered.length;
+    const n = stepsOrdered.length;
 
-  // Reset
-  setAsked([]);
-  setPerStepScores(Array(n).fill(0));
-  setLastCorrectness(null);
-  setAttemptCount(0);
-  setActiveIndex(0);
-  setViewIndex(0);
-  setEnded(false);
+    // Reset
+    setAsked([]);
+    setPerStepScores(Array(n).fill(0));
+    setLastCorrectness(null);
+    setAttemptCount(0);
+    setActiveIndex(0);
+    setViewIndex(0);
+    setEnded(false);
+
+    if (typingTimeoutRef.current !== null) {
+      window.clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    typingActiveRef.current = false;
+    setTypingQueue([]);
 
     // Chats vorbereiten
     const initChats: Turn[][] = Array.from({ length: n }, () => []);
     const q0 = stepsOrdered[0]?.prompt ?? "";
-    initChats[0] = [
-      { role: "prof", text: `Vignette: ${c.vignette}` },
-      { role: "prof", text: q0 },
+    const intro: Turn[] = [
+      createTurn("prof", `Lass uns starten – hier ist die Falldarstellung: ${c.vignette}`),
     ];
+    if (q0) {
+      intro.push(createTurn("prof", `Erste Frage: ${q0}`));
+    }
+    initChats[0] = intro;
     setChats(initChats);
 
     // Erste Frage sichtbar + evtl. on_enter-Reveal
@@ -661,15 +851,7 @@ async function startExam() {
       { role: "student" as const, text },
     ];
 
-    void callExamAPI(current, { mode: "answer" });
-  }
-
-  function goToStep(idx: number) {
-    if (!c) return;
-    // Nur bereits freigegebene Fragen wählbar
-    if (!asked.find((a) => a.index === idx)) return;
-
-    setViewIndex(idx);
+    void callExamAPI(current, { mode: "answer", latestStudent: text });
   }
 
   function nextStep() {
@@ -696,7 +878,10 @@ async function startExam() {
     setChats((prev) => {
       const copy = prev.map((x) => [...x]);
       if (!copy[idx] || copy[idx].length === 0) {
-        copy[idx] = [{ role: "prof", text: q }];
+        const promptText = q
+          ? `Weiter geht's mit Frage ${idx + 1}: ${q}`
+          : "Weiter zur nächsten Aufgabe.";
+        copy[idx] = [createTurn("prof", promptText)];
       }
       return copy;
     });
@@ -738,8 +923,6 @@ async function startExam() {
 
   const hasStarted = asked.length > 0;
   const isLastStep = activeIndex >= nSteps - 1;
-  const viewingPast = viewIndex !== activeIndex;
-
   // Bild des gerade betrachteten Schritts (für Chat-Panel)
   const stepImg = stepsOrdered[viewIndex]?.image;
 
@@ -872,18 +1055,30 @@ async function startExam() {
             )}
 
             {viewChat.map((t, i) => (
-              <div key={i} className={`mb-3 ${t.role === "prof" ? "" : "text-right"}`}>
+              <div key={t.id ?? i} className={`mb-3 ${t.role === "prof" ? "" : "text-right"}`}>
                 <div
                   className={`inline-block max-w-[80%] rounded-2xl px-3 py-2 shadow-sm ${
                     t.role === "prof" ? "border border-black/10 bg-white text-gray-900" : "bg-blue-600 text-white"
                   }`}
                 >
                   <span className="text-sm leading-relaxed">
-                    <b className="opacity-80">{t.role === "prof" ? "Prüfer" : "Du"}:</b> {t.text}
+                    <b className="opacity-80">{t.role === "prof" ? "Prüfer" : "Du"}:</b>{" "}
+                    {t.text || (t.typing ? "…" : "")}
                   </span>
                 </div>
               </div>
             ))}
+            {loading && hasStarted && viewIndex === activeIndex && (
+              <div className="mb-3">
+                <div className="inline-flex max-w-[80%] items-center gap-2 rounded-2xl border border-black/10 bg-white px-3 py-2 shadow-sm">
+                  <b className="text-sm text-gray-700">Prüfer:</b>
+                  <span className="relative inline-flex h-2.5 w-2.5 items-center justify-center">
+                    <span className="absolute inline-flex h-2.5 w-2.5 animate-ping rounded-full bg-blue-400/60" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-blue-600 animate-pulse" />
+                  </span>
+                </div>
+              </div>
+            )}
             {!hasStarted && (
               <div className="text-sm text-gray-600">
                 Klicke auf <b>Prüfung starten</b>, um zu beginnen.
