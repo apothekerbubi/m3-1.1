@@ -169,8 +169,6 @@ export default function ExamPage() {
   const nSteps = stepsOrdered.length;
 
   const currentPrompt = stepsOrdered[activeIndex]?.prompt ?? "";
-  const stepRule: unknown = stepsOrdered[activeIndex]?.rule ?? null;
-
   const stepPoints = useMemo<number>(() => {
     const p = stepsOrdered[activeIndex]?.points;
     return typeof p === "number" ? p : 2;
@@ -294,6 +292,39 @@ export default function ExamPage() {
       copy[step] = [...arr, { role: "student" as const, text }];
       return copy;
     });
+  }
+
+  function introduceQuestion(step: number, question: string) {
+    const text = question.trim();
+    if (!text) return;
+
+    setChats((prev) => {
+      const copy: Turn[][] = prev.map((x) => [...x]);
+      if (!copy[step]) copy[step] = [];
+      return copy;
+    });
+
+    setAsked((prev) => {
+      const next = [...prev];
+      const idx = next.findIndex((a) => a.index === step);
+      if (idx >= 0) {
+        next[idx] = { ...next[idx], text };
+        return next;
+      }
+      const inserted = [...next, { index: step, text, status: "pending" as const }];
+      return inserted.sort((a, b) => a.index - b.index);
+    });
+
+    pushProf(step, text);
+
+    if (step !== activeIndex) {
+      setActiveIndex(step);
+      setViewIndex(step);
+      setAttemptCount(0);
+      setLastCorrectness(null);
+    }
+
+    maybeRevealOnEnter(step);
   }
 
 
@@ -429,13 +460,20 @@ export default function ExamPage() {
 // *** API ***
 async function callExamAPI(
   current: Turn[],
-  opts: { mode: "answer" | "tip" | "explain" }
+  opts: { mode: "answer" | "tip" | "explain" | "kickoff"; stepOverride?: number }
 ) {
   if (!c) return;
   setLoading(true);
   try {
+    const stepIdxRaw = typeof opts.stepOverride === "number" ? opts.stepOverride : activeIndex;
+    const safeStepIdx = stepsOrdered.length > 0
+      ? Math.max(0, Math.min(stepIdxRaw, stepsOrdered.length - 1))
+      : 0;
+    const ruleForStep: unknown = stepsOrdered[safeStepIdx]?.rule ?? null;
+    const isKickoff = opts.mode === "kickoff";
+
     // 🔹 NEU: kumulierte Student:innen-Antworten für den aktuellen Schritt sammeln
-    const turnsThisStep = (chats[activeIndex] ?? []) as Turn[];
+    const turnsThisStep = (chats[safeStepIdx] ?? []) as Turn[];
     const studentSoFar = turnsThisStep
       .filter((t) => t.role === "student")
       .map((t) => t.text.trim())
@@ -466,10 +504,10 @@ async function callExamAPI(
       objectives: c.objectives ?? [],
       completion: c.completion ?? null,
 
-      stepIndex: activeIndex,
-      stepsPrompts: [],
-      stepRule,
-      focusQuestion: currentPrompt,
+      stepIndex: safeStepIdx,
+      stepsPrompts: stepsOrdered.map((s) => s.prompt),
+      stepRule: ruleForStep,
+      focusQuestion: stepsOrdered[safeStepIdx]?.prompt ?? currentPrompt,
 
       // 🔹 NEU: Felder für die kumulative Bewertung
       student_so_far: studentSoFar,                 // alle bisherigen Texte
@@ -497,7 +535,7 @@ async function callExamAPI(
       typeof data.say_to_student === "string" &&
       /^lösung\s*:/i.test(data.say_to_student.trim());
 
-    if (hadSolution) pushProf(activeIndex, data.say_to_student);
+    if (hadSolution) pushProf(safeStepIdx, data.say_to_student);
 
     if (data.evaluation && opts.mode === "answer") {
       const { correctness, feedback, tips } = data.evaluation;
@@ -541,7 +579,7 @@ async function callExamAPI(
         `${label(correctness)} — ${feedback}`,
         correctness !== "correct" && tips ? `Tipp: ${tips}` : "",
       ].filter(Boolean);
-      if (!hadSolution) pushProf(activeIndex, parts.join(" "));
+      if (!hadSolution) pushProf(safeStepIdx, parts.join(" "));
 
       // Reveal (falls konfiguriert, nicht on_enter)
       if (stepReveal && shouldReveal(stepReveal, data.evaluation, hadSolution)) {
@@ -551,7 +589,25 @@ async function callExamAPI(
 
     // Zusätzliche Prüfer-Nachrichten (Tip/Explain)
     if (!hadSolution && (!data.evaluation || !data.evaluation.feedback) && data.say_to_student) {
-      pushProf(activeIndex, data.say_to_student);
+      pushProf(safeStepIdx, data.say_to_student);
+    }
+
+    if (data.next_question) {
+      const q = data.next_question.trim();
+      if (q) {
+        if (isKickoff || asked.length === 0) {
+          introduceQuestion(safeStepIdx, q);
+        } else if (safeStepIdx < nSteps - 1) {
+          introduceQuestion(safeStepIdx + 1, q);
+        } else {
+          pushProf(safeStepIdx, q);
+        }
+      }
+    }
+
+    if (data.end && !ended) {
+      setEnded(true);
+      void persistProgress({ completed: true });
     }
   } catch (e: unknown) {
     alert(e instanceof Error ? e.message : String(e));
@@ -630,19 +686,10 @@ async function startExam() {
   setViewIndex(0);
   setEnded(false);
 
-    // Chats vorbereiten
-    const initChats: Turn[][] = Array.from({ length: n }, () => []);
-    const q0 = stepsOrdered[0]?.prompt ?? "";
-    initChats[0] = [
-      { role: "prof", text: `Vignette: ${c.vignette}` },
-      { role: "prof", text: q0 },
-    ];
-    setChats(initChats);
+  setChats(Array.from({ length: n }, () => [] as Turn[]));
 
-    // Erste Frage sichtbar + evtl. on_enter-Reveal
-    setAsked([{ index: 0, text: q0, status: "pending" }]);
-    maybeRevealOnEnter(0);
-  }
+  void callExamAPI([], { mode: "kickoff", stepOverride: 0 });
+}
 
   function onSend() {
     if (!c || loading || ended) return;

@@ -301,6 +301,63 @@ export async function POST(req: NextRequest) {
     const student_so_far_text = studentTextsWindow.join("\n").trim();
     const student_union = buildStudentUnion(studentTextsWindow, stepRule);
 
+    /* ---------- INTRO & VIGNETTE ---------- */
+    if (transcript.length === 0) {
+      const firstPrompt = (stepsPrompts[0] || currentPrompt || focusQuestion || "").trim();
+      const sysIntro = `Du bist Prüfer:in am 2. Tag (Theorie) des 3. Staatsexamens (M3).
+Du leitest die mündliche Prüfung realistisch an.
+Schreibe im gewünschten Format:
+- EINLEITUNG: Begrüßung des Prüflings + kurzer Ablaufhinweis + frei paraphrasierte, etwas ausführlichere Vignette (2–3 Sätze) basierend auf den Fallinfos. Keine 1:1-Kopie.
+- FRAGE: Erste Prüfungsfrage, klar formuliert, endet mit Fragezeichen. Nutze den Kern des vorgegebenen Schritts, aber verpacke ihn in natürlicher Sprache.`;
+
+      const usrIntro = `Fallkernpunkte: ${caseText}
+Erste Prüfungsaufgabe (Stichwort): ${firstPrompt || "(keine Vorgabe)"}
+Gib EXAKT folgendes Format zurück:
+EINLEITUNG: <Text>
+FRAGE: <Fragetext?>`;
+
+      const outIntro = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: sysIntro },
+          { role: "user", content: usrIntro },
+        ],
+        temperature: 0.4,
+      });
+
+      const rawIntro = (outIntro.choices?.[0]?.message?.content || "").trim();
+      const introMatch = rawIntro.match(/EINLEITUNG\s*:\s*([\s\S]*?)(?:\n\s*FRAGE\s*:|$)/i);
+      const questionMatch = rawIntro.match(/FRAGE\s*:\s*([\s\S]*)/i);
+      const introText = stripMd((introMatch?.[1] || "").trim());
+      let questionText = stripMd((questionMatch?.[1] || "").trim());
+
+      if (!questionText && firstPrompt) questionText = firstPrompt;
+      if (questionText && !/[?？]\s*$/.test(questionText)) questionText = `${questionText}?`;
+
+      const payload: ApiOut = {
+        say_to_student: introText || null,
+        evaluation: null,
+        next_question: questionText || null,
+        end: false,
+      };
+
+      if (userId) {
+        void logTurn(supabase, {
+          userId,
+          caseId,
+          attemptStage: 1,
+          tipRequest: false,
+          explainRequest: false,
+          clarifyQuestion: null,
+          focusQuestion: questionText || null,
+          lastStudentAnswer: null,
+          modelOut: payload,
+        });
+      }
+
+      return NextResponse.json(payload);
+    }
+
     /* ---------- MODE A: Tipp (nur per Button) ---------- */
     if (tipRequest) {
       const sysTip = `Du bist Prüfer:in im 3. Staatsexamen (M3, Tag 2 – Theorie).
@@ -367,11 +424,11 @@ export async function POST(req: NextRequest) {
     /* ---------- MODE B: Zusatzinfos (Clarify) ---------- */
     if (clarify) {
       const sysClarify = `Du bist Prüfer:in.
-        Auf Nachfrage gibst du ZUSÄTZLICHE PATIENTENDETAILS, realistisch zur Vignette und zum aktuellen Schritt.
-        Form: 1–3 Sätze ODER 2–3 Bulletpoints (mit "- ").
-        Kein Spoiler (keine Enddiagnose, keine definitive Therapie).
-        Keine erfundenen Labor-/Bildbefunde; bleibe auf Anamnese/Untersuchungsebene, außer wenn der Schritt ausdrücklich Diagnostik betrifft.
-  Deutsch.`;
+Auf Nachfragen antwortest du stellvertretend für die Patientin/den Patienten mit konkreten, fallkonsistenten Informationen.
+Form: 1–3 Sätze ODER 2–3 Bulletpoints (mit "-").
+Gib direkte Antworten auf die gestellte Frage (z. B. genaue Mengen, Dauer, Medikamente, Symptome) und bleibe realistisch zur Vignette.
+Keine endgültige Diagnose oder Therapieentscheidungen verraten.
+Nur Zusatzinfos liefern, keine Meta-Kommentare. Deutsch.`;
 
       const usrClarify = `Vignette: ${caseText}
 CURRENT_STEP_PROMPT: ${currentPrompt || "(unbekannt)"}
@@ -567,12 +624,14 @@ Erzeuge NUR die Frage (ein Satz, Fragezeichen).`;
 Stil: ${style === "strict" ? "knapp, streng-sachlich" : "freundlich-klar, coaching-orientiert"}.
 Ansprache: du/dir/dein.
 Sprache: Deutsch.
+Moderation: knüpfe in deinen Formulierungen an den bisherigen Gesprächsverlauf an.
 Im Transkript: Rollen student/examiner/patient – bewerte ausschließlich student.
 
 KONTEXT-REGELN
 - Beziehe dich NUR auf Vignette + bereits preisgegebene Infos.
 - Keine neuen Befunde erfinden.
 - Bewerte ausschließlich die AKTUELLE Frage (CURRENT_STEP_PROMPT).
+- Verweise bei neuen Fragen kurz darauf, wie ihr thematisch weitergeht (z. B. „Dann kommen wir…“).
 
 KUMULATIVE WERTUNG (wichtig)
 - Entscheide die Korrektheit nach der **Gesamtheit** der bisher genannten Inhalte in diesem Schritt.
@@ -589,21 +648,28 @@ NO-LEAK GUARD (streng)
 - Genutzte Begriffe darfst du korrigieren, aber **keine** neuen Inhalte einführen.
 
 AUSDRUCK & TON
--  Keine Emojis/Auslassungspunkte/Klammer-Meta.
-- Bei correct/partial/incorrect kurze, klare Begründung auf Meta-Ebene.
+- Keine Emojis/Auslassungspunkte/Klammer-Meta.
+- Feedback immer mit konkreter, fallbezogener Begründung formulieren (warum richtig/falsch, Priorität im aktuellen Setting).
 
 VERSUCHSLOGIK (hart)
 - Drei Versuche (attemptStage 1..3). Give-up zählt wie 3.
 - attemptStage 1/2 UND nicht korrekt:
-  • evaluation.feedback = 1 kurzer Satz Bewertung + 1 kurzer Satz Lücke/Strukturhinweis (ohne Beispiele/Diagnosen).
+  • evaluation.feedback = genau 2 Sätze: Satz 1 bewertet, Satz 2 begründet fallbezogen, warum etwas fehlt/anders priorisiert wird (ohne Spoiler).
   • evaluation.tips = weglassen (nur im Tipp-Modus).
   • next_question = null.
 - attemptStage 3 ODER Give-up:
-  • say_to_student MUSS mit "Lösung:" beginnen. Danach 1 Kernsatz + was noch gefehlt hat + 2–3 knappe Bullets (• Kerngedanke • Abgrenzung • nächster Schritt).
+  • say_to_student MUSS mit "Lösung:" beginnen. Danach 1 Kernsatz + was noch gefehlt hat (inkl. relevanter Patient:innenantworten) + 2–3 knappe Bullets (• Kerngedanke • Abgrenzung • nächster Schritt).
   • next_question = NEXT_STEP_PROMPT (falls vorhanden), sonst null.
 - Antwort ist korrekt:
   • evaluation.feedback = 1 kurzer Bestätigungssatz + 2–3 Meta-Bullets ( warum passend • Kategorie/Pathomechanismus auf Meta-Ebene • Priorität).
   • next_question = NEXT_STEP_PROMPT (falls vorhanden); end=true falls letzter Schritt.
+
+NEXT_QUESTION
+- Wenn du eine neue Frage stellst, formuliere sie als natürlichen Übergang mit Moderationsphrase (z. B. „Kommen wir als Nächstes…“).
+- Greife den Kern aus NEXT_STEP_PROMPT auf, aber schreibe in eigenen Worten.
+
+PATIENTENREAKTIONEN
+- Sobald der Schritt Patient:innenanamnese umfasst und Nachfragen gestellt wurden, liefere realistische Antworten der Patientin/des Patienten in deinen Rückmeldungen oder in der Lösung (Mengen, Dauer, Medikamente etc.).
 
 TIPP-MODUS (tipRequest=true)
 - Nur "say_to_student" mit 1–2 neutralen Strukturhinweisen (keine Diagnosen/Beispiele). "evaluation" und "next_question" bleiben null.
@@ -701,8 +767,10 @@ Erzeuge NUR das JSON-Objekt.`.trim();
 
     // Bei korrekt → zwingend zum nächsten Schritt
     if (isCorrect) {
-      payload.next_question = nextPrompt ?? null;
-      payload.end = !nextPrompt;
+      if (!payload.next_question && nextPrompt) {
+        payload.next_question = nextPrompt;
+      }
+      payload.end = Boolean(payload.end || !nextPrompt);
       if (!payload.say_to_student) {
         payload.say_to_student = "Gut, weiter geht’s.";
       }
@@ -715,8 +783,10 @@ Erzeuge NUR das JSON-Objekt.`.trim();
           ? `Lösung: ${payload.say_to_student}`
           : "Lösung: (Hier 1–2 Sätze zur Kernlösung + 1–3 kurze Begründungen/Merksätze.)";
       }
-      payload.next_question = nextPrompt ?? null;
-      payload.end = !nextPrompt;
+      if (!payload.next_question && nextPrompt) {
+        payload.next_question = nextPrompt;
+      }
+      payload.end = Boolean(payload.end || !nextPrompt);
     }
 
     // 🔐 Persistenz (nicht blockierend)
