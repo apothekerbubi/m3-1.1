@@ -523,52 +523,9 @@ Gib NUR die Zusatzinformation (ohne Präambel/Bewertung).`;
     const gaveUp = looksLikeGiveUp(lastStudentText);
     const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 1);
 
-    /* ---------- MODE B: Zusatzinfos (Clarify) ---------- */
-    if (clarify) {
-      const sysClarify = `Du bist Prüfer:in.
-        Auf Nachfrage gibst du ZUSÄTZLICHE PATIENTENDETAILS, realistisch zur Vignette und zum aktuellen Schritt.
-        Form: 1–3 Sätze ODER 2–3 Bulletpoints (mit "- ").
-        Kein Spoiler (keine Enddiagnose, keine definitive Therapie).
-        Keine erfundenen Labor-/Bildbefunde; bleibe auf Anamnese/Untersuchungsebene, außer wenn der Schritt ausdrücklich Diagnostik betrifft.
-  Deutsch.`;
-
-      const usrClarify = `Vignette: ${caseText}
-CURRENT_STEP_PROMPT: ${currentPrompt || "(unbekannt)"}
-Nachfrage des Studierenden: ${clarify}
-Gib NUR die Zusatzinformation (ohne Präambel/Bewertung).`;
-
-      const outClarify = await client.chat.completions.create({
-        model,
-        messages: [
-          { role: "system", content: sysClarify },
-          { role: "user", content: usrClarify },
-        ],
-        temperature: 0.2,
-      });
-
-      const info = stripMd((outClarify.choices?.[0]?.message?.content || "").trim()) || "Keine weiteren relevanten Details verfügbar.";
-      const payload: ApiOut = { say_to_student: info, evaluation: null, next_question: null, end: false };
-
-      if (userId) {
-        void logTurn(supabase, {
-          userId,
-          caseId,
-          attemptStage: effectiveAttempt,
-          tipRequest: false,
-          explainRequest: false,
-          clarifyQuestion: clarify,
-          focusQuestion: currentPrompt || null,
-          lastStudentAnswer: lastStudentText || null,
-          modelOut: payload,
-        });
-      }
-
-      return NextResponse.json(payload);
-    }
-
     /* ---------- MODE D: Erklärung (kumulativ) ---------- */
-if (explainRequest) {
-  const sysExplain = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
+    if (explainRequest) {
+      const sysExplain = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
 Ziel: eine kurze, flüssige Einordnung der STUDIERENDENANTWORTEN zur CURRENT_STEP_PROMPT.
 Verknüpfe deine Aussagen immer mit dem Krankheitsbild bzw. der Falllogik dieses Schritts und gib einen Mini-Ausblick auf den nächsten sinnvollen gedanklichen Schritt.
 Beziehe dich NUR auf Vignette + bereits preisgegebene Informationen dieses Falls/Schritts.
@@ -588,12 +545,12 @@ SPOILER-SCHUTZ
 - Bei attemptStage 1/2: Striktes Spoilerverbot. Keine neuen Diagnosen, Beispiele, Labor-/Bild-Befunde oder Schlüsselbegriffe, die NICHT von der/dem Studierenden genannt oder offiziell preisgegeben wurden.
 - Duzen (du/dir/dein). Deutsch.`;
 
-  const fallbackQuestion =
-    (currentPrompt || explainContext?.question?.trim()) ||
-     ([...transcript].reverse().find((t) => t.role === "examiner" && /\?\s*$/.test(t.text))?.text || "");
+      const fallbackQuestion =
+        (currentPrompt || explainContext?.question?.trim()) ||
+        ([...transcript].reverse().find((t) => t.role === "examiner" && /\?\s*$/.test(t.text))?.text || "");
 
-  // <- WICHTIG: wir erklären jetzt kumulativ (nicht nur die letzte Antwort)
-  const usrExplain = `Vignette: ${caseText}
+      // <- WICHTIG: wir erklären jetzt kumulativ (nicht nur die letzte Antwort)
+      const usrExplain = `Vignette: ${caseText}
 CURRENT_STEP_PROMPT: ${fallbackQuestion || "(unbekannt)"}
 attemptStage: ${effectiveAttempt}
 
@@ -609,35 +566,35 @@ ${JSON.stringify(student_union)}
 ${outline.length ? `Prüfungs-Outline: ${outline.join(" • ")}` : ""}
 Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bullets mit "- ").`;
 
-  const outExplain = await client.chat.completions.create({
-    model,
-    messages: [
-      { role: "system", content: sysExplain },
-      { role: "user", content: usrExplain },
-    ],
-    temperature: 0.2,
-  });
+      const outExplain = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: sysExplain },
+          { role: "user", content: usrExplain },
+        ],
+        temperature: 0.2,
+      });
 
-  const say = stripMd((outExplain.choices?.[0]?.message?.content || "").trim()) ||
-    "Kurz eingeordnet: Inhaltlich passend und kontextgerecht begründet.";
-  const payload: ApiOut = { say_to_student: say, evaluation: null, next_question: null, end: false };
+      const say = stripMd((outExplain.choices?.[0]?.message?.content || "").trim())
+        || "Kurz eingeordnet: Inhaltlich passend und kontextgerecht begründet.";
+      const payload: ApiOut = { say_to_student: say, evaluation: null, next_question: null, end: false };
 
-  if (userId) {
-    void logTurn(supabase, {
-      userId,
-      caseId,
-      attemptStage: effectiveAttempt,
-      tipRequest: false,
-      explainRequest: true,
-      clarifyQuestion: null,
-      focusQuestion: fallbackQuestion || null,
-      lastStudentAnswer: student_so_far_text || null, // <- kumulativ loggen
-      modelOut: payload,
-    });
-  }
+      if (userId) {
+        void logTurn(supabase, {
+          userId,
+          caseId,
+          attemptStage: effectiveAttempt,
+          tipRequest: false,
+          explainRequest: true,
+          clarifyQuestion: null,
+          focusQuestion: fallbackQuestion || null,
+          lastStudentAnswer: student_so_far_text || null, // <- kumulativ loggen
+          modelOut: payload,
+        });
+      }
 
-  return NextResponse.json(payload);
-}
+      return NextResponse.json(payload);
+    }
 
     /* ---------- KICKOFF ---------- */
     {
