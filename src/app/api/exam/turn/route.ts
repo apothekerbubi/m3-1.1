@@ -279,7 +279,7 @@ const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 
     const student_so_far_text = studentTextsWindow.join("\n").trim();
     const student_union = buildStudentUnion(studentTextsWindow, stepRule);
 
-    /* ---------- MODE A: Tipp (nur per Button) ---------- */
+    /* ---------- MODE A/B/C ---------- */
     if (tipRequest) {
       const sysTip = `Du bist Prüfer:in im 3. Staatsexamen (M3, Tag 2 – Theorie).
         Gib GENAU EINEN sehr kurzen Tipp (1 Satz) zur CURRENT_STEP_PROMPT.
@@ -319,8 +319,8 @@ const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 
           caseId,
           attemptStage,
           tipRequest: true,
-          explainRequest: false,
           solutionRequest: false,
+          explainRequest: false,
           clarifyQuestion: null,
           focusQuestion: currentPrompt || null,
           lastStudentAnswer: lastStudentText || null,
@@ -332,9 +332,7 @@ const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 
       }
 
       return NextResponse.json(payload);
-    }
-  /* ---------- MODE B: Lösung (nur per Button) ---------- */
-    if (solutionRequest) {
+    } else if (solutionRequest) {
       const sysSolution = `Du bist Prüfer:in am 2. Tag (Theorie) des 3. Staatsexamens (M3).
         Ziel: Formuliere eine kompakte Musterlösung zur CURRENT_STEP_PROMPT.
 
@@ -350,7 +348,7 @@ const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 
         - Kein weiterer Fließtext, keine Fragen, keine Emojis.
         - Deutsch.`;
 
-              const usrSolution = `Vignette: ${caseText}
+      const usrSolution = `Vignette: ${caseText}
         CURRENT_STEP_PROMPT: ${currentPrompt || "(unbekannt)"}
         RULE_JSON (für CURRENT_STEP_PROMPT):
         ${JSON.stringify(stepRule ?? {}, null, 2)}
@@ -386,16 +384,17 @@ const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 
         end: false,
       };
 
-       if (userId) {
+      if (userId) {
         void logTurn(supabase, {
           userId,
           caseId,
           attemptStage: effectiveAttempt,
           tipRequest: false,
-          explainRequest: true,
-          solutionRequest: false,
+          solutionRequest: true,
+          explainRequest: false,
           clarifyQuestion: null,
-          lastStudentAnswer: student_so_far_text || null, // <- kumulativ loggen
+          focusQuestion: currentPrompt || null,
+          lastStudentAnswer: student_so_far_text || null,
           modelOut: payload,
         });
         if (typeof points === "number" || typeof progressPct === "number") {
@@ -404,14 +403,8 @@ const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 
       }
 
       return NextResponse.json(payload);
-    }
-
-
-    
-
-    /* ---------- MODE D: Erklärung (kumulativ) ---------- */
-if (explainRequest) {
-  const sysExplain = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
+    } else if (explainRequest) {
+      const sysExplain = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
 Ziel: eine kurze, flüssige Einordnung der STUDIERENDENANTWORTEN zur CURRENT_STEP_PROMPT.
 Beziehe dich NUR auf Vignette + bereits preisgegebene Informationen dieses Falls/Schritts.
 
@@ -430,12 +423,15 @@ SPOILER-SCHUTZ
 - Bei attemptStage 1/2: Striktes Spoilerverbot. Keine neuen Diagnosen, Beispiele, Labor-/Bild-Befunde oder Schlüsselbegriffe, die NICHT von der/dem Studierenden genannt oder offiziell preisgegeben wurden.
 - Duzen (du/dir/dein). Deutsch.`;
 
-  const fallbackQuestion =
-    (currentPrompt || explainContext?.question?.trim()) ||
-     ([...transcript].reverse().find((t) => t.role === "examiner" && /\?\s*$/.test(t.text))?.text || "");
+      const fallbackQuestion =
+        currentPrompt ||
+        explainContext?.question?.trim() ||
+        ([...transcript]
+          .reverse()
+          .find(t => t.role === "examiner" && /\?\s*$/.test(t.text))?.text ||
+          "");
 
-  // <- WICHTIG: wir erklären jetzt kumulativ (nicht nur die letzte Antwort)
-  const usrExplain = `Vignette: ${caseText}
+      const usrExplain = `Vignette: ${caseText}
 CURRENT_STEP_PROMPT: ${fallbackQuestion || "(unbekannt)"}
 attemptStage: ${effectiveAttempt}
 
@@ -451,48 +447,44 @@ ${JSON.stringify(student_union)}
 ${outline.length ? `Prüfungs-Outline: ${outline.join(" • ")}` : ""}
 Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bullets mit "- ").`;
 
-  const outExplain = await client.chat.completions.create({
-    model,
-    messages: [
-      { role: "system", content: sysExplain },
-      { role: "user", content: usrExplain },
-    ],
-    temperature: 0.5,
-  });
+      const outExplain = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: sysExplain },
+          { role: "user", content: usrExplain },
+        ],
+        temperature: 0.5,
+      });
 
-  const say = stripMd((outExplain.choices?.[0]?.message?.content || "").trim()) ||
-    "Kurz eingeordnet: Inhaltlich passend und kontextgerecht begründet.";
-  const payload: ApiOut = { say_to_student: say, evaluation: null, next_question: null, end: false };
+      const say =
+        stripMd((outExplain.choices?.[0]?.message?.content || "").trim()) ||
+        "Kurz eingeordnet: Inhaltlich passend und kontextgerecht begründet.";
+      const payload: ApiOut = { say_to_student: say, evaluation: null, next_question: null, end: false };
 
-  if (userId) {
-    void logTurn(supabase, {
-      userId,
-      caseId,
-      attemptStage: effectiveAttempt,
-      tipRequest: false,
-      explainRequest: true,
-      clarifyQuestion: null,
-      lastStudentAnswer: student_so_far_text || null, // <- kumulativ loggen
-      modelOut: payload,
-    });
-  }
+      if (userId) {
+        void logTurn(supabase, {
+          userId,
+          caseId,
+          attemptStage: effectiveAttempt,
+          tipRequest: false,
+          solutionRequest: false,
+          explainRequest: true,
+          clarifyQuestion: null,
+          focusQuestion: fallbackQuestion || null,
+          lastStudentAnswer: student_so_far_text || null,
+          modelOut: payload,
+        });
+        if (typeof points === "number" || typeof progressPct === "number") {
+          void upsertProgress(supabase, { userId, caseId, points, progressPct });
+        }
+      }
 
-  return NextResponse.json(payload);
-}
+      return NextResponse.json(payload);
+    }
 
     /* ---------- KICKOFF ---------- */
     {
-      const lastStudentIdx = [...transcript].map((t) => t.role).lastIndexOf("student");
-      const lastExaminerIdx = [...transcript].map((t) => t.role).lastIndexOf("examiner");
-      const noStudentAfterExaminer =
-        lastExaminerIdx >= 0 && (lastStudentIdx < lastExaminerIdx || lastStudentIdx === -1);
-
-      const isJustVignetteStart =
-        transcript.length === 1 &&
-        transcript[0]?.role === "examiner" &&
-        !/[?？]\s*$/.test(transcript[0]?.text || "");
-
-       const shouldKickoff = transcript.length === 0;
+      const shouldKickoff = transcript.length === 0;
 
       if (shouldKickoff) {
         const firstPrompt = (stepsPrompts[0] || currentPrompt || focusQuestion || "").trim();
