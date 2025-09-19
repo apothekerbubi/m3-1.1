@@ -614,13 +614,11 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
             - Wenn partially correct, gib einen sehr allgemeinen Hinweis, dass noch etwas fehlt
 
             VERSUCHSLOGIK (hart)
-            - Drei Versuche (attemptStage 1-3). Give-up zählt wie 3.
+            - Drei Versuche (attemptStage 1-3)
             - attemptStage 1/2 UND nicht korrekt oder partially correct:
-              • evaluation.feedback = 1 einordnender Satz Bewertung mit aussagekräftiger Begründung, allgemein, dass noch etwas fehlt, aaber nicht was!
+              • evaluation.feedback = ordne die Aussagen des Studenten ein und erkläre warum richtig oder falsch
               • evaluation.tips = weglassen (nur im Tipp-Modus).
               • next_question = null.
-            - attemptStage 3 ODER Give-up:
-              • say_to_student lobt den studenten für das bisher gesagte und ordnet es ein. Danach folgt zwingend eine klar bezeichnete Musterlösung (z. B. "Musterlösung: ..."), die den Kern erklärt. Starte mit einem Satz, der die bereits korrekten Angaben des Prüflings würdigt, und führe erst danach die ergänzenden Inhalte aus. Ergänze 2–3 Bullets (• Kerngedanke • Abgrenzung • nächster Schritt);
               
             - Antwort ist korrekt:
               • evaluation.feedback = 1 lobender Bestätigungssatz + 2–3 Sätze (warum passend • Einordnung in Hinsicht auf die Krankheit  • Ausblick).
