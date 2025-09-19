@@ -9,6 +9,7 @@ import type { Case, Step, StepReveal } from "@/lib/types";
 import ProgressBar from "@/components/ProgressBar";
 import ScorePill from "@/components/ScorePill";
 import CaseImagePublic from "@/components/CaseImagePublic";
+import { buildTransitionQuestion, normalizeForComparison } from "@/lib/transitions";
 
 
 
@@ -242,9 +243,6 @@ export default function ExamPage() {
       ? "🟨 Teilweise richtig"
       : "❌ Nicht korrekt";
   }
-  const normalize = (s: string) =>
-    s.toLowerCase().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "").trim();
-
   // 🔒 Immer anonyme Überschrift
   function anonymousTitle(caseObj: CaseWithRules | null): string {
     if (!caseObj) return "Prüfung";
@@ -279,7 +277,7 @@ export default function ExamPage() {
       const copy: Turn[][] = prev.map((x) => [...x]);
       const arr: Turn[] = (copy[step] ?? []) as Turn[];
       const lastProf = [...arr].reverse().find((x) => x.role === "prof");
-      if (!lastProf || normalize(lastProf.text) !== normalize(t)) {
+      if (!lastProf || normalizeForComparison(lastProf.text) !== normalizeForComparison(t)) {
         const next: Turn[] = [...arr, { role: "prof" as const, text: t }];
         copy[step] = next;
       }
@@ -435,6 +433,9 @@ export default function ExamPage() {
     opts: { mode: "answer" | "tip" | "explain" | "solution" | "kickoff" }
   ) {
     if (!c) return;
+    const attemptStage = opts.mode === "answer" ? Math.min(3, attemptCount + 1) : null;
+    const hasNextStep = activeIndex + 1 < nSteps;
+    const rawNextPrompt = hasNextStep ? stepsOrdered[activeIndex + 1]?.prompt ?? "" : "";
     setLoading(true);
     try {
     // 🔹 NEU: kumulierte Student:innen-Antworten für den aktuellen Schritt sammeln
@@ -487,8 +488,8 @@ export default function ExamPage() {
     if (opts.mode === "tip") payload["tipRequest"] = true;
     if (opts.mode === "solution") payload["solutionRequest"] = true;
     if (opts.mode === "explain") payload["explainRequest"] = true;
-    if (opts.mode === "answer") payload["attemptStage"] = Math.min(3, attemptCount + 1);
-     if (opts.mode === "kickoff") payload["kickoff"] = true;
+    if (opts.mode === "answer") payload["attemptStage"] = attemptStage ?? 1;
+    if (opts.mode === "kickoff") payload["kickoff"] = true;
 
     const res = await fetch("/api/exam/turn", {
       method: "POST",
@@ -563,8 +564,30 @@ export default function ExamPage() {
       pushProf(activeIndex, data.say_to_student);
     }
 
-    const nextQuestion = data.next_question;
-    if (typeof nextQuestion === "string" && nextQuestion) {
+    let nextQuestion = typeof data.next_question === "string" ? data.next_question.trim() : "";
+    const normalizedNextPrompt = normalizeForComparison(rawNextPrompt);
+    const shouldCraftTransition =
+      opts.mode === "answer" &&
+      hasNextStep &&
+      normalizedNextPrompt &&
+      (!nextQuestion || normalizeForComparison(nextQuestion) === normalizedNextPrompt);
+
+    if (!nextQuestion && rawNextPrompt.trim()) {
+      nextQuestion = rawNextPrompt.trim();
+    }
+
+    if (shouldCraftTransition && nextQuestion) {
+      const contextual = buildTransitionQuestion(rawNextPrompt, {
+        correctness: data.evaluation?.correctness ?? null,
+        attemptStage,
+        isFinalStep: activeIndex + 1 >= nSteps - 1,
+      });
+      if (contextual) {
+        nextQuestion = contextual;
+      }
+    }
+
+    if (nextQuestion) {
       pushProf(activeIndex, nextQuestion);
       setAsked((prev) => {
         const copy = [...prev];
@@ -912,6 +935,17 @@ async function startExam() {
                 </div>
               </div>
             ))}
+            {loading && hasStarted && viewIndex === activeIndex && (
+              <div className="mb-3 text-left">
+                <div className="inline-flex items-center gap-2 rounded-2xl border border-black/10 bg-white px-3 py-2 shadow-sm">
+                  <span className="sr-only">Prüfer denkt nach</span>
+                  <span className="relative inline-flex h-3 w-3" aria-hidden>
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-blue-600" />
+                  </span>
+                </div>
+              </div>
+            )}
             {!hasStarted && (
               <div className="text-sm text-gray-600">
                 Klicke auf <b>Prüfung starten</b>, um zu beginnen.
