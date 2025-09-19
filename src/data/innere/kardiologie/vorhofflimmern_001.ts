@@ -2,14 +2,16 @@ import type { Case } from "@/lib/types";
 
 export const vorhofflimmern_001: Case = {
   id: "vorhofflimmern_001",
-  title: "Palpitationen",
+  title: "Palpitationen und Leistungsknick",
   shortTitle: "Vorhofflimmern",
   leadSymptom: "Palpitationen",
   pseudonym: "CU_001",
+  specialty: "Innere Medizin",
+  subspecialty: "Kardiologie",
   difficulty: 3,
+  tags: ["Vorhofflimmern", "Arrhythmie", "Tachykardie", "EKG"],
   vignette:
-    ".",
-
+    "Ein 74-jähriger Patient stellt sich in der Notaufnahme wegen seit dem Morgen bestehender Herzstolperer, Luftnot bei Belastung und allgemeiner Schwäche vor. Er berichtet über Hypertonie und Diabetes mellitus, nimmt aber seine Medikamente unregelmäßig ein.",
 
   steps: [
     {
@@ -59,34 +61,16 @@ export const vorhofflimmern_001: Case = {
         minHits: 1,
       },
       image: {
-        path: "Knochenmark/Plasmazellnester_Bsp.png",
-        alt: "Knochenmarksausstrich mit Plasmazellnestern",
-        caption: "Knochenmarksausstrich mit Plasmazellnestern.",
+        path: "EKG/Vorhofflimmern.png",
+        alt: "EKG mit unregelmäßigem RR-Abstand und fehlenden P-Wellen",
+        caption: "Typisches EKG bei tachykardem Vorhofflimmern mit fehlenden P-Wellen und unregelmäßigem Kammerrhythmus.",
       },
     },
-    // ❗ Falls du das Multiple-Myelom behalten willst, sollte das ein eigenes Case sein:
-    /*
-    {
-      order: 5,
-      points: 3,
-      prompt: "Welche Diagnosekriterien müssen für die Sicherung eines Multiplen Myeloms erfüllt sein?",
-      hint: "2 Kriterien: monoklonale Plasmazellen + mindestens ein SLiM-CRAB-Kriterium",
-      rule: {
-        mode: "anyOf",
-        expected: [
-          "≥10% monoklonale Plasmazellen im Knochenmark",
-          "bioptisch gesichertes Plasmozytom",
-          "SLiM-Kriterien: ≥60% Plasmazellen im Knochenmark",
-          "freie Leichtketten ≥100 mg/L mit pathologischem Quotienten",
-          "≥2 fokale Läsionen in der MRT",
-          "CRAB-Kriterien: Hyperkalzämie",
-          "Nierenfunktionsstörung",
-          "Anämie",
-          "Osteolyse",
-        ],
-        minHits: 4,
-      },
-    },
-    */
   ],
+  objectives: [
+    { id: "diagnose", label: "Vorhofflimmern anhand des EKG erkennen" },
+    { id: "definition", label: "Vorhofflimmern definieren und klassifizieren" },
+    { id: "therapie", label: "Therapieprinzipien und weiterführende Schritte erläutern" },
+  ],
+  completion: { minObjectives: 3, maxLLMTurns: 20, hardStopTurns: 20 },
 };
