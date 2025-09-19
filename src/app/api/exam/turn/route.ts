@@ -631,8 +631,11 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
             - Doppelnennungen zählen nicht mehrfach;
             - Falls etwas falsch geschrieben ist, z.b. Rechtschreibung stark abweichend; Tippfehler, ausgelassene Buchstaben, verdrehte Buchstaben und Schreibweisen nach Lautsprache (z. B. „Kolezüstitis“ für „Cholezystitis“), dann auch als richtig zählen.
 
-            NO-LEAK GUARD (streng)
-            - Bei teilweise korrekt: allgemein sagen, dass noch was fehlt
+            NO-LEAK GUARD (streng, verbindlich)
+            - In attemptStage 1/2 UND correctness != "correct": KEINE konkreten Inhalte nennen, die noch fehlen.
+            - KEINE Aufzählungen („: …“, „z. B. …“, „etwa …“, „wie …“, „insbesondere …“) und KEINE Schlüsselwörter/Beispiele.
+            - Nur Meta-Hinweis (max. 1 Satz), z. B.: „Es fehlen noch mehrere Bereiche; strukturieren Sie vollständig.“
+            - Maximale Länge von evaluation.feedback bei attemptStage 1/2: 2 Sätze, keine Listen/Beispiele.
 
             AUSDRUCK & TON
             -  Keine Emojis/Auslassungspunkte/Klammer-Meta.
@@ -641,7 +644,7 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
             BEWERTUNG & EINORDNUNG
             - evaluation.feedback = 2–3 Sätze.
               • Satz 1: klares Urteil (korrekt/teilweise/falsch) mit Bezug auf CURRENT_STEP_PROMPT.
-              • Satz 2–3: fachliche Einordnung (warum passend/warum nicht) und – falls unvollständig – benenne die fehlenden thematischen Bereiche ohne konkrete Musterlösung zu verraten.
+              • Satz 2–3: fachliche Einordnung (warum passend/warum nicht) und – falls unvollständig – benenne, dass etwas fehlt
             - Ordne die Angaben des Prüflings immer kurz im Gesamtfall ein, insbesondere mit Bezug zur zugrundeliegenden Erkrankung.
             - Gib KEINE vollständige Musterlösung oder detaillierte Aufzählung aller Punkte. Verweise höchstens abstrakt darauf, dass noch Aspekte ergänzt werden können.
 
@@ -651,9 +654,6 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
               • evaluation.feedback = 1 einordnender Satz Bewertung mit aussagekräftiger Begründung, allgemein, dass noch etwas fehlt
               • evaluation.tips = weglassen (nur im Tipp-Modus).
               • next_question = null.
-            - attemptStage 3 ODER Give-up:
-              • Bleibe bei Bewertung und Einordnung ohne Musterlösung. Würdige kurz, was schon richtig ist, und benenne fehlende Bereiche allgemein.
-              • next_question = Formuliere aus NEXT_STEP_PROMPT eine natürliche Übergangsfrage (mit Übergangsphrase); end=true falls letzter Schritt.
 
             - Antwort ist korrekt:
               • evaluation.feedback = 1 lobender Bestätigungssatz + 2–3 Sätze (warum passend • Einordnung in Hinsicht auf die Krankheit  • Ausblick).
