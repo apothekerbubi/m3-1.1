@@ -419,8 +419,7 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
         transcript[0]?.role === "examiner" &&
         !/[?？]\s*$/.test(transcript[0]?.text || "");
 
-      const shouldKickoff =
-        transcript.length === 0 || noStudentAfterExaminer || isJustVignetteStart;
+       const shouldKickoff = transcript.length === 0;
 
       if (shouldKickoff) {
         const firstPrompt = (stepsPrompts[0] || currentPrompt || focusQuestion || "").trim();
