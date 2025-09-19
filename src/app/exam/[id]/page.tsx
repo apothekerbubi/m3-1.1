@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { CASES } from "@/data/cases";
+import { adaptNextQuestionToContext } from "@/lib/chatTransitions";
 import type { Case, Step, StepReveal } from "@/lib/types";
 import ProgressBar from "@/components/ProgressBar";
 import ScorePill from "@/components/ScorePill";
@@ -565,14 +566,20 @@ export default function ExamPage() {
 
     const nextQuestion = data.next_question;
     if (typeof nextQuestion === "string" && nextQuestion) {
-      pushProf(activeIndex, nextQuestion);
+      const fallbackPrompt = stepsOrdered[activeIndex + 1]?.prompt ?? nextQuestion;
+      const transitionQuestion = adaptNextQuestionToContext(nextQuestion, {
+        previousPrompt: stepsOrdered[activeIndex]?.prompt,
+        fallbackPrompt,
+      });
+
+      pushProf(activeIndex, transitionQuestion);
       setAsked((prev) => {
         const copy = [...prev];
         const idx = copy.findIndex((x) => x.index === activeIndex);
         if (idx >= 0) {
-          copy[idx] = { ...copy[idx], text: nextQuestion };
+          copy[idx] = { ...copy[idx], text: transitionQuestion };
         } else {
-          copy.push({ index: activeIndex, text: nextQuestion, status: "pending" });
+          copy.push({ index: activeIndex, text: transitionQuestion, status: "pending" });
         }
         return copy;
       });
@@ -707,19 +714,29 @@ async function startExam() {
     }
 
     const idx = activeIndex + 1;
-    const q = stepsOrdered[idx]?.prompt ?? "";
+    const rawPrompt = stepsOrdered[idx]?.prompt ?? "";
+    const existingAsked = asked.find((a) => a.index === idx);
+    let questionForStep = existingAsked?.text ?? "";
+    if (!questionForStep) {
+      questionForStep = rawPrompt
+        ? adaptNextQuestionToContext(rawPrompt, {
+            previousPrompt: stepsOrdered[activeIndex]?.prompt,
+            fallbackPrompt: rawPrompt,
+          })
+        : "";
+    }
 
     // neue Frage freischalten (immer erlaubt)
     setAsked((prev) => {
       if (prev.find((a) => a.index === idx)) return prev; // schon freigeschaltet
-      return [...prev, { index: idx, text: q, status: "pending" }];
+      return [...prev, { index: idx, text: questionForStep, status: "pending" }];
     });
 
     // neuen Chat ggf. anlegen
     setChats((prev) => {
       const copy = prev.map((x) => [...x]);
       if (!copy[idx] || copy[idx].length === 0) {
-        copy[idx] = [{ role: "prof", text: q }];
+        copy[idx] = [{ role: "prof", text: questionForStep }];
       }
       return copy;
     });
@@ -912,6 +929,14 @@ async function startExam() {
                 </div>
               </div>
             ))}
+            {loading && hasStarted && viewIndex === activeIndex && (
+              <div className="mb-3">
+                <div className="inline-flex items-center gap-2 rounded-2xl border border-black/10 bg-white px-3 py-2 shadow-sm">
+                  <span className="h-2.5 w-2.5 rounded-full bg-blue-500 animate-pulse" aria-hidden />
+                  <span className="text-xs text-gray-600">Prüfer denkt nach…</span>
+                </div>
+              </div>
+            )}
             {!hasStarted && (
               <div className="text-sm text-gray-600">
                 Klicke auf <b>Prüfung starten</b>, um zu beginnen.
