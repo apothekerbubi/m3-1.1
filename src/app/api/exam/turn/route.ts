@@ -102,7 +102,41 @@ function inferAttemptFromTranscript(transcript: TranscriptItem[]): 1|2|3 {
 
 function sanitizeForEarlyAttempts(txt: string): string {
   let s = (txt || "");
-  s = s.replace(/\b(z\.?\s?b\.?|u\.a\.|unter anderem|zum beispiel)\b[^.]*\./gi, " (Beispiele weggelassen).");
+   s = s.replace(
+    /\s*,?\s*\b(z\.?\s?b\.?|u\.a\.|unter anderem|zum beispiel)\b[^.]*\./gi,
+    (_match, _phrase, offset, str) => {
+      const before = str.slice(0, offset);
+      const trimmedBefore = before.replace(/\s+$/g, "");
+      const needsPeriod =
+        trimmedBefore.length > 0 && !/[.?!]$/.test(trimmedBefore);
+      const prefix = needsPeriod ? ". " : "";
+      return `${prefix}Es gibt weitere relevante Aspekte, die ergänzt werden können.`;
+    }
+  );
+  s = s.replace(
+    /Für eine ([^.?!]*?)weitere (?:Fragen|Aspekte|Punkte)[^.?!]*?(?:wichtig|relevant|notwendig|sinnvoll)[.?!]/gi,
+    (_match, scope) => {
+      const trimmedScope = scope.replace(/\s+/g, " ").trim();
+      const prefix = trimmedScope ? `Für eine ${trimmedScope}` : "Für eine umfassendere Abklärung ";
+      return `${prefix.trimEnd()} wären noch weitere Aspekte sinnvoll.`;
+    }
+  );
+  s = s.replace(
+    /Für eine ([^.?!]*?)weitere (?:Fragen|Aspekte|Punkte)[^.?!]*$/gi,
+    (_match, scope) => {
+      const trimmedScope = scope.replace(/\s+/g, " ").trim();
+      const prefix = trimmedScope ? `Für eine ${trimmedScope}` : "Für eine umfassendere Abklärung ";
+      return `${prefix.trimEnd()} wären noch weitere Aspekte sinnvoll.`;
+    }
+  );
+  s = s.replace(
+    /Für eine vollständige Anamnese fehlen jedoch noch Fragen\s+zum?[^.?!]*([.?!])/gi,
+    (_match, ending) => `Für eine vollständige Anamnese fehlen jedoch noch Fragen, die du ergänzen kannst${ending}`
+  );
+  s = s.replace(
+    /(fehlen(?: jedoch)? noch Fragen)\s+zum?[^.?!]*([.?!])/gi,
+    (_match, prefix, ending) => `${prefix} offen, die du noch ansprechen kannst${ending}`
+  );
   s = s.replace(/^\s*tipp:\s*/i, "");
   return s.trim();
 }
@@ -427,13 +461,12 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
         const sysKickoff = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
           Ziel: realistischer Prüfungsauftakt.
             Vorgehen:
-            1. Begrüße die/den Studierenden kurz und wertschätzend zur Prüfung in der Du-Form (1 Satz).
-            2. Schilder die Fallvignette in 3–5 Sätzen frei paraphrasiert auf Basis von CASE_VIGNETTE – ergänze nur glaubhafte Details, die den Fall rahmen, ohne der Falllogik zu widersprechen. Hier keine Frage stellen!
-            Ausgabe ausschließlich als JSON:
+            1. Begrüße die/den Studierenden kurz und wertschätzend zur Prüfung in der Sie-Form (1 Satz).
+            2. Schilder die Fallvignette in 3–5 Sätzen frei paraphrasiert auf Basis von CASE_VIGNETTE – ergänze nur glaubhafte Details, die den Fall rahmen. Sage, dann, dass es Ziel ist über ANamnese, Unteruschung und Diagnostik, die Krankheit zu diagnostizieren.
             {
               "intro": "...",   // Begrüßung + paraphrasierte Vignette, kein Frage bzw. Fragezeichen am Ende
             }
-          Sprache: Deutsch, du/dir/dein.`;
+          Sprache: Deutsch,`;
 
         const usrKickoff = `CASE_ID: ${caseId ?? "(unbekannt)"}
             CASE_VIGNETTE: ${caseText}
@@ -505,7 +538,7 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
     /* ---------- MODE C: Normaler Prüfungszug ---------- */
     const sysExam = `Du bist Prüfer:in am 2. Tag (Theorie) des 3. Staatsexamens (M3).
             Stil: ${style === "strict" ? "knapp, streng-sachlich" : "freundlich-klar, coaching-orientiert"}.
-            Ansprache: du/dir/dein.
+            Ansprache: Sie.
             Sprache: Deutsch.
             Im Transkript: Rollen student/examiner/patient – bewerte ausschließlich student.
 
@@ -530,38 +563,29 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
             - Greife vorhandene Informationen kurz auf, wenn das den Übergang erleichtert.
             - Formuliere in say_to_student NIEMALS die nächste Frage; Übergangsfragen erscheinen ausschließlich in next_question.
 
-            !Say_to_Student!
-            !!!Immer!!!-Dem Prüfling das Erbebnis seiner gestellten Frage geben!!
-            + TRIGGER: Wenn CURRENT_STEP_PROMPT Anamnese/Nachfragen betrifft , MUSS ein Abschnitt mit Patientenantworten in say_to_student erscheinen.
-            + ORT: Patientenantworten stehen IMMER in say_to_student (nie in evaluation/next_question).
-            + FORMAT (MUSS, exakt so):
-            - Der Patient berichtet... oder ähnliches
-            + KEINE Spoiler/Diagnosen; nur direkte, alltagsnahe Anamnesedetails.
 
             NO-LEAK GUARD (streng)
             - In attemptStage 1/2 (und im Tipp-Modus) keine neuen Diagnosen/Beispiele/Synonyme/Hinweise, die nicht von der/dem Studierenden stammen.
-            - Nur Meta-Feedback (z. B. Organsysteme/Struktur/Anzahl), keine Inhalte verraten.
+            - Nur sagen, dass noch was fehlt
             - Genutzte Begriffe darfst du korrigieren, aber **keine** neuen Inhalte einführen.
-            - Ausnahme: Patient:innenantworten laut Abschnitt PATIENT:INNEN-ROLLENSPIEL dürfen ergänzt werden, sofern sie sich plausibel aus der Falllogik ergeben.
 
             AUSDRUCK & TON
             -  Keine Emojis/Auslassungspunkte/Klammer-Meta.
             - Sprich in klaren, vollständigen Sätzen und nimm Bezug auf den laufenden Prüfungsdialog.
 
             BEWERTUNG & EINORDNUNG
-            - evaluation.feedback besteht aus einem klaren Bewertungssatz plus einem begründenden Satz (Priorität/Kontext). Nenne dabei immer, was an der Antwort bereits hilfreich war. Nenne ggf die Antort des Patienten auf anamnestische Fragen!
-            - Wenn partially correct, kurz sehr allgemein sagen, dass noch weitere Fragen/Informationen wichtig wären. Keine konkreten Vorschläge!
-            - evaluation darf NIEMALS null sein.
-            - Bei correct kannst du zusätzlich 2–3 Meta-Bullets nutzen ( warum passend • Kategorie/Pathomechanismus • Priorität).
+            - evaluation.feedback besteht aus einem klaren Bewertungssatz plus einem begründenden Satz (Priorität/Kontext/Pathophysiologie). Nenne dabei immer, was an der Antwort bereits hilfreich war.
+            - Ordne die Angaben des Prüflings immer kurz im Gesamtfall ein, insbesondere mit Bezug zur zugrundeliegenden Erkrankung.
+            - Wenn partially correct, gib einen sehr allgemeinen Hinweis und führe keine konkreten Ergänzungen aus.
 
             VERSUCHSLOGIK (hart)
             - Drei Versuche (attemptStage 1..3). Give-up zählt wie 3.
             - attemptStage 1/2 UND nicht korrekt oder partially correct:
-              • evaluation.feedback = 1 kurzer Satz Bewertung
+              • evaluation.feedback = 1 kurzer Satz Bewertung, allgemein, dass noch etwas fehlt
               • evaluation.tips = weglassen (nur im Tipp-Modus).
               • next_question = null.
             - attemptStage 3 ODER Give-up:
-              • say_to_student MUSS mit "Lösung:" beginnen. Danach 1 Kernsatz + was noch gefehlt hat + 2–3 knappe Bullets (• Kerngedanke • Abgrenzung • nächster Schritt); falls der Schritt Patient:innenantworten verlangt, hänge 1–2 Sätze mit den passenden Antworten an. Keine neue Frage in diesem Feld.
+               • say_to_student MUSS mit "Lösung:" beginnen. Danach folgt zwingend eine klar bezeichnete Musterlösung (z. B. "Musterlösung: ..."), die den Kern erklärt. Starte nach dem Label mit einem Satz, der die bereits korrekten Angaben des Prüflings würdigt, und führe erst danach die ergänzenden Inhalte aus. Ergänze 2–3 knappe Bullets (• Kerngedanke • Abgrenzung • nächster Schritt); falls der Schritt Patient:innenantworten verlangt, hänge 1–2 Sätze mit den passenden Antworten an. Keine neue Frage in diesem Feld.
               • next_question = Formuliere aus NEXT_STEP_PROMPT eine natürliche Übergangsfrage (siehe oben), sonst null.
             - Antwort ist korrekt:
               • evaluation.feedback = 1 kurzer Bestätigungssatz + 2–3 Meta-Bullets ( jeweils neue Zeile: warum passend • Kategorie/Pathomechanismus  • Priorität).

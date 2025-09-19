@@ -25,9 +25,7 @@ export const aszites_001: Case = {
       rule: {
         mode: "anyOf",
         expected: [
-          "Alkoholkonsum", "Risikofaktoren", "Rauchen",
-          "Vorerkrankungen", "(Vor-) Operationen",
-          "B-Symptomatik (Gewichtsverlust, Schwitzen, Fieber)", "Medikation",
+          "Ich erhebe zunächst eine strukturierte Anamnese, in der ich im Speziellen nach dem Alkoholkonsum, nach weiteren Risikofaktoren wie dem Rauchverhalten, nach bestehenden Vorerkrankungen und möglichen früheren Operationen frage. Außerdem erkundige ich mich nach einer möglichen B-Symptomatik mit ungewolltem Gewichtsverlust, Nachtschweiß oder Fieber sowie nach der aktuell eingenommenen Medikation.",
         ],
         minHits: 2,
       },

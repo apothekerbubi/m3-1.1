@@ -7,6 +7,8 @@ import { pankreatitis_001 } from "./innere/gastroenterologie/pankreatitis_001";
 import { spannungspneumothorax_001 } from "./chirurgie/Thoraxchirurgie/spannungspneumothorax_001";
 import { mm_001 } from "./innere/haematoonkologie/mm_001";
 import { aszites_001 } from "./innere/gastroenterologie/aszites_001";
+import { colitis_ulcerosa_001 } from "./innere/gastroenterologie/colitis_ulcerosa_001";
+import { vorhofflimmern_001 } from "./innere/kardiologie/vorhofflimmern_001";
 
 export const CASES = [
   brustschmerz_001,
@@ -17,5 +19,7 @@ export const CASES = [
   pankreatitis_001,
   spannungspneumothorax_001,
   mm_001,
-  aszites_001
+  aszites_001,
+  colitis_ulcerosa_001,
+  vorhofflimmern_001
 ];
