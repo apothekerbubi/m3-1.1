@@ -27,6 +27,9 @@ type ApiOut = {
 
 type ExplainContext = { question?: string; lastAnswer?: string };
 
+type KickoffHistoryItem = { step?: number; role?: string; text?: string };
+type NormalizedHistoryItem = { step: number | null; role: "examiner" | "student"; text: string };
+
 /* ---------------------- Rule-Engine ---------------------- */
 
 type RuleJson =
@@ -64,6 +67,13 @@ type BodyIn = {
   stepIndex?: number;
   stepsPrompts?: string[];
   stepRule?: RuleJson | null;
+
+  kickoff?: boolean;
+  kickoffStepIndex?: number;
+  kickoffFromStep?: number;
+  kickoffFromQuestion?: string;
+  kickoffLastStudent?: string;
+  kickoffHistory?: KickoffHistoryItem[];
 };
 
 /* ---------------------- Utils ---------------------- */
@@ -248,6 +258,37 @@ export async function POST(req: NextRequest) {
     const stepIndex = typeof body.stepIndex === "number" ? body.stepIndex : 0;
     const stepsPrompts = Array.isArray(body.stepsPrompts) ? body.stepsPrompts : [];
     const stepRule = body.stepRule ?? null;
+
+    const kickoffFlag = Boolean(body.kickoff);
+    const kickoffStepIndex =
+      typeof body.kickoffStepIndex === "number" && body.kickoffStepIndex >= 0
+        ? Math.floor(body.kickoffStepIndex)
+        : 0;
+    const kickoffFromStep =
+      typeof body.kickoffFromStep === "number" && body.kickoffFromStep >= 0
+        ? Math.floor(body.kickoffFromStep)
+        : null;
+    const kickoffFromQuestion =
+      typeof body.kickoffFromQuestion === "string" && body.kickoffFromQuestion.trim()
+        ? body.kickoffFromQuestion.trim()
+        : null;
+    const kickoffLastStudent =
+      typeof body.kickoffLastStudent === "string" && body.kickoffLastStudent.trim()
+        ? body.kickoffLastStudent.trim()
+        : null;
+    const kickoffHistoryRaw: KickoffHistoryItem[] = Array.isArray(body.kickoffHistory)
+      ? body.kickoffHistory
+      : [];
+    const kickoffHistory: NormalizedHistoryItem[] = kickoffHistoryRaw
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const role = item.role === "examiner" ? "examiner" : "student";
+        const text = typeof item.text === "string" ? item.text.trim() : "";
+        const step = typeof item.step === "number" ? Math.floor(item.step) : null;
+        if (!text) return null;
+        return { role, text, step };
+      })
+      .filter((x): x is NormalizedHistoryItem => Boolean(x));
 
     // Abgeleitete Prompts
     const currentPrompt =
@@ -484,38 +525,67 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
 
     /* ---------- KICKOFF ---------- */
     {
-      const lastStudentIdx = [...transcript].map((t) => t.role).lastIndexOf("student");
-      const lastExaminerIdx = [...transcript].map((t) => t.role).lastIndexOf("examiner");
-      const noStudentAfterExaminer =
-        lastExaminerIdx >= 0 && (lastStudentIdx < lastExaminerIdx || lastStudentIdx === -1);
-
-      const isJustVignetteStart =
-        transcript.length === 1 &&
-        transcript[0]?.role === "examiner" &&
-        !/[?？]\s*$/.test(transcript[0]?.text || "");
-
-       const shouldKickoff = transcript.length === 0;
+      const shouldKickoff = transcript.length === 0;
 
       if (shouldKickoff) {
-        const firstPrompt = (stepsPrompts[0] || currentPrompt || focusQuestion || "").trim();
+        const stepForKickoff = kickoffFlag ? kickoffStepIndex : Math.max(0, stepIndex);
+        const promptFromList = (stepsPrompts[stepForKickoff] || "").trim();
+        const firstPrompt = promptFromList || currentPrompt || focusQuestion || "";
 
-        const sysKickoff = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
-          Ziel: realistischer Prüfungsauftakt.
+        let sysKickoff: string;
+        let usrKickoff: string;
+
+        if (kickoffFlag && stepForKickoff > 0) {
+          const historySlice = kickoffHistory.slice(-10);
+          const historyText = historySlice
+            .map((item) => {
+              const stepLabel =
+                typeof item.step === "number" && item.step >= 0
+                  ? `Schritt ${item.step + 1}`
+                  : "Schritt";
+              const who = item.role === "examiner" ? "Prüfer:in" : "Studierende:r";
+              return `${stepLabel} – ${who}: ${item.text}`;
+            })
+            .join("\n");
+
+          sysKickoff = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
+            Du setzt nach einem beantworteten Schritt die Prüfung fort.
+            Aufgabe:
+            1. Formuliere EINEN kurzen Übergangssatz (1–2 Sätze) in der Sie-Form, der auf den bisherigen Verlauf Bezug nimmt und den nächsten Themenblock anmoderiert. Kein Fragezeichen am Ende.
+            2. Stelle anschließend die nächste Prüfungsfrage auf Basis von NEXT_PROMPT. Die Frage darf eine sehr kurze Hinführung enthalten, endet aber mit einem klaren Fragezeichen.
+            Keine Floskeln oder Smalltalk, bleibe im fachlichen Prüfungston.
+            Format: JSON exakt {"intro": "...", "question": "..."}. Keine weiteren Felder. Sprache: Deutsch.`;
+
+          usrKickoff = `CASE_ID: ${caseId ?? "(unbekannt)"}
+            CASE_VIGNETTE: ${caseText}
+            LETZTER_SCHRITT_INDEX: ${kickoffFromStep ?? stepForKickoff - 1}
+            LETZTE_FRAGE: ${kickoffFromQuestion || "(unbekannt)"}
+            LETZTE_STUDIERENDEN_ANTWORT: ${kickoffLastStudent || "(leer)"}
+            GESPRÄCHSVERLAUF_BISHER (letzte ${historySlice.length} Beiträge):
+            ${historyText || "(leer)"}
+            NEXT_STEP_INDEX: ${stepForKickoff}
+            NEXT_PROMPT: ${firstPrompt || "(unbekannt)"}
+            STIL: ${style}
+            ${outline.length ? `OUTLINE: ${outline.join(" • ")}` : ""}
+            ${objectives.length ? `ZIELE: ${objectives.map((o) => `${o.id}: ${o.label}`).join(" | ")}` : ""}
+            Gib NUR das JSON-Objekt zurück.`;
+        } else {
+          sysKickoff = `Du bist Prüfer:in am 2. Tag (Theorie) des M3.
+            Ziel: realistischer Prüfungsauftakt.
             Vorgehen:
             1. Begrüße die/den Studierenden kurz und wertschätzend zur Prüfung in der Sie-Form (1 Satz).
-            2. Schilder die Fallvignette in 3–5 Sätzen frei paraphrasiert auf Basis von CASE_VIGNETTE – ergänze nur glaubhafte Details, die den Fall rahmen. Sage, dann, dass es Ziel ist über ANamnese, Unteruschung und Diagnostik, die Krankheit zu diagnostizieren.
-            {
-              "intro": "...",   // Begrüßung + paraphrasierte Vignette, kein Frage bzw. Fragezeichen am Ende
-            }
-          Sprache: Deutsch,`;
+            2. Schilder die Fallvignette in 3–5 Sätzen frei paraphrasiert auf Basis von CASE_VIGNETTE – ergänze nur glaubhafte Details, die den Fall rahmen. Weise darauf hin, dass jetzt die strukturierte Befragung startet.
+            Format: JSON exakt {"intro": "...", "question": "..."}. Die Frage basiert auf CURRENT_STEP_PROMPT und endet mit einem Fragezeichen.
+            Sprache: Deutsch.`;
 
-        const usrKickoff = `CASE_ID: ${caseId ?? "(unbekannt)"}
+          usrKickoff = `CASE_ID: ${caseId ?? "(unbekannt)"}
             CASE_VIGNETTE: ${caseText}
             CURRENT_STEP_PROMPT: ${firstPrompt || "(unbekannt)"}
             STIL: ${style}
             ${outline.length ? `OUTLINE: ${outline.join(" • ")}` : ""}
-            ${objectives.length ? `ZIELE: ${objectives.map(o => `${o.id}: ${o.label}`).join(" | ")}` : ""}
-            Gib NUR das JSON-Objekt mit intro zurück.`;
+            ${objectives.length ? `ZIELE: ${objectives.map((o) => `${o.id}: ${o.label}`).join(" | ")}` : ""}
+            Gib NUR das JSON-Objekt zurück.`;
+        }
 
         const outKick = await client.chat.completions.create({
           model,
@@ -559,18 +629,18 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
         };
 
         if (userId) {
-           void logTurn(supabase, {
-              userId,
-              caseId,
-              attemptStage: 1,
-              tipRequest: false,
-              explainRequest: false,
-              solutionRequest: false,
-              clarifyQuestion: null,
-              focusQuestion: questionClean || null,
-              lastStudentAnswer: null,
-              modelOut: payload,
-            });
+          void logTurn(supabase, {
+            userId,
+            caseId,
+            attemptStage: 1,
+            tipRequest: false,
+            explainRequest: false,
+            solutionRequest: false,
+            clarifyQuestion: null,
+            focusQuestion: questionClean || null,
+            lastStudentAnswer: kickoffLastStudent || null,
+            modelOut: payload,
+          });
         }
 
         return NextResponse.json(payload);

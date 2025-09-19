@@ -16,6 +16,15 @@ import CaseImagePublic from "@/components/CaseImagePublic";
 // ---- Lokale UI-Typen ----
 type Turn = { role: "prof" | "student"; text: string };
 
+type HistoryTurn = { step: number; role: "examiner" | "student"; text: string };
+
+type KickoffMeta = {
+  fromStepIndex?: number | null;
+  fromQuestion?: string | null;
+  lastStudent?: string | null;
+  history?: HistoryTurn[];
+};
+
 type ApiReply = {
   say_to_student: string | null;
   evaluation: null | {
@@ -170,16 +179,6 @@ export default function ExamPage() {
   );
 
   const nSteps = stepsOrdered.length;
-
-  const currentPrompt = stepsOrdered[activeIndex]?.prompt ?? "";
-  const stepRule: unknown = stepsOrdered[activeIndex]?.rule ?? null;
-
-  const stepPoints = useMemo<number>(() => {
-    const p = stepsOrdered[activeIndex]?.points;
-    return typeof p === "number" ? p : 2;
-  }, [stepsOrdered, activeIndex]);
-
-  const stepReveal: StepReveal | null = (stepsOrdered[activeIndex]?.reveal ?? null) as StepReveal | null;
 
   // ❗ maximale Punktzahl
   const maxPoints = useMemo<number>(
@@ -432,14 +431,26 @@ export default function ExamPage() {
  // *** API ***
   async function callExamAPI(
     current: Turn[],
-    opts: { mode: "answer" | "tip" | "explain" | "solution" | "kickoff" }
+    opts: {
+      mode: "answer" | "tip" | "explain" | "solution" | "kickoff";
+      stepIndexOverride?: number;
+      kickoffMeta?: KickoffMeta;
+    }
   ) {
     if (!c) return;
     setLoading(true);
     try {
+    const targetStep =
+      typeof opts.stepIndexOverride === "number" ? opts.stepIndexOverride : activeIndex;
+
     // 🔹 NEU: kumulierte Student:innen-Antworten für den aktuellen Schritt sammeln
+    const baseChat = (chats[targetStep] ?? []) as Turn[];
     const turnsThisStep =
-      opts.mode === "kickoff" ? current : ((chats[activeIndex] ?? []) as Turn[]);
+      opts.mode === "answer"
+        ? current
+        : opts.mode === "kickoff"
+        ? current
+        : baseChat;
     const studentSoFar =
       opts.mode === "kickoff"
         ? []
@@ -473,10 +484,10 @@ export default function ExamPage() {
       objectives: c.objectives ?? [],
       completion: c.completion ?? null,
 
-      stepIndex: activeIndex,
-      stepsPrompts: [],
-      stepRule,
-      focusQuestion: currentPrompt,
+      stepIndex: targetStep,
+      stepsPrompts: stepsOrdered.map((step) => step.prompt ?? ""),
+      stepRule: stepsOrdered[targetStep]?.rule ?? null,
+      focusQuestion: stepsOrdered[targetStep]?.prompt ?? "",
 
       // 🔹 NEU: Felder für die kumulative Bewertung
       student_so_far: studentSoFar,                 // alle bisherigen Texte
@@ -488,7 +499,17 @@ export default function ExamPage() {
     if (opts.mode === "solution") payload["solutionRequest"] = true;
     if (opts.mode === "explain") payload["explainRequest"] = true;
     if (opts.mode === "answer") payload["attemptStage"] = Math.min(3, attemptCount + 1);
-     if (opts.mode === "kickoff") payload["kickoff"] = true;
+    if (opts.mode === "kickoff") {
+      payload["kickoff"] = true;
+      payload["kickoffStepIndex"] = targetStep;
+      payload["kickoffFromStep"] =
+        typeof opts.kickoffMeta?.fromStepIndex === "number" ? opts.kickoffMeta.fromStepIndex : null;
+      payload["kickoffFromQuestion"] = opts.kickoffMeta?.fromQuestion ?? null;
+      payload["kickoffLastStudent"] = opts.kickoffMeta?.lastStudent ?? null;
+      payload["kickoffHistory"] = Array.isArray(opts.kickoffMeta?.history)
+        ? opts.kickoffMeta?.history
+        : [];
+    }
 
     const res = await fetch("/api/exam/turn", {
       method: "POST",
@@ -506,7 +527,11 @@ export default function ExamPage() {
       typeof data.say_to_student === "string" &&
       /^lösung\s*:/i.test(data.say_to_student.trim());
 
-    if (hadSolution) pushProf(activeIndex, data.say_to_student);
+    const stepPointsForTarget =
+      typeof stepsOrdered[targetStep]?.points === "number" ? (stepsOrdered[targetStep]?.points as number) : 2;
+    const revealForStep = (stepsOrdered[targetStep]?.reveal ?? null) as StepReveal | null;
+
+    if (hadSolution) pushProf(targetStep, data.say_to_student);
 
     if (data.evaluation && opts.mode === "answer") {
       const { correctness, feedback, tips } = data.evaluation;
@@ -514,24 +539,24 @@ export default function ExamPage() {
 
       // Punkte (Bestwert je Schritt)
       setPerStepScores((prev) => {
-        const curPrev = prev[activeIndex] || 0;
+        const curPrev = prev[targetStep] || 0;
         const candidate =
           correctness === "correct"
-            ? stepPoints
+            ? stepPointsForTarget
             : correctness === "partially_correct"
-            ? stepPoints * 0.5
+            ? stepPointsForTarget * 0.5
             : 0;
         const best = Math.max(curPrev, candidate);
         if (best === curPrev) return prev;
         const copy = [...prev];
-        copy[activeIndex] = Math.min(Math.round(best * 10) / 10, stepPoints);
+        copy[targetStep] = Math.min(Math.round(best * 10) / 10, stepPointsForTarget);
         return copy;
       });
 
       // Status aktualisieren
       setAsked((prev) => {
         const copy = [...prev];
-        const i = copy.findIndex((x) => x.index === activeIndex);
+        const i = copy.findIndex((x) => x.index === targetStep);
         if (i >= 0) {
           copy[i] = {
             ...copy[i],
@@ -550,29 +575,29 @@ export default function ExamPage() {
         `${label(correctness)} — ${feedback}`,
         correctness !== "correct" && tips ? `Tipp: ${tips}` : "",
       ].filter(Boolean);
-      if (!hadSolution) pushProf(activeIndex, parts.join(" "));
+      if (!hadSolution) pushProf(targetStep, parts.join(" "));
 
       // Reveal (falls konfiguriert, nicht on_enter)
-      if (stepReveal && shouldReveal(stepReveal, data.evaluation, hadSolution)) {
-        pushProf(activeIndex, formatReveal(stepReveal.content));
+      if (revealForStep && shouldReveal(revealForStep, data.evaluation, hadSolution)) {
+        pushProf(targetStep, formatReveal(revealForStep.content));
       }
     }
 
     // Zusätzliche Prüfer-Nachrichten (Tip/Explain)
     if (!hadSolution && (!data.evaluation || !data.evaluation.feedback) && data.say_to_student) {
-      pushProf(activeIndex, data.say_to_student);
+      pushProf(targetStep, data.say_to_student);
     }
 
     const nextQuestion = data.next_question;
     if (typeof nextQuestion === "string" && nextQuestion) {
-      pushProf(activeIndex, nextQuestion);
+      pushProf(targetStep, nextQuestion);
       setAsked((prev) => {
         const copy = [...prev];
-        const idx = copy.findIndex((x) => x.index === activeIndex);
+        const idx = copy.findIndex((x) => x.index === targetStep);
         if (idx >= 0) {
           copy[idx] = { ...copy[idx], text: nextQuestion };
         } else {
-          copy.push({ index: activeIndex, text: nextQuestion, status: "pending" });
+          copy.push({ index: targetStep, text: nextQuestion, status: "pending" });
         }
         return copy;
       });
@@ -687,14 +712,6 @@ async function startExam() {
     void callExamAPI(current, { mode: "answer" });
   }
 
-  function goToStep(idx: number) {
-    if (!c) return;
-    // Nur bereits freigegebene Fragen wählbar
-    if (!asked.find((a) => a.index === idx)) return;
-
-    setViewIndex(idx);
-  }
-
   function nextStep() {
     if (!c) return;
 
@@ -719,7 +736,7 @@ async function startExam() {
     setChats((prev) => {
       const copy = prev.map((x) => [...x]);
       if (!copy[idx] || copy[idx].length === 0) {
-        copy[idx] = [{ role: "prof", text: q }];
+        copy[idx] = [];
       }
       return copy;
     });
@@ -732,6 +749,34 @@ async function startExam() {
 
     // on_enter-Reveal
     maybeRevealOnEnter(idx);
+
+    const fromStepIndex = activeIndex;
+    const history: HistoryTurn[] = chats
+      .slice(0, idx)
+      .flatMap((turns, stepIndex) =>
+        (turns ?? []).map((t) => ({
+          step: stepIndex,
+          role: t.role === "prof" ? "examiner" : "student",
+          text: t.text,
+        }))
+      );
+
+    const lastStudentFromPrev =
+      (chats[fromStepIndex] ?? [])
+        .filter((t) => t.role === "student")
+        .map((t) => t.text)
+        .pop() ?? null;
+
+    void callExamAPI([], {
+      mode: "kickoff",
+      stepIndexOverride: idx,
+      kickoffMeta: {
+        fromStepIndex,
+        fromQuestion: stepsOrdered[fromStepIndex]?.prompt ?? null,
+        lastStudent: lastStudentFromPrev,
+        history,
+      },
+    });
   }
 
   async function requestTip() {
@@ -766,7 +811,6 @@ async function startExam() {
 
   const hasStarted = asked.length > 0;
   const isLastStep = activeIndex >= nSteps - 1;
-  const viewingPast = viewIndex !== activeIndex;
 
   // Bild des gerade betrachteten Schritts (für Chat-Panel)
   const stepImg = stepsOrdered[viewIndex]?.image;
@@ -912,6 +956,17 @@ async function startExam() {
                 </div>
               </div>
             ))}
+            {loading && viewIndex === activeIndex && (
+              <div className="mb-3">
+                <div className="inline-flex max-w-[80%] items-center gap-2 rounded-2xl border border-black/10 bg-white px-3 py-2 text-gray-500 shadow-sm">
+                  <span className="sr-only">Prüfer:in formuliert …</span>
+                  <span aria-hidden className="relative flex h-5 w-5 items-center justify-center">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-200 opacity-70" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-blue-500" />
+                  </span>
+                </div>
+              </div>
+            )}
             {!hasStarted && (
               <div className="text-sm text-gray-600">
                 Klicke auf <b>Prüfung starten</b>, um zu beginnen.
