@@ -64,6 +64,8 @@ type BodyIn = {
   stepIndex?: number;
   stepsPrompts?: string[];
   stepRule?: RuleJson | null;
+  transitionRequest?: boolean;
+  transitionStepIndex?: number;
 };
 
 /* ---------------------- Utils ---------------------- */
@@ -234,7 +236,8 @@ export async function POST(req: NextRequest) {
     const style: "coaching" | "strict" = body.style === "strict" ? "strict" : "coaching";
     const tipRequest = Boolean(body.tipRequest);
     const explainRequest = Boolean(body.explainRequest);
-    
+    const transitionRequest = Boolean(body.transitionRequest);
+
     const objectives: ObjMin[] = Array.isArray(body.objectives) ? body.objectives : [];
     const completion: CompletionRules | null = body.completion ?? null;
     const attemptStage = typeof body.attemptStage === "number" ? body.attemptStage : 1;
@@ -248,6 +251,7 @@ export async function POST(req: NextRequest) {
     const stepIndex = typeof body.stepIndex === "number" ? body.stepIndex : 0;
     const stepsPrompts = Array.isArray(body.stepsPrompts) ? body.stepsPrompts : [];
     const stepRule = body.stepRule ?? null;
+    const transitionStepIndex = typeof body.transitionStepIndex === "number" ? body.transitionStepIndex : undefined;
 
     // Abgeleitete Prompts
     const currentPrompt =
@@ -255,6 +259,87 @@ export async function POST(req: NextRequest) {
       || focusQuestion
       || ([...transcript].reverse().find(t => t.role === "examiner" && /\?\s*$/.test(t.text))?.text?.trim() || "");
     const nextPrompt = (stepsPrompts[stepIndex + 1] || "").trim() || null;
+
+    if (transitionRequest) {
+      const promptsSafe = stepsPrompts.map((p) => (typeof p === "string" ? p : ""));
+      const targetIdx = typeof transitionStepIndex === "number" ? transitionStepIndex : stepIndex + 1;
+      const targetPrompt =
+        (promptsSafe[targetIdx] || focusQuestion || nextPrompt || "").trim();
+
+      if (!targetPrompt) {
+        const fallback: ApiOut = { say_to_student: null, evaluation: null, next_question: null, end: false };
+        return NextResponse.json(fallback);
+      }
+
+      if (!caseText) {
+        return NextResponse.json({ error: "Bad request: caseText ist erforderlich." }, { status: 400 });
+      }
+
+      const previousPrompt = targetIdx > 0 ? (promptsSafe[targetIdx - 1] || "").trim() : null;
+      const history = transcript.slice(-40);
+
+      const sysTransition = `Du bist Prüfer:in am 2. Tag (Theorie) des 3. Staatsexamens (M3).
+        Stil: ${style === "strict" ? "knapp, streng-sachlich" : "freundlich-klar, coaching-orientiert"}.
+        Aufgabe: Formuliere einen natürlichen Übergang zum nächsten Prüfungsschritt und stelle anschließend die nächste Frage.
+
+        Regeln:
+        - Nutze den bisherigen Dialog (Transkript) nur als Kontext für die Überleitung.
+        - Die Frage MUSS fachlich der Vorgabe NEXT_STEP_PROMPT entsprechen (keine neuen Inhalte oder Lösungen verraten).
+        - Frage in Sie-Form formulieren, klar und präzise, Abschluss mit Fragezeichen.
+        - Wenn kein Übergang nötig ist, lasse intro = null.
+        - Ausgabe NUR als JSON { "intro": string | null, "question": string }.`;
+
+      const usrTransition = `Vignette: ${caseText}
+Vorherige Frage: ${previousPrompt || "(keine)"}
+NEXT_STEP_PROMPT: ${targetPrompt}
+Transkript (letzte Züge, Rollen examiner/student/patient):
+${JSON.stringify(history, null, 2)}
+
+Gib ausschließlich das JSON-Objekt zurück.`;
+
+      const outTransition = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: sysTransition },
+          { role: "user", content: usrTransition },
+        ],
+        temperature: 0.6,
+      });
+
+      const rawTransition = (outTransition.choices?.[0]?.message?.content || "").trim();
+      let jsonTransition = rawTransition.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+      if (!(jsonTransition.startsWith("{") && jsonTransition.endsWith("}"))) {
+        const s = jsonTransition.indexOf("{");
+        const e = jsonTransition.lastIndexOf("}");
+        if (s >= 0 && e > s) jsonTransition = jsonTransition.slice(s, e + 1);
+      }
+
+      let intro = "";
+      let question = "";
+      try {
+        const parsed = JSON.parse(jsonTransition) as { intro?: unknown; question?: unknown };
+        if (typeof parsed.intro === "string") intro = parsed.intro;
+        if (typeof parsed.question === "string") question = parsed.question;
+      } catch {
+        // ignore, fallback unten
+      }
+
+      const introClean = stripMd(intro).replace(/\n{3,}/g, "\n\n").trim();
+      let questionClean = stripMd(question).trim();
+      if (!questionClean) questionClean = targetPrompt;
+      if (questionClean && !/[?？]\s*$/.test(questionClean)) {
+        questionClean = `${questionClean}?`;
+      }
+
+      const payload: ApiOut = {
+        say_to_student: introClean || null,
+        evaluation: null,
+        next_question: questionClean,
+        end: false,
+      };
+
+      return NextResponse.json(payload);
+    }
 
     if (!caseText) {
       return NextResponse.json({ error: "Bad request: caseText ist erforderlich." }, { status: 400 });

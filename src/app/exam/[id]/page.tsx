@@ -169,6 +169,11 @@ export default function ExamPage() {
     [c]
   );
 
+  const stepPrompts = useMemo<string[]>(
+    () => stepsOrdered.map((step) => (typeof step.prompt === "string" ? step.prompt : "")),
+    [stepsOrdered]
+  );
+
   const nSteps = stepsOrdered.length;
 
   const currentPrompt = stepsOrdered[activeIndex]?.prompt ?? "";
@@ -429,7 +434,61 @@ export default function ExamPage() {
     }
   }
 
- // *** API ***
+  async function createTransitionForStep(stepIdx: number): Promise<{ intro: string | null; question: string } | null> {
+    if (!c) return null;
+
+    const targetPrompt = (stepPrompts[stepIdx] || "").trim();
+    if (!targetPrompt) {
+      return { intro: null, question: "" };
+    }
+
+    const historyTurns = chats
+      .slice(0, stepIdx)
+      .flat()
+      .map((turn): { role: "examiner" | "student"; text: string } => ({
+        role: turn.role === "prof" ? "examiner" : "student",
+        text: turn.text,
+      }));
+
+    try {
+      const res = await fetch("/api/exam/turn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transitionRequest: true,
+          transitionStepIndex: stepIdx,
+          caseId: c.id,
+          caseText: c.vignette,
+          style,
+          transcript: historyTurns,
+          stepsPrompts: stepPrompts,
+          stepIndex: Math.max(0, stepIdx - 1),
+          focusQuestion: targetPrompt,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const data = (await res.json()) as ApiReply;
+      const intro = data.say_to_student?.trim() || null;
+      let question = data.next_question?.trim() || targetPrompt;
+      if (question && !/[?？]\s*$/.test(question)) {
+        question = `${question}?`;
+      }
+      return { intro, question };
+    } catch (err) {
+      console.warn("Transition fallback", err);
+      let question = targetPrompt;
+      if (question && !/[?？]\s*$/.test(question)) {
+        question = `${question}?`;
+      }
+      return { intro: null, question };
+    }
+  }
+
+  // *** API ***
   async function callExamAPI(
     current: Turn[],
     opts: { mode: "answer" | "tip" | "explain" | "solution" | "kickoff" }
@@ -474,7 +533,7 @@ export default function ExamPage() {
       completion: c.completion ?? null,
 
       stepIndex: activeIndex,
-      stepsPrompts: [],
+      stepsPrompts: stepPrompts,
       stepRule,
       focusQuestion: currentPrompt,
 
@@ -695,8 +754,8 @@ async function startExam() {
     setViewIndex(idx);
   }
 
-  function nextStep() {
-    if (!c) return;
+  async function nextStep() {
+    if (!c || loading) return;
 
     const last = activeIndex >= nSteps - 1;
     if (last) {
@@ -707,31 +766,44 @@ async function startExam() {
     }
 
     const idx = activeIndex + 1;
-    const q = stepsOrdered[idx]?.prompt ?? "";
+    setLoading(true);
+    try {
+      const transition = await createTransitionForStep(idx);
+      const questionText = (transition?.question || stepsOrdered[idx]?.prompt || "").trim();
+      const introText = transition?.intro?.trim() || null;
 
-    // neue Frage freischalten (immer erlaubt)
-    setAsked((prev) => {
-      if (prev.find((a) => a.index === idx)) return prev; // schon freigeschaltet
-      return [...prev, { index: idx, text: q, status: "pending" }];
-    });
+      const normalizedQuestion = questionText
+        ? questionText.replace(/\s+/g, " ").trim()
+        : stepsOrdered[idx]?.prompt ?? "";
 
-    // neuen Chat ggf. anlegen
-    setChats((prev) => {
-      const copy = prev.map((x) => [...x]);
-      if (!copy[idx] || copy[idx].length === 0) {
-        copy[idx] = [{ role: "prof", text: q }];
-      }
-      return copy;
-    });
+      setAsked((prev) => {
+        const existing = prev.findIndex((a) => a.index === idx);
+        if (existing >= 0) {
+          const copy = [...prev];
+          copy[existing] = { ...copy[existing], text: normalizedQuestion, status: copy[existing].status };
+          return copy;
+        }
+        return [...prev, { index: idx, text: normalizedQuestion, status: "pending" }];
+      });
 
-    // Status/Steuerung
-    setActiveIndex(idx);
-    setViewIndex(idx);
-    setAttemptCount(0);
-    setLastCorrectness(null);
+      setChats((prev) => {
+        const copy = prev.map((x) => [...x]);
+        copy[idx] = [];
+        return copy;
+      });
 
-    // on_enter-Reveal
-    maybeRevealOnEnter(idx);
+      if (introText) pushProf(idx, introText);
+      pushProf(idx, normalizedQuestion);
+
+      setActiveIndex(idx);
+      setViewIndex(idx);
+      setAttemptCount(0);
+      setLastCorrectness(null);
+
+      maybeRevealOnEnter(idx);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function requestTip() {
@@ -912,6 +984,14 @@ async function startExam() {
                 </div>
               </div>
             ))}
+            {loading && hasStarted && viewIndex === activeIndex && (
+              <div className="mb-3">
+                <div className="inline-flex max-w-[80%] items-center gap-2 rounded-2xl border border-black/10 bg-white px-3 py-2 text-xs text-gray-500 shadow-sm">
+                  <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-blue-500" aria-hidden />
+                  <span>Prüfer denkt nach …</span>
+                </div>
+              </div>
+            )}
             {!hasStarted && (
               <div className="text-sm text-gray-600">
                 Klicke auf <b>Prüfung starten</b>, um zu beginnen.
