@@ -51,6 +51,19 @@ type SeriesStore = {
   results?: Record<string, SeriesResultRow>;
 };
 
+type FinalReportLanguage = { rating: string; comment: string };
+type FinalReportStep = { order?: number; awarded?: number; max?: number; reason?: string };
+type FinalReport = {
+  score: number;
+  totalPoints: number;
+  maxPoints: number;
+  summary: string;
+  strengths: string[];
+  improvements: string[];
+  language: FinalReportLanguage;
+  steps?: FinalReportStep[];
+};
+
 function updateSeriesLocal(
   sid: string,
   data: {
@@ -125,6 +138,12 @@ export default function ExamPage() {
     setSeries(readSeriesFromLocation());
   }, [caseId]);
 
+  useEffect(() => {
+    setFinalReport(null);
+    setFinalReportError(null);
+    setFinalReportLoading(false);
+  }, [caseId]);
+
   const seriesTotal = seriesIds.length;
   const seriesDone = Math.min(seriesIdx + 0, Math.max(0, seriesTotal ? seriesIdx : 0)); // während des Falls = bereits abgeschlossene Fälle
   const seriesPct = seriesTotal > 0 ? Math.round((seriesDone / seriesTotal) * 100) : 0;
@@ -162,6 +181,10 @@ export default function ExamPage() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const [ttsEnabled, setTtsEnabled] = useState(false);
+
+  const [finalReport, setFinalReport] = useState<FinalReport | null>(null);
+  const [finalReportLoading, setFinalReportLoading] = useState(false);
+  const [finalReportError, setFinalReportError] = useState<string | null>(null);
 
   // *** Abgeleitete Daten ***
   const stepsOrdered = useMemo<Step[]>(
@@ -201,6 +224,151 @@ export default function ExamPage() {
   }, [asked, nSteps]);
 
   const viewChat: Turn[] = useMemo(() => chats[viewIndex] ?? [], [chats, viewIndex]);
+
+  useEffect(() => {
+    if (!ended || !c) return;
+    if (finalReport || finalReportLoading) return;
+
+    const stepsPayload = stepsOrdered.map((step, idx) => {
+      const max = typeof step.points === "number" ? step.points : 2;
+      const awarded = typeof perStepScores[idx] === "number" ? perStepScores[idx] : 0;
+      const status = asked.find((a) => a.index === idx)?.status ?? "pending";
+      const studentAnswers = (chats[idx] ?? [])
+        .filter((turn) => turn.role === "student")
+        .map((turn) => turn.text.trim())
+        .filter(Boolean);
+
+      return {
+        order: step.order,
+        prompt: step.prompt,
+        maxPoints: max,
+        awardedPoints: Math.min(Math.max(awarded, 0), max),
+        status,
+        rule: step.rule,
+        studentAnswers,
+      };
+    });
+
+    if (!stepsPayload.length) return;
+
+    const payload = {
+      case: {
+        id: c.id,
+        title: c.title,
+        shortTitle: c.shortTitle ?? null,
+        vignette: c.vignette,
+        specialty: c.specialty ?? null,
+        subspecialty: c.subspecialty ?? null,
+        leadSymptom: c.leadSymptom ?? null,
+      },
+      steps: stepsPayload,
+      totalPoints,
+      maxPoints,
+      studentAllAnswers: stepsPayload.flatMap((step) => step.studentAnswers),
+    };
+
+    const sanitizeList = (value: unknown, limit: number): string[] => {
+      if (!Array.isArray(value)) return [];
+      return value
+        .map((item) => (typeof item === "string" ? item : typeof item === "number" ? String(item) : ""))
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0)
+        .slice(0, limit);
+    };
+
+    const sanitizeLanguage = (value: unknown): FinalReportLanguage => {
+      if (value && typeof value === "object") {
+        const ratingRaw = (value as { rating?: unknown }).rating;
+        const commentRaw = (value as { comment?: unknown }).comment;
+        return {
+          rating: typeof ratingRaw === "string" && ratingRaw.trim().length > 0 ? ratingRaw.trim() : "solide",
+          comment:
+            typeof commentRaw === "string" && commentRaw.trim().length > 0
+              ? commentRaw.trim()
+              : "Die medizinische Ausdrucksweise konnte nicht bewertet werden.",
+        };
+      }
+      return { rating: "solide", comment: "Die medizinische Ausdrucksweise konnte nicht bewertet werden." };
+    };
+
+    const controller = new AbortController();
+    setFinalReportLoading(true);
+    setFinalReportError(null);
+
+    fetch("/api/exam/final", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error((err as { error?: string })?.error || `HTTP ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((data: FinalReport) => {
+        setFinalReport({
+          score: Number.isFinite(data.score) ? Math.round(data.score) : Math.round((totalPoints / Math.max(1, maxPoints)) * 100),
+          totalPoints: Number.isFinite(data.totalPoints) ? data.totalPoints : totalPoints,
+          maxPoints: Number.isFinite(data.maxPoints) ? data.maxPoints : maxPoints,
+          summary: typeof data.summary === "string" && data.summary.trim().length > 0 ? data.summary.trim() : "",
+          strengths: sanitizeList(data.strengths, 4),
+          improvements: sanitizeList(data.improvements, 4),
+          language: sanitizeLanguage(data.language),
+          steps: Array.isArray(data.steps) ? data.steps : [],
+        });
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setFinalReportError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        setFinalReportLoading(false);
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [
+    ended,
+    c,
+    stepsOrdered,
+    chats,
+    perStepScores,
+    asked,
+    totalPoints,
+    maxPoints,
+    finalReport,
+    finalReportLoading,
+  ]);
+
+  const languageBadgeClass = (rating: string): string => {
+    const normalized = rating.toLowerCase();
+    if (normalized.includes("exzellent") || normalized.includes("sehr gut")) {
+      return "bg-emerald-100 text-emerald-700";
+    }
+    if (normalized.includes("solide") || normalized.includes("gut")) {
+      return "bg-blue-100 text-blue-700";
+    }
+    if (normalized.includes("verbesserungs") || normalized.includes("kritisch") || normalized.includes("ausbauf")) {
+      return "bg-amber-100 text-amber-800";
+    }
+    if (normalized.includes("schwach") || normalized.includes("unzureich")) {
+      return "bg-rose-100 text-rose-700";
+    }
+    return "bg-gray-200 text-gray-700";
+  };
+
+  const completionPoints = finalReport?.totalPoints ?? totalPoints;
+  const completionMaxPoints = finalReport?.maxPoints ?? maxPoints;
+  const completionPct = finalReport?.score ?? (completionMaxPoints > 0 ? Math.round((completionPoints / completionMaxPoints) * 100) : 0);
+
+  const formatPoints = (value: number): string => {
+    if (!Number.isFinite(value)) return "0";
+    return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  };
 
   // *** UI Helpers ***
   useEffect(() => {
@@ -919,17 +1087,100 @@ async function startExam() {
             )}
             {ended && (
               <div className="mt-2 text-sm text-green-700">
-                ✅ Fall abgeschlossen — Score {Number.isInteger(totalPoints) ? totalPoints : totalPoints.toFixed(1)}/
-                {maxPoints} ({Math.round(((totalPoints || 0) / Math.max(1, maxPoints)) * 100)}%)
+                ✅ Fall abgeschlossen — Score {formatPoints(completionPoints)} / {completionMaxPoints} ({completionPct}%)
               </div>
             )}
           </div>
 
+          {ended && (
+            <div className="relative z-10 mt-3 space-y-3">
+              {finalReportLoading && (
+                <div className="rounded-2xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+                  Abschlussfeedback wird erstellt …
+                </div>
+              )}
+              {finalReportError && (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  Abschlussfeedback konnte nicht geladen werden: {finalReportError}
+                </div>
+              )}
+              {finalReport && (
+                <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-card">
+                  <div className="flex flex-wrap items-start gap-3">
+                    <div className="flex-1">
+                      <h3 className="text-sm font-semibold text-gray-700">Abschlussbewertung</h3>
+                      <p className="mt-1 text-sm text-gray-800">
+                        {finalReport.summary || "Gesamtleistung wurde bewertet."}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-3xl font-semibold text-gray-900">{finalReport.score}</div>
+                      <div className="text-xs text-gray-500">Score (0-100)</div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        {formatPoints(finalReport.totalPoints)}/{finalReport.maxPoints} Punkte
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <section>
+                      <h4 className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Stärken</h4>
+                      <ul className="mt-2 space-y-1 text-sm text-gray-800">
+                        {finalReport.strengths.length > 0 ? (
+                          finalReport.strengths.map((item, idx) => (
+                            <li key={`strength-${idx}`} className="flex items-start gap-2">
+                              <span className="mt-1 h-1.5 w-1.5 flex-none rounded-full bg-emerald-400" aria-hidden />
+                              <span>{item}</span>
+                            </li>
+                          ))
+                        ) : (
+                          <li className="text-sm text-gray-500">Keine besonderen Stärken hervorgehoben.</li>
+                        )}
+                      </ul>
+                    </section>
+
+                    <section>
+                      <h4 className="text-xs font-semibold uppercase tracking-wide text-rose-700">
+                        Verbesserungspotenzial
+                      </h4>
+                      <ul className="mt-2 space-y-1 text-sm text-gray-800">
+                        {finalReport.improvements.length > 0 ? (
+                          finalReport.improvements.map((item, idx) => (
+                            <li key={`improvement-${idx}`} className="flex items-start gap-2">
+                              <span className="mt-1 h-1.5 w-1.5 flex-none rounded-full bg-rose-400" aria-hidden />
+                              <span>{item}</span>
+                            </li>
+                          ))
+                        ) : (
+                          <li className="text-sm text-gray-500">Keine konkreten Verbesserungsvorschläge verfügbar.</li>
+                        )}
+                      </ul>
+                    </section>
+                  </div>
+
+                  <div className="mt-4 rounded-2xl bg-gray-50 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Medizinische Sprache
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${languageBadgeClass(finalReport.language.rating)}`}
+                      >
+                        {finalReport.language.rating}
+                      </span>
+                      <span className="text-sm text-gray-700">{finalReport.language.comment}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Eingabezeile */}
-<form
-  onSubmit={(e) => {
-    e.preventDefault();
-    if (!hasStarted) return startExam();
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!hasStarted) return startExam();
     if (!ended) onSend();
   }}
   className="sticky bottom-0 left-0 right-0 z-20 flex flex-col gap-2 border-t bg-white p-2"
