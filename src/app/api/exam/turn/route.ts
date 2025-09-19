@@ -790,23 +790,19 @@ Erzeuge NUR das JSON-Objekt.`.trim();
       payload.end = false;
     }
 
-    // Bei korrekt → zwingend zum nächsten Schritt
+    // Bei korrekt → kein automatischer Schrittwechsel
     if (isCorrect) {
-      if (!payload.next_question) {
-        payload.next_question = nextPrompt ?? null;
-      }
-      payload.end = !nextPrompt;
+      payload.next_question = null;
+      payload.end = false;
       if (!payload.say_to_student) {
         payload.say_to_student = "Gut, weiter geht’s.";
       }
     }
 
-    // Beim dritten Versuch (oder Give-up) geht es automatisch weiter (falls möglich)
+    // Beim dritten Versuch (oder Give-up) ebenfalls manuell fortsetzen
     if (effectiveAttempt === 3) {
-      if (!payload.next_question) {
-        payload.next_question = nextPrompt ?? null;
-      }
-      payload.end = !nextPrompt;
+      payload.next_question = null;
+      payload.end = false;
     }
 
     // 🔐 Persistenz (nicht blockierend)

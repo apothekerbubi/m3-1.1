@@ -523,15 +523,27 @@ export default function ExamPage() {
 
     const data: ApiReply = (await res.json()) as ApiReply;
 
-    const hadSolution =
-      typeof data.say_to_student === "string" &&
-      /^lösung\s*:/i.test(data.say_to_student.trim());
+    const sayText =
+      typeof data.say_to_student === "string" ? data.say_to_student.trim() : "";
+    const hadSolution = /^lösung\s*:/i.test(sayText);
+    const nextQuestionRaw =
+      typeof data.next_question === "string" ? data.next_question.trim() : "";
+    const isKickoff = opts.mode === "kickoff";
 
     const stepPointsForTarget =
       typeof stepsOrdered[targetStep]?.points === "number" ? (stepsOrdered[targetStep]?.points as number) : 2;
     const revealForStep = (stepsOrdered[targetStep]?.reveal ?? null) as StepReveal | null;
 
-    if (hadSolution) pushProf(targetStep, data.say_to_student);
+    if (hadSolution) {
+      pushProf(targetStep, data.say_to_student || sayText);
+    } else if (isKickoff && (sayText || nextQuestionRaw)) {
+      const merged = [sayText, nextQuestionRaw]
+        .filter(Boolean)
+        .join(sayText && nextQuestionRaw ? "\n\n" : "");
+      if (merged) pushProf(targetStep, merged);
+    } else if (sayText) {
+      pushProf(targetStep, sayText);
+    }
 
     if (data.evaluation && opts.mode === "answer") {
       const { correctness, feedback, tips } = data.evaluation;
@@ -584,20 +596,14 @@ export default function ExamPage() {
     }
 
     // Zusätzliche Prüfer-Nachrichten (Tip/Explain)
-    if (!hadSolution && (!data.evaluation || !data.evaluation.feedback) && data.say_to_student) {
-      pushProf(targetStep, data.say_to_student);
-    }
-
-    const nextQuestion = data.next_question;
-    if (typeof nextQuestion === "string" && nextQuestion) {
-      pushProf(targetStep, nextQuestion);
+    if (isKickoff && nextQuestionRaw) {
       setAsked((prev) => {
         const copy = [...prev];
         const idx = copy.findIndex((x) => x.index === targetStep);
         if (idx >= 0) {
-          copy[idx] = { ...copy[idx], text: nextQuestion };
+          copy[idx] = { ...copy[idx], text: nextQuestionRaw };
         } else {
-          copy.push({ index: targetStep, text: nextQuestion, status: "pending" });
+          copy.push({ index: targetStep, text: nextQuestionRaw, status: "pending" });
         }
         return copy;
       });
