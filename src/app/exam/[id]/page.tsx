@@ -695,8 +695,8 @@ async function startExam() {
     setViewIndex(idx);
   }
 
-  function nextStep() {
-    if (!c) return;
+  async function nextStep() {
+    if (!c || loading) return;
 
     const last = activeIndex >= nSteps - 1;
     if (last) {
@@ -707,31 +707,78 @@ async function startExam() {
     }
 
     const idx = activeIndex + 1;
-    const q = stepsOrdered[idx]?.prompt ?? "";
+    const fallbackPrompt = stepsOrdered[idx]?.prompt ?? "";
 
-    // neue Frage freischalten (immer erlaubt)
+    const existingTurns = chats[idx] ?? [];
+    const existingIntro = existingTurns.find((t) => t.role === "prof");
+    if (existingIntro) {
+      setAsked((prev) => {
+        if (prev.find((a) => a.index === idx)) return prev;
+        return [...prev, { index: idx, text: existingIntro.text, status: "pending" }];
+      });
+      setActiveIndex(idx);
+      setViewIndex(idx);
+      setAttemptCount(0);
+      setLastCorrectness(null);
+      return;
+    }
+
+    const transcriptForBridge = (chats[activeIndex] ?? []).map((t) => ({
+      role: t.role === "prof" ? "examiner" : "student",
+      text: t.text,
+    }));
+
     setAsked((prev) => {
-      if (prev.find((a) => a.index === idx)) return prev; // schon freigeschaltet
-      return [...prev, { index: idx, text: q, status: "pending" }];
+      if (prev.find((a) => a.index === idx)) return prev;
+      return [...prev, { index: idx, text: fallbackPrompt, status: "pending" }];
     });
 
-    // neuen Chat ggf. anlegen
-    setChats((prev) => {
-      const copy = prev.map((x) => [...x]);
-      if (!copy[idx] || copy[idx].length === 0) {
-        copy[idx] = [{ role: "prof", text: q }];
-      }
-      return copy;
-    });
-
-    // Status/Steuerung
     setActiveIndex(idx);
     setViewIndex(idx);
     setAttemptCount(0);
     setLastCorrectness(null);
 
+    let transitionText = fallbackPrompt;
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/exam/next-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          caseId: c.id,
+          caseText: c.vignette,
+          style,
+          nextPrompt: fallbackPrompt,
+          transcript: transcriptForBridge,
+        }),
+      });
+
+      const data = (await res.json().catch(() => null)) as { question?: string } | null;
+      if (data && typeof data.question === "string" && data.question.trim()) {
+        transitionText = data.question.trim();
+      }
+    } catch (err) {
+      console.warn("Übergangsfrage fehlgeschlagen", err);
+    }
+
+    setAsked((prev) => {
+      const copy = [...prev];
+      const entryIdx = copy.findIndex((a) => a.index === idx);
+      if (entryIdx >= 0) {
+        copy[entryIdx] = { ...copy[entryIdx], text: transitionText };
+      } else {
+        copy.push({ index: idx, text: transitionText, status: "pending" });
+      }
+      return copy;
+    });
+
+    pushProf(idx, transitionText);
+
     // on_enter-Reveal
     maybeRevealOnEnter(idx);
+
+    setLoading(false);
   }
 
   async function requestTip() {
@@ -912,6 +959,17 @@ async function startExam() {
                 </div>
               </div>
             ))}
+            {loading && hasStarted && viewIndex === activeIndex && (
+              <div className="mb-3">
+                <div className="inline-flex max-w-[80%] items-center gap-2 rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm">
+                  <b className="opacity-80">Prüfer:</b>
+                  <span className="relative inline-flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-600" />
+                  </span>
+                </div>
+              </div>
+            )}
             {!hasStarted && (
               <div className="text-sm text-gray-600">
                 Klicke auf <b>Prüfung starten</b>, um zu beginnen.
