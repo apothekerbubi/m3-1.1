@@ -50,6 +50,7 @@ type BodyIn = {
   style?: "coaching" | "strict";
   tipRequest?: boolean;
   explainRequest?: boolean;
+  solutionRequest?: boolean;
   clarifyQuestion?: string;
   objectives?: ObjMin[];
   completion?: CompletionRules | null;
@@ -267,6 +268,7 @@ export async function POST(req: NextRequest) {
     const style: "coaching" | "strict" = body.style === "strict" ? "strict" : "coaching";
     const tipRequest = Boolean(body.tipRequest);
     const explainRequest = Boolean(body.explainRequest);
+    const solutionRequest = Boolean(body.solutionRequest);
     
     const objectives: ObjMin[] = Array.isArray(body.objectives) ? body.objectives : [];
     const completion: CompletionRules | null = body.completion ?? null;
@@ -352,6 +354,7 @@ const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 
           attemptStage,
           tipRequest: true,
           explainRequest: false,
+          solutionRequest: false,
           clarifyQuestion: null,
           focusQuestion: currentPrompt || null,
           lastStudentAnswer: lastStudentText || null,
@@ -365,9 +368,80 @@ const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 
       return NextResponse.json(payload);
     }
 
+    /* ---------- MODE B: Lösung (nur per Button) ---------- */
+    if (solutionRequest) {
+      const sysSolution = `Du bist Prüfer:in am 2. Tag (Theorie) des 3. Staatsexamens (M3).
+Ziel: Formuliere eine kompakte Musterlösung zur CURRENT_STEP_PROMPT.
 
+Vorgehen:
+- Greife nur auf Vignette + offiziell preisgegebene Informationen dieses Falls/Schritts zurück.
+- Beziehe STUDENT_TEXT ein, indem du würdigst, was bereits genannt wurde, und setze die fehlenden Kernelemente klar dagegen.
+- Strukturiere nach Leitgedanken (Diagnose, Kernaussagen, Differenzialdiagnosen, nächster Schritt).
 
-    
+Format:
+- Satz 1: Kurze wertschätzende Einordnung der bisherigen Antwort (Sie-Form).
+- Satz 2–3: "Lösung: …" mit der Kernantwort.
+- Danach 2–3 Bulletpoints (•) mit den wichtigsten Ergänzungen/Begründungen.
+- Kein weiterer Fließtext, keine Fragen, keine Emojis.
+- Deutsch.`;
+
+      const usrSolution = `Vignette: ${caseText}
+CURRENT_STEP_PROMPT: ${currentPrompt || "(unbekannt)"}
+RULE_JSON (für CURRENT_STEP_PROMPT):
+${JSON.stringify(stepRule ?? {}, null, 2)}
+
+STUDENT_TEXT:
+${student_so_far_text || "(leer)"}
+
+${outline.length ? `Prüfungs-Outline: ${outline.join(" • ")}` : ""}
+${completion ? `COMPLETION: ${JSON.stringify(completion)}` : ""}
+Gib NUR den Lösungstext zurück.`;
+
+      const outSolution = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: sysSolution },
+          { role: "user", content: usrSolution },
+        ],
+        temperature: 0.4,
+      });
+
+      const sayRaw = (outSolution.choices?.[0]?.message?.content || "").trim();
+      const sayClean = stripMd(sayRaw).replace(/\n{3,}/g, "\n\n").trim();
+      const say = sayClean
+        ? sayClean.match(/^lösung/i)
+          ? sayClean
+          : `Lösung: ${sayClean}`
+        : "Lösung: (Kurz würdigen, dann 2–3 Kernaussagen und nächste Schritte als Bulletpoints.)";
+
+      const payload: ApiOut = {
+        say_to_student: say,
+        evaluation: null,
+        next_question: null,
+        end: false,
+      };
+
+      if (userId) {
+        void logTurn(supabase, {
+          userId,
+          caseId,
+          attemptStage: effectiveAttempt,
+          tipRequest: false,
+          explainRequest: false,
+          solutionRequest: true,
+          clarifyQuestion: null,
+          focusQuestion: currentPrompt || null,
+          lastStudentAnswer: student_so_far_text || null,
+          modelOut: payload,
+        });
+        if (typeof points === "number" || typeof progressPct === "number") {
+          void upsertProgress(supabase, { userId, caseId, points, progressPct });
+        }
+      }
+
+      return NextResponse.json(payload);
+    }
+
 
     /* ---------- MODE D: Erklärung (kumulativ) ---------- */
 if (explainRequest) {
@@ -424,18 +498,19 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
     "Kurz eingeordnet: Inhaltlich passend und kontextgerecht begründet.";
   const payload: ApiOut = { say_to_student: say, evaluation: null, next_question: null, end: false };
 
-  if (userId) {
-    void logTurn(supabase, {
-      userId,
-      caseId,
-      attemptStage: effectiveAttempt,
-      tipRequest: false,
-      explainRequest: true,
-      clarifyQuestion: null,
-      focusQuestion: fallbackQuestion || null,
-      lastStudentAnswer: student_so_far_text || null, // <- kumulativ loggen
-      modelOut: payload,
-    });
+      if (userId) {
+        void logTurn(supabase, {
+          userId,
+          caseId,
+          attemptStage: effectiveAttempt,
+          tipRequest: false,
+          explainRequest: true,
+          solutionRequest: false,
+          clarifyQuestion: null,
+          focusQuestion: fallbackQuestion || null,
+          lastStudentAnswer: student_so_far_text || null, // <- kumulativ loggen
+          modelOut: payload,
+        });
   }
 
   return NextResponse.json(payload);
@@ -518,17 +593,18 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
         };
 
         if (userId) {
-          void logTurn(supabase, {
-            userId,
-            caseId,
-            attemptStage: 1,
-            tipRequest: false,
-            explainRequest: false,
-            clarifyQuestion: null,
-            focusQuestion: questionClean || null,
-            lastStudentAnswer: null,
-            modelOut: payload,
-          });
+            void logTurn(supabase, {
+              userId,
+              caseId,
+              attemptStage: 1,
+              tipRequest: false,
+              explainRequest: false,
+              solutionRequest: false,
+              clarifyQuestion: null,
+              focusQuestion: questionClean || null,
+              lastStudentAnswer: null,
+              modelOut: payload,
+            });
         }
 
         return NextResponse.json(payload);
@@ -563,9 +639,11 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
             - Sprich in klaren, vollständigen Sätzen und nimm Bezug auf den laufenden Prüfungsdialog.
 
             BEWERTUNG & EINORDNUNG
-            - evaluation.feedback besteht aus einem klaren Bewertungssatz plus einem begründenden Teil in Hinblick auf die Krankheit.
+            - evaluation.feedback = 2–3 Sätze.
+              • Satz 1: klares Urteil (korrekt/teilweise/falsch) mit Bezug auf CURRENT_STEP_PROMPT.
+              • Satz 2–3: fachliche Einordnung (warum passend/warum nicht) und – falls unvollständig – benenne die fehlenden thematischen Bereiche ohne konkrete Musterlösung zu verraten.
             - Ordne die Angaben des Prüflings immer kurz im Gesamtfall ein, insbesondere mit Bezug zur zugrundeliegenden Erkrankung.
-            - Wenn partially correct, gib einen sehr allgemeinen Hinweis, dass noch etwas fehlt
+            - Gib KEINE vollständige Musterlösung oder detaillierte Aufzählung aller Punkte. Verweise höchstens abstrakt darauf, dass noch Aspekte ergänzt werden können.
 
             VERSUCHSLOGIK (hart)
             - Drei Versuche (attemptStage 1-3). Give-up zählt wie 3.
@@ -574,8 +652,9 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
               • evaluation.tips = weglassen (nur im Tipp-Modus).
               • next_question = null.
             - attemptStage 3 ODER Give-up:
-              • say_to_student lobt den studenten für das bisher gesagte und ordnet es ein. Danach folgt zwingend eine klar bezeichnete Musterlösung (z. B. "Musterlösung: ..."), die den Kern erklärt. Starte mit einem Satz, der die bereits korrekten Angaben des Prüflings würdigt, und führe erst danach die ergänzenden Inhalte aus. Ergänze 2–3 Bullets (• Kerngedanke • Abgrenzung • nächster Schritt);
-              
+              • Bleibe bei Bewertung und Einordnung ohne Musterlösung. Würdige kurz, was schon richtig ist, und benenne fehlende Bereiche allgemein.
+              • next_question = Formuliere aus NEXT_STEP_PROMPT eine natürliche Übergangsfrage (mit Übergangsphrase); end=true falls letzter Schritt.
+
             - Antwort ist korrekt:
               • evaluation.feedback = 1 lobender Bestätigungssatz + 2–3 Sätze (warum passend • Einordnung in Hinsicht auf die Krankheit  • Ausblick).
               • next_question = Formuliere aus NEXT_STEP_PROMPT eine natürliche Übergangsfrage (mit Übergangsphrase); end=true falls letzter Schritt.
@@ -685,13 +764,8 @@ Erzeuge NUR das JSON-Objekt.`.trim();
       }
     }
 
-    // Beim dritten Versuch (oder Give-up) MUSS Lösung kommen, dann weiter (falls möglich)
+    // Beim dritten Versuch (oder Give-up) geht es automatisch weiter (falls möglich)
     if (effectiveAttempt === 3) {
-      if (!payload.say_to_student || !/lösung/i.test(payload.say_to_student)) {
-        payload.say_to_student = (payload.say_to_student && payload.say_to_student.trim().length > 0)
-          ? `Lösung: ${payload.say_to_student}`
-          : "Lösung: (Hier 1–2 Sätze zur Kernlösung + 1–3 kurze Begründungen/Merksätze.)";
-      }
       if (!payload.next_question) {
         payload.next_question = nextPrompt ?? null;
       }
@@ -707,6 +781,7 @@ Erzeuge NUR das JSON-Objekt.`.trim();
         attemptStage: effectiveAttempt,
         tipRequest: false,
         explainRequest: false,
+        solutionRequest: false,
         clarifyQuestion: null,
         focusQuestion: payload.next_question,
         lastStudentAnswer: lastStudentAns,
@@ -733,6 +808,7 @@ type LogTurnArgs = {
   attemptStage: number;
   tipRequest: boolean;
   explainRequest: boolean;
+  solutionRequest: boolean;
   clarifyQuestion: string | null;
   focusQuestion: string | null;
   lastStudentAnswer: string | null;
@@ -750,6 +826,7 @@ async function logTurn(
       attempt_stage: args.attemptStage,
       tip_request: args.tipRequest,
       explain_request: args.explainRequest,
+      solution_request: args.solutionRequest,
       clarify_question: args.clarifyQuestion,
       focus_question: args.focusQuestion,
       last_student_answer: args.lastStudentAnswer,
