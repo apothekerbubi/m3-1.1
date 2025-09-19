@@ -252,7 +252,7 @@ export default function ExamPage() {
   // *** API ***
   async function callExamAPI(
     current: Turn[],
-    opts: { mode: "answer" | "tip" | "explain" | "kickoff" }
+     opts: { mode: "answer" | "tip" | "explain" | "solution" | "kickoff" }
   ) {
     if (!c) return;
     setLoading(true);
@@ -278,6 +278,7 @@ export default function ExamPage() {
 
       if (opts.mode === "tip") payload["tipRequest"] = true;
       if (opts.mode === "explain") payload["explainRequest"] = true;
+       if (opts.mode === "solution") payload["solutionRequest"] = true;
       if (opts.mode === "answer") payload["attemptStage"] = Math.min(3, attemptCount + 1);
        if (opts.mode === "kickoff") payload["kickoff"] = true;
 
@@ -486,6 +487,11 @@ export default function ExamPage() {
     const current = (chats[activeIndex] ?? []) as Turn[];
     await callExamAPI(current, { mode: "explain" });
   }
+  async function requestSolution() {
+    if (!c || loading || viewIndex !== activeIndex) return;
+    const current = (chats[activeIndex] ?? []) as Turn[];
+    await callExamAPI(current, { mode: "solution" });
+  }
 
   if (!c) {
     return (
@@ -672,6 +678,15 @@ export default function ExamPage() {
               title="Kurze Erklärung zur aktuellen Frage/Antwort"
             >
               📘 Erklären
+            </button>
+               <button
+              type="button"
+              onClick={requestSolution}
+              disabled={loading || !hasStarted || viewIndex !== activeIndex}
+              className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              title="Musterlösung anzeigen"
+            >
+              📝 Lösung anzeigen
             </button>
 
             <button

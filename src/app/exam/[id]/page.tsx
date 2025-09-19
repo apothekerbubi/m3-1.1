@@ -429,14 +429,14 @@ export default function ExamPage() {
     }
   }
 
-// *** API ***
-async function callExamAPI(
-  current: Turn[],
-  opts: { mode: "answer" | "tip" | "explain" | "kickoff" }
-) {
-  if (!c) return;
-  setLoading(true);
-  try {
+ // *** API ***
+  async function callExamAPI(
+    current: Turn[],
+    opts: { mode: "answer" | "tip" | "explain" | "solution" | "kickoff" }
+  ) {
+    if (!c) return;
+    setLoading(true);
+    try {
     // 🔹 NEU: kumulierte Student:innen-Antworten für den aktuellen Schritt sammeln
     const turnsThisStep =
       opts.mode === "kickoff" ? current : ((chats[activeIndex] ?? []) as Turn[]);
@@ -485,6 +485,7 @@ async function callExamAPI(
     };
 
     if (opts.mode === "tip") payload["tipRequest"] = true;
+    if (opts.mode === "solution") payload["solutionRequest"] = true;
     if (opts.mode === "explain") payload["explainRequest"] = true;
     if (opts.mode === "answer") payload["attemptStage"] = Math.min(3, attemptCount + 1);
      if (opts.mode === "kickoff") payload["kickoff"] = true;
@@ -746,6 +747,11 @@ async function startExam() {
     const current = chats[activeIndex] ?? [];
     await callExamAPI(current, { mode: "explain" });
   }
+   async function requestSolution() {
+    if (!c || loading || viewIndex !== activeIndex) return;
+    const current = chats[activeIndex] ?? [];
+    await callExamAPI(current, { mode: "solution" });
+  }
 
   if (!c) {
     return (
@@ -979,6 +985,14 @@ async function startExam() {
       className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
     >
       📘 Erklären
+    </button>
+     <button
+      type="button"
+      onClick={requestSolution}
+      disabled={loading || !hasStarted || viewIndex !== activeIndex}
+      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+    >
+      📝 Lösung anzeigen
     </button>
     <label className="flex items-center gap-1 text-xs text-gray-600">
       <input

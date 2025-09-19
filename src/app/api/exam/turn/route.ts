@@ -52,6 +52,7 @@ type BodyIn = {
   explainRequest?: boolean;
   clarifyQuestion?: string;
   objectives?: ObjMin[];
+  solutionRequest?: boolean;
   completion?: CompletionRules | null;
   attemptStage?: number;
   focusQuestion?: string;
@@ -101,42 +102,8 @@ function inferAttemptFromTranscript(transcript: TranscriptItem[]): 1|2|3 {
 }
 
 function sanitizeForEarlyAttempts(txt: string): string {
-  let s = (txt || "");
-   s = s.replace(
-    /\s*,?\s*\b(z\.?\s?b\.?|u\.a\.|unter anderem|zum beispiel)\b[^.]*\./gi,
-    (_match, _phrase, offset, str) => {
-      const before = str.slice(0, offset);
-      const trimmedBefore = before.replace(/\s+$/g, "");
-      const needsPeriod =
-        trimmedBefore.length > 0 && !/[.?!]$/.test(trimmedBefore);
-      const prefix = needsPeriod ? ". " : "";
-      return `${prefix}Es gibt weitere relevante Aspekte, die ergänzt werden können.`;
-    }
-  );
-  s = s.replace(
-    /Für eine ([^.?!]*?)weitere (?:Fragen|Aspekte|Punkte)[^.?!]*?(?:wichtig|relevant|notwendig|sinnvoll)[.?!]/gi,
-    (_match, scope) => {
-      const trimmedScope = scope.replace(/\s+/g, " ").trim();
-      const prefix = trimmedScope ? `Für eine ${trimmedScope}` : "Für eine umfassendere Abklärung ";
-      return `${prefix.trimEnd()} wären noch weitere Aspekte sinnvoll.`;
-    }
-  );
-  s = s.replace(
-    /Für eine ([^.?!]*?)weitere (?:Fragen|Aspekte|Punkte)[^.?!]*$/gi,
-    (_match, scope) => {
-      const trimmedScope = scope.replace(/\s+/g, " ").trim();
-      const prefix = trimmedScope ? `Für eine ${trimmedScope}` : "Für eine umfassendere Abklärung ";
-      return `${prefix.trimEnd()} wären noch weitere Aspekte sinnvoll.`;
-    }
-  );
-  s = s.replace(
-    /Für eine vollständige Anamnese fehlen jedoch noch Fragen\s+zum?[^.?!]*([.?!])/gi,
-    (_match, ending) => `Für eine vollständige Anamnese fehlen jedoch noch Fragen, die du ergänzen kannst${ending}`
-  );
-  s = s.replace(
-    /(fehlen(?: jedoch)? noch Fragen)\s+zum?[^.?!]*([.?!])/gi,
-    (_match, prefix, ending) => `${prefix} offen, die du noch ansprechen kannst${ending}`
-  );
+  if (!txt) return "";
+  let s = txt;
   s = s.replace(/^\s*tipp:\s*/i, "");
   return s.trim();
 }
@@ -275,6 +242,7 @@ export async function POST(req: NextRequest) {
     const explainContext = body.explainContext && typeof body.explainContext === "object" ? body.explainContext : undefined;
     const points = typeof body.points === "number" ? body.points : undefined;
     const progressPct = typeof body.progressPct === "number" ? body.progressPct : undefined;
+    const solutionRequest = Boolean(body.solutionRequest);
 
     // Schritt-Kontext
     const stepIndex = typeof body.stepIndex === "number" ? body.stepIndex : 0;
@@ -352,6 +320,7 @@ const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 
           attemptStage,
           tipRequest: true,
           explainRequest: false,
+          solutionRequest: false,
           clarifyQuestion: null,
           focusQuestion: currentPrompt || null,
           lastStudentAnswer: lastStudentText || null,
@@ -364,7 +333,78 @@ const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 
 
       return NextResponse.json(payload);
     }
+  /* ---------- MODE B: Lösung (nur per Button) ---------- */
+    if (solutionRequest) {
+      const sysSolution = `Du bist Prüfer:in am 2. Tag (Theorie) des 3. Staatsexamens (M3).
+        Ziel: Formuliere eine kompakte Musterlösung zur CURRENT_STEP_PROMPT.
 
+        Vorgehen:
+        - Greife nur auf Vignette + offiziell preisgegebene Informationen dieses Falls/Schritts zurück.
+        - Beziehe STUDENT_TEXT ein, indem du würdigst, was bereits genannt wurde, und setze die fehlenden Kernelemente klar dagegen.
+        - Strukturiere nach Leitgedanken (Diagnose, Kernaussagen, Differenzialdiagnosen, nächster Schritt).
+
+        Format:
+        - Satz 1: Kurze wertschätzende Einordnung der bisherigen Antwort (Sie-Form).
+        - Satz 2–3: "Lösung: …" mit der Kernantwort.
+        - Danach 2–3 Bulletpoints (•) mit den wichtigsten Ergänzungen/Begründungen.
+        - Kein weiterer Fließtext, keine Fragen, keine Emojis.
+        - Deutsch.`;
+
+              const usrSolution = `Vignette: ${caseText}
+        CURRENT_STEP_PROMPT: ${currentPrompt || "(unbekannt)"}
+        RULE_JSON (für CURRENT_STEP_PROMPT):
+        ${JSON.stringify(stepRule ?? {}, null, 2)}
+
+        STUDENT_TEXT:
+        ${student_so_far_text || "(leer)"}
+
+        ${outline.length ? `Prüfungs-Outline: ${outline.join(" • ")}` : ""}
+        ${completion ? `COMPLETION: ${JSON.stringify(completion)}` : ""}
+        Gib NUR den Lösungstext zurück.`;
+
+      const outSolution = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: sysSolution },
+          { role: "user", content: usrSolution },
+        ],
+        temperature: 0.4,
+      });
+
+      const sayRaw = (outSolution.choices?.[0]?.message?.content || "").trim();
+      const sayClean = stripMd(sayRaw).replace(/\n{3,}/g, "\n\n").trim();
+      const say = sayClean
+        ? sayClean.match(/^lösung/i)
+          ? sayClean
+          : `Lösung: ${sayClean}`
+        : "Lösung: (Kurz würdigen, dann 2–3 Kernaussagen und nächste Schritte als Bulletpoints.)";
+
+      const payload: ApiOut = {
+        say_to_student: say,
+        evaluation: null,
+        next_question: null,
+        end: false,
+      };
+
+       if (userId) {
+        void logTurn(supabase, {
+          userId,
+          caseId,
+          attemptStage: effectiveAttempt,
+          tipRequest: false,
+          explainRequest: true,
+          solutionRequest: false,
+          clarifyQuestion: null,
+          lastStudentAnswer: student_so_far_text || null, // <- kumulativ loggen
+          modelOut: payload,
+        });
+        if (typeof points === "number" || typeof progressPct === "number") {
+          void upsertProgress(supabase, { userId, caseId, points, progressPct });
+        }
+      }
+
+      return NextResponse.json(payload);
+    }
 
 
     
@@ -432,7 +472,6 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
       tipRequest: false,
       explainRequest: true,
       clarifyQuestion: null,
-      focusQuestion: fallbackQuestion || null,
       lastStudentAnswer: student_so_far_text || null, // <- kumulativ loggen
       modelOut: payload,
     });
@@ -518,17 +557,18 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
         };
 
         if (userId) {
-          void logTurn(supabase, {
-            userId,
-            caseId,
-            attemptStage: 1,
-            tipRequest: false,
-            explainRequest: false,
-            clarifyQuestion: null,
-            focusQuestion: questionClean || null,
-            lastStudentAnswer: null,
-            modelOut: payload,
-          });
+           void logTurn(supabase, {
+              userId,
+              caseId,
+              attemptStage: 1,
+              tipRequest: false,
+              explainRequest: false,
+              solutionRequest: false,
+              clarifyQuestion: null,
+              focusQuestion: questionClean || null,
+              lastStudentAnswer: null,
+              modelOut: payload,
+            });
         }
 
         return NextResponse.json(payload);
@@ -555,8 +595,12 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
             - Doppelnennungen zählen nicht mehrfach;
             - Falls etwas falsch geschrieben ist, z.b. Rechtschreibung stark abweichend; Tippfehler, ausgelassene Buchstaben, verdrehte Buchstaben und Schreibweisen nach Lautsprache (z. B. „Kolezüstitis“ für „Cholezystitis“), dann auch als richtig zählen.
 
-            NO-LEAK GUARD (streng)
-            - Bei teilweise korrekt: allgemein sagen, dass noch was fehlt
+            NO-LEAK GUARD (streng, verbindlich)
+            - In attemptStage 1/2 UND correctness != "correct": KEINE konkreten Inhalte nennen, die noch fehlen.
+            - KEINE Aufzählungen („: …“, „z. B. …“, „etwa …“, „wie …“, „insbesondere …“) und KEINE Schlüsselwörter/Beispiele.
+            - Nur Meta-Hinweis (max. 1 Satz), z. B.: „Es fehlen noch mehrere Bereiche; strukturieren Sie vollständig.“
+            - Maximale Länge von evaluation.feedback bei attemptStage 1/2: 2 Sätze, keine Listen/Beispiele.
+
 
             AUSDRUCK & TON
             -  Keine Emojis/Auslassungspunkte/Klammer-Meta.
@@ -570,7 +614,7 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
             VERSUCHSLOGIK (hart)
             - Drei Versuche (attemptStage 1-3). Give-up zählt wie 3.
             - attemptStage 1/2 UND nicht korrekt oder partially correct:
-              • evaluation.feedback = 1 einordnender Satz Bewertung mit aussagekräftiger Begründung, allgemein, dass noch etwas fehlt
+              • evaluation.feedback = 1 einordnender Satz Bewertung mit aussagekräftiger Begründung, allgemein, dass noch etwas fehlt, aaber nicht was!
               • evaluation.tips = weglassen (nur im Tipp-Modus).
               • next_question = null.
             - attemptStage 3 ODER Give-up:
@@ -625,7 +669,7 @@ Erzeuge NUR das JSON-Objekt.`.trim();
         { role: "system", content: sysExam },
         { role: "user", content: usrExam }
       ],
-      temperature: 0.5
+      temperature: 0.1
     });
 
     // Robust gegen Fences
@@ -687,11 +731,7 @@ Erzeuge NUR das JSON-Objekt.`.trim();
 
     // Beim dritten Versuch (oder Give-up) MUSS Lösung kommen, dann weiter (falls möglich)
     if (effectiveAttempt === 3) {
-      if (!payload.say_to_student || !/lösung/i.test(payload.say_to_student)) {
-        payload.say_to_student = (payload.say_to_student && payload.say_to_student.trim().length > 0)
-          ? `Lösung: ${payload.say_to_student}`
-          : "Lösung: (Hier 1–2 Sätze zur Kernlösung + 1–3 kurze Begründungen/Merksätze.)";
-      }
+      
       if (!payload.next_question) {
         payload.next_question = nextPrompt ?? null;
       }
@@ -706,6 +746,7 @@ Erzeuge NUR das JSON-Objekt.`.trim();
         caseId,
         attemptStage: effectiveAttempt,
         tipRequest: false,
+        solutionRequest: false,
         explainRequest: false,
         clarifyQuestion: null,
         focusQuestion: payload.next_question,
@@ -732,6 +773,7 @@ type LogTurnArgs = {
   caseId?: string;
   attemptStage: number;
   tipRequest: boolean;
+  solutionRequest: boolean;
   explainRequest: boolean;
   clarifyQuestion: string | null;
   focusQuestion: string | null;
@@ -749,6 +791,7 @@ async function logTurn(
       case_id: args.caseId ?? null,
       attempt_stage: args.attemptStage,
       tip_request: args.tipRequest,
+      solution_request: args.solutionRequest,
       explain_request: args.explainRequest,
       clarify_question: args.clarifyQuestion,
       focus_question: args.focusQuestion,
