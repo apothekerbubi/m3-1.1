@@ -7,7 +7,6 @@ import Link from "next/link";
 import { CASES } from "@/data/cases";
 import type { Case, Step, StepReveal } from "@/lib/types";
 import ProgressBar from "@/components/ProgressBar";
-import ScorePill from "@/components/ScorePill";
 import CaseImagePublic from "@/components/CaseImagePublic";
 
 
@@ -29,6 +28,15 @@ type ApiReply = {
 };
 
 type Asked = { index: number; text: string; status: "pending" | "correct" | "partial" | "incorrect" };
+
+function shortQuestion(text: string): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return "Frage";
+  const words = normalized.split(" ");
+  const cropped = words.slice(0, 8).join(" ");
+  if (cropped.length >= normalized.length) return normalized;
+  return `${cropped}…`;
+}
 
 type ObjMin = { id: string; label: string };
 type CompletionRules = { minObjectives: number; maxLLMTurns?: number; hardStopTurns?: number };
@@ -150,8 +158,6 @@ export default function ExamPage() {
 
   // Punkte pro Schritt (Bestwert)
   const [perStepScores, setPerStepScores] = useState<number[]>([]);
-  const [lastCorrectness, setLastCorrectness] =
-    useState<"correct" | "partially_correct" | "incorrect" | null>(null);
 
   // Versuchszähler für den aktiven Schritt
   const [attemptCount, setAttemptCount] = useState<number>(0);
@@ -519,8 +525,6 @@ export default function ExamPage() {
     if (data.evaluation && opts.mode === "answer") {
       const { correctness, feedback, tips, score } = data.evaluation;
       const safeScore = Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0;
-      setLastCorrectness(correctness);
-
       // Punkte (Bestwert je Schritt)
       setPerStepScores((prev) => {
         const curPrev = prev[activeIndex] || 0;
@@ -550,7 +554,7 @@ export default function ExamPage() {
       });
 
       const parts = [
-        `Score ${Number.isInteger(safeScore) ? safeScore : safeScore.toFixed(1)}/100 — ${label(correctness)} — ${feedback}`,
+        `${label(correctness)} — ${feedback}`,
         correctness !== "correct" && tips ? `Tipp: ${tips}` : "",
       ].filter(Boolean);
       if (!hadSolution) pushProf(activeIndex, parts.join(" "));
@@ -652,7 +656,6 @@ async function startExam() {
   // Reset
   setAsked([]);
   setPerStepScores(Array(n).fill(0));
-  setLastCorrectness(null);
   setAttemptCount(0);
   setActiveIndex(0);
   setViewIndex(0);
@@ -722,7 +725,6 @@ async function startExam() {
       setActiveIndex(idx);
       setViewIndex(idx);
       setAttemptCount(0);
-      setLastCorrectness(null);
       return;
     }
 
@@ -740,7 +742,6 @@ async function startExam() {
     setActiveIndex(idx);
     setViewIndex(idx);
     setAttemptCount(0);
-    setLastCorrectness(null);
 
      let transitionText = fallbackPrompt;
 
@@ -841,8 +842,6 @@ async function startExam() {
   </div>
 )}
 
-        <ScorePill pct={totalScorePct} last={lastCorrectness} />
-
         {/* Schritt-Progressbar */}
 <div className="hidden w-56 sm:block">
   <div className="mb-1 text-[11px] text-gray-600">Fortschritt</div>
@@ -881,6 +880,18 @@ async function startExam() {
                   : "bg-red-500";
               const isView = a.index === viewIndex;
               const isActive = a.index === activeIndex;
+              const rawScore = perStepScores[a.index];
+              const showScore =
+                Number.isFinite(rawScore) && (a.status !== "pending" || (rawScore as number) > 0);
+              const scoreText = (() => {
+                if (!showScore) return null;
+                const pctRounded = Math.round((rawScore as number) * 10) / 10;
+                return Number.isInteger(pctRounded)
+                  ? `${pctRounded}%`
+                  : `${pctRounded.toFixed(1)}%`;
+              })();
+              const labelText = `Frage ${i + 1}`;
+              const summary = shortQuestion(a.text);
 
               return (
                 <li
@@ -888,19 +899,27 @@ async function startExam() {
                   ref={i === asked.length - 1 ? lastAskedRef : null}
                   className="grid grid-cols-[12px_1fr] items-start gap-2"
                 >
-                  <span className={`h-2.5 w-2.5 rounded-full self-start mt-2 flex-none ${dot}`} aria-hidden />
+                  <span className={`mt-2 h-2.5 w-2.5 flex-none self-start rounded-full ${dot}`} aria-hidden />
                   <button
                     type="button"
                     onClick={() => setViewIndex(a.index)}
                     className={[
-                      "block w-full rounded-2xl border px-3 py-2 text-left text-[13px] leading-snug",
+                      "block w-full rounded-2xl border px-3 py-2 text-left text-[12px] leading-snug",
                       "hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400",
                       isView ? "border-blue-400 bg-blue-50 ring-1 ring-blue-300" : "border-blue-200 bg-white",
                       isActive ? "text-gray-900" : "text-gray-800",
                     ].join(" ")}
                     title="Frage ansehen"
                   >
-                    {a.text}
+                    <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                      <span>{labelText}</span>
+                      {scoreText ? (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-700 tabular-nums">
+                          {scoreText}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-1 line-clamp-2 text-[12px] text-gray-600">{summary}</div>
                   </button>
                 </li>
               );
@@ -978,13 +997,7 @@ async function startExam() {
                 Klicke auf <b>Prüfung starten</b>, um zu beginnen.
               </div>
             )}
-            {ended && (
-              <div className="mt-2 text-sm text-green-700">
-                ✅ Fall abgeschlossen — Score {Number.isInteger(totalScorePct)
-                  ? totalScorePct
-                  : totalScorePct.toFixed(1)}%
-              </div>
-            )}
+            {ended && <div className="mt-2 text-sm text-green-700">✅ Fall abgeschlossen</div>}
           </div>
 
           {/* Eingabezeile */}
