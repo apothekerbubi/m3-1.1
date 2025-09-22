@@ -3,14 +3,14 @@
 import { CheckCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/solid";
 
 type Props = {
-  points: number;         // kann jetzt auch Dezimalwert sein (z. B. 1.5)
-  maxPoints: number;
+  pct: number; // 0-100
   last: "correct" | "partially_correct" | "incorrect" | null;
+  detail?: string | null;
 };
 
-export default function ScorePill({ points, maxPoints, last }: Props) {
-  const pct = maxPoints > 0 ? Math.round((points / maxPoints) * 100) : 0;
-  const fmt = (n: number) => (Number.isInteger(n) ? n.toString() : n.toFixed(1));
+export default function ScorePill({ pct, last, detail }: Props) {
+  const clampedPct = Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) : 0;
+  const pctText = Number.isInteger(clampedPct) ? `${clampedPct}%` : `${clampedPct.toFixed(1)}%`;
 
   const tone =
     last === "correct" ? "bg-green-100 text-green-800 border-green-200" :
@@ -23,8 +23,8 @@ export default function ScorePill({ points, maxPoints, last }: Props) {
       {last === "correct" ? <CheckCircleIcon className="h-4 w-4" /> :
        last ? <ExclamationTriangleIcon className="h-4 w-4" /> : null}
       <span className="font-medium">Score</span>
-      <span className="tabular-nums">{fmt(points)}/{fmt(maxPoints)}</span>
-      <span className="opacity-70">({pct}%)</span>
+      <span className="tabular-nums">{pctText}</span>
+      {detail ? <span className="opacity-70">{detail}</span> : null}
     </div>
   );
 }

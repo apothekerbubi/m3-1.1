@@ -18,6 +18,7 @@ type ApiOut = {
     | {
         correctness: "correct" | "partially_correct" | "incorrect";
         feedback: string;
+        score?: number;
         tips?: string;
       }
     | null;
@@ -64,6 +65,7 @@ type BodyIn = {
   stepIndex?: number;
   stepsPrompts?: string[];
   stepRule?: RuleJson | null;
+  stepSolutions?: string | string[];
 };
 
 /* ---------------------- Utils ---------------------- */
@@ -197,6 +199,21 @@ function buildStudentUnion(studentTexts: string[], rule: RuleJson | null): strin
   return Array.from(new Set(hits));
 }
 
+function summarizeRuleForSolution(rule: RuleJson | null): string {
+  if (!rule) return "";
+  const entries = collectCanonAndSynonyms(rule);
+  const keywords = entries.map((e) => e.canon).filter(Boolean);
+  if (keywords.length === 0) return "";
+  const preview = keywords.slice(0, 12).join(", ");
+  return `Wichtige Aspekte: ${preview}`;
+}
+
+function buildSolutionText(stepSolutions: string[], rule: RuleJson | null): string {
+  if (stepSolutions.length > 0) return stepSolutions.join("\n");
+  const fallback = summarizeRuleForSolution(rule);
+  return fallback || "(Keine Musterlösung hinterlegt – nutze die Regelbeschreibung als Referenz)";
+}
+
 /* ---------------------- Handlers ---------------------- */
 
 export async function GET() {
@@ -248,6 +265,14 @@ export async function POST(req: NextRequest) {
     const stepIndex = typeof body.stepIndex === "number" ? body.stepIndex : 0;
     const stepsPrompts = Array.isArray(body.stepsPrompts) ? body.stepsPrompts : [];
     const stepRule = body.stepRule ?? null;
+    const stepSolutionsRaw = body.stepSolutions;
+    const stepSolutions = Array.isArray(stepSolutionsRaw)
+      ? stepSolutionsRaw
+          .map((s) => (typeof s === "string" ? s.trim() : ""))
+          .filter((s) => s.length > 0)
+      : typeof stepSolutionsRaw === "string"
+      ? [stepSolutionsRaw.trim()].filter((s) => s.length > 0)
+      : [];
 
     // Abgeleitete Prompts
     const currentPrompt =
@@ -278,6 +303,7 @@ const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 
     const studentTextsWindow = studentSinceLastExaminerQuestion(transcript);
     const student_so_far_text = studentTextsWindow.join("\n").trim();
     const student_union = buildStudentUnion(studentTextsWindow, stepRule);
+    const model_solution_text = buildSolutionText(stepSolutions, stepRule);
 
     /* ---------- MODE A: Tipp (nur per Button) ---------- */
     if (tipRequest) {
@@ -336,27 +362,34 @@ const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 
   /* ---------- MODE B: Lösung (nur per Button) ---------- */
     if (solutionRequest) {
       const sysSolution = `Du bist Prüfer:in am 2. Tag (Theorie) des 3. Staatsexamens (M3).
-        Ziel: Formuliere eine kompakte Musterlösung zur CURRENT_STEP_PROMPT.
+        Ziel: Formuliere eine Musterlösung zur CURRENT_STEP_PROMPT, die klar zeigt, welche fachlichen Kernaspekte aus der offiziellen MODELLÖSUNG der Studierende noch NICHT genannt hat.
 
         Vorgehen:
-        - Greife nur auf Vignette + offiziell preisgegebene Informationen dieses Falls/Schritts zurück.
-        - Beziehe STUDENT_TEXT ein, indem du würdigst, was bereits genannt wurde, und setze die fehlenden Kernelemente klar dagegen.
-        - Strukturiere nach Leitgedanken (Diagnose, Kernaussagen, Differenzialdiagnosen, nächster Schritt).
+        - Vergleiche STUDENT_UNION mit der MODELLÖSUNG, erkenne treffend benannte Inhalte und fokussiere die fehlenden Punkte.
+        - Nutze ausschließlich Informationen aus Vignette + offiziell freigegebenem Material dieses Falls/Schritts.
+        - Halte den Stil sachlich, prüfungsnah und ohne Emojis.
 
         Format:
-        - Satz 1: Kurze wertschätzende Einordnung der bisherigen Antwort (Sie-Form).
-        - Satz 2–3: "Lösung: …" mit der Kernantwort.
-        - Danach 2–3 Bulletpoints (•) mit den wichtigsten Ergänzungen/Begründungen.
-        - Kein weiterer Fließtext, keine Fragen, keine Emojis.
+        - Satz 1: Wertschätzende Rückmeldung in der Sie-Form mit kurzem Bezug auf bereits genannte Aspekte.
+        - Überschrift "Noch offen:" und 2–4 Bulletpoints (•) mit den wichtigsten fachlichen Aussagen, die fehlen. Wenn alles benannt wurde, verwende einen Bulletpoint "Sie haben alle Kernpunkte bereits angesprochen.".
+        - Überschrift "Komplette Lösung:" gefolgt von 1–2 Sätzen, die die vollständige Musterlösung (inkl. der fehlenden Aspekte) prägnant zusammenfassen.
+        - Optional Überschrift "Warum wichtig:" mit bis zu 2 Bulletpoints, wenn kurze Kontextualisierung nötig ist.
+        - Keine Fragen, kein Smalltalk, kein Meta-Kommentar.
         - Deutsch.`;
 
-              const usrSolution = `Vignette: ${caseText}
+      const usrSolution = `Vignette: ${caseText}
         CURRENT_STEP_PROMPT: ${currentPrompt || "(unbekannt)"}
         RULE_JSON (für CURRENT_STEP_PROMPT):
         ${JSON.stringify(stepRule ?? {}, null, 2)}
 
-        STUDENT_TEXT:
+        STUDENT_TEXT (kumuliert):
         ${student_so_far_text || "(leer)"}
+
+        STUDENT_UNION (dedupliziert):
+        ${student_union.join(", ") || "(leer)"}
+
+        MODELLÖSUNG:
+        ${model_solution_text}
 
         ${outline.length ? `Prüfungs-Outline: ${outline.join(" • ")}` : ""}
         ${completion ? `COMPLETION: ${JSON.stringify(completion)}` : ""}
@@ -374,10 +407,8 @@ const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 
       const sayRaw = (outSolution.choices?.[0]?.message?.content || "").trim();
       const sayClean = stripMd(sayRaw).replace(/\n{3,}/g, "\n\n").trim();
       const say = sayClean
-        ? sayClean.match(/^lösung/i)
-          ? sayClean
-          : `Lösung: ${sayClean}`
-        : "Lösung: (Kurz würdigen, dann 2–3 Kernaussagen und nächste Schritte als Bulletpoints.)";
+        ? sayClean
+        : "Noch offen:\n• (Fehlende Kernpunkte knapp benennen)\nKomplette Lösung: (In 1–2 Sätzen zusammenfassen)";
 
       const payload: ApiOut = {
         say_to_student: say,
@@ -386,14 +417,14 @@ const effectiveAttempt = gaveUp ? 3 : Math.max(inferredAttempt, attemptStage ?? 
         end: false,
       };
 
-       if (userId) {
+      if (userId) {
         void logTurn(supabase, {
           userId,
           caseId,
           attemptStage,
-          tipRequest: true,
+          tipRequest: false,
           explainRequest: false,
-          solutionRequest: false,
+          solutionRequest: true,
           clarifyQuestion: null,
           focusQuestion: currentPrompt || null,
           lastStudentAnswer: lastStudentText || null,
@@ -603,6 +634,13 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
             - Doppelnennungen zählen nicht mehrfach;
             - Falls etwas falsch geschrieben ist, z.b. Rechtschreibung stark abweichend; Tippfehler, ausgelassene Buchstaben, verdrehte Buchstaben und Schreibweisen nach Lautsprache (z. B. „Kolezüstitis“ für „Cholezystitis“), dann auch als richtig zählen.
 
+            MUSTERLÖSUNG & SCORE
+            - Nutze MODEL_SOLUTION als Referenztext für inhaltliche Vollständigkeit.
+            - Vergib einen Score zwischen 0 und 100 (ganze Zahl). 100 = perfekte Deckung, 0 = unpassend.
+            - Score ≥ 85 ⇒ correctness="correct"; Score 60–84 ⇒ "partially_correct"; Score < 60 ⇒ "incorrect".
+            - Spätere Ergänzungen dürfen den Score verbessern – bewerte kumulativ.
+            - Falls MODEL_SOLUTION nur eine Zusammenfassung liefert, nutze zusätzlich RULE_JSON als Orientierung.
+
             NO-LEAK GUARD (streng, verbindlich, nochmal)
             - In attemptStage 1/2 UND correctness != "correct": KEINE konkreten Inhalte nennen, die noch fehlen.
             - KEINE Aufzählungen („: …“, „z. B. …“, „etwa …“, „wie …“, „insbesondere …“) und KEINE Schlüsselwörter/Beispiele.
@@ -646,7 +684,12 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
             AUSGABE NUR als JSON exakt:
             {
               "say_to_student": string | null,
-              "evaluation": { "correctness": "correct" | "partially_correct" | "incorrect", "feedback": string } | null,
+              "evaluation": {
+                "score": number,
+                "correctness": "correct" | "partially_correct" | "incorrect",
+                "feedback": string,
+                "tips"?: string
+              } | null,
               "next_question": string | null,
               "end": boolean
             }`;
@@ -655,6 +698,8 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
 
 CURRENT_STEP_PROMPT: ${currentPrompt || "(unbekannt)"}
 NEXT_STEP_PROMPT: ${nextPrompt ?? "(keine – letzter Schritt)"}
+MODEL_SOLUTION:
+${model_solution_text}
 RULE_JSON (für CURRENT_STEP_PROMPT):
 ${JSON.stringify(stepRule ?? {}, null, 2)}
 
@@ -704,6 +749,19 @@ Erzeuge NUR das JSON-Objekt.`.trim();
           tips: payload.evaluation.tips ? stripMd(payload.evaluation.tips) : undefined,
         }
       : null;
+    if (payload.evaluation) {
+      const rawScore = Number(payload.evaluation.score);
+      const safeScore = Number.isFinite(rawScore) ? Math.max(0, Math.min(100, Math.round(rawScore))) : 0;
+      payload.evaluation.score = safeScore;
+      if (!payload.evaluation.correctness ||
+        !["correct", "partially_correct", "incorrect"].includes(payload.evaluation.correctness)) {
+        payload.evaluation.correctness = safeScore >= 85
+          ? "correct"
+          : safeScore >= 60
+          ? "partially_correct"
+          : "incorrect";
+      }
+    }
     payload.next_question = stripMd((payload.next_question ?? "") as string) || null;
     payload.end = Boolean(payload.end);
 
