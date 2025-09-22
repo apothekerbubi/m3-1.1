@@ -18,6 +18,7 @@ type ApiOut = {
     | {
         correctness: "correct" | "partially_correct" | "incorrect";
         feedback: string;
+        score?: number;
         tips?: string;
       }
     | null;
