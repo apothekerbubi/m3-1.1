@@ -97,6 +97,11 @@ export type Step = {
   prompt: string;         // Aufgabenstellung
   hint?: string;          // optionaler Hinweis (spoilerfrei)
   rule: StepRule;         // Bewertungslogik
+  /**
+   * Eine oder mehrere vollständige Musterlösungen. Dient als Referenztext für
+   * das LLM-Scoring (0–100) und kann frei formuliert sein.
+   */
+  solutions?: string | string[];
   image?: StepImage;      // optionales Bild zum Schritt
   reveal?: StepReveal;    // optionale Zusatzinfos
 };

@@ -19,6 +19,7 @@ type Turn = { role: "prof" | "student"; text: string };
 type ApiReply = {
   say_to_student: string | null;
   evaluation: null | {
+    score: number; // 0-100
     correctness: "correct" | "partially_correct" | "incorrect";
     feedback: string;
     tips?: string;
@@ -173,25 +174,31 @@ export default function ExamPage() {
 
   const currentPrompt = stepsOrdered[activeIndex]?.prompt ?? "";
   const stepRule: unknown = stepsOrdered[activeIndex]?.rule ?? null;
-
-  const stepPoints = useMemo<number>(() => {
-    const p = stepsOrdered[activeIndex]?.points;
-    return typeof p === "number" ? p : 2;
+  const stepSolutions = useMemo<string[]>(() => {
+    const raw = stepsOrdered[activeIndex]?.solutions;
+    if (!raw) return [];
+    if (Array.isArray(raw)) {
+      return raw.map((s) => (typeof s === "string" ? s.trim() : "")).filter(Boolean);
+    }
+    return typeof raw === "string" ? [raw.trim()].filter(Boolean) : [];
   }, [stepsOrdered, activeIndex]);
 
   const stepReveal: StepReveal | null = (stepsOrdered[activeIndex]?.reveal ?? null) as StepReveal | null;
 
-  // ❗ maximale Punktzahl
-  const maxPoints = useMemo<number>(
+  const totalWeight = useMemo<number>(
     () => stepsOrdered.reduce((acc, s) => acc + (typeof s.points === "number" ? s.points : 2), 0),
     [stepsOrdered]
   );
 
-  const totalPointsRaw = useMemo<number>(
-    () => perStepScores.reduce((a, b) => a + (b || 0), 0),
-    [perStepScores]
-  );
-  const totalPoints = Math.min(Math.round(totalPointsRaw * 10) / 10, maxPoints);
+  const totalScorePct = useMemo<number>(() => {
+    if (totalWeight <= 0) return 0;
+    const weightedSum = perStepScores.reduce((acc, score, idx) => {
+      const weight = typeof stepsOrdered[idx]?.points === "number" ? stepsOrdered[idx]!.points : 2;
+      return acc + ((score || 0) * weight);
+    }, 0);
+    const avg = weightedSum / totalWeight;
+    return Math.round(avg * 10) / 10;
+  }, [perStepScores, stepsOrdered, totalWeight]);
 
   // Fortschritt = erledigte Schritte / alle Schritte
   const progressPct = useMemo<number>(() => {
@@ -461,7 +468,7 @@ export default function ExamPage() {
 
     const payload: Record<string, unknown> = {
       caseId: c.id,
-      points: totalPoints,
+      points: totalScorePct,
       progressPct,
       caseText: c.vignette,
       transcript: current.map((t): { role: "examiner" | "student"; text: string } => ({
@@ -476,6 +483,7 @@ export default function ExamPage() {
       stepIndex: activeIndex,
       stepsPrompts: [],
       stepRule,
+      stepSolutions,
       focusQuestion: currentPrompt,
 
       // 🔹 NEU: Felder für die kumulative Bewertung
@@ -509,22 +517,17 @@ export default function ExamPage() {
     if (hadSolution) pushProf(activeIndex, data.say_to_student);
 
     if (data.evaluation && opts.mode === "answer") {
-      const { correctness, feedback, tips } = data.evaluation;
+      const { correctness, feedback, tips, score } = data.evaluation;
+      const safeScore = Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0;
       setLastCorrectness(correctness);
 
       // Punkte (Bestwert je Schritt)
       setPerStepScores((prev) => {
         const curPrev = prev[activeIndex] || 0;
-        const candidate =
-          correctness === "correct"
-            ? stepPoints
-            : correctness === "partially_correct"
-            ? stepPoints * 0.5
-            : 0;
-        const best = Math.max(curPrev, candidate);
+        const best = Math.max(curPrev, safeScore);
         if (best === curPrev) return prev;
         const copy = [...prev];
-        copy[activeIndex] = Math.min(Math.round(best * 10) / 10, stepPoints);
+        copy[activeIndex] = Math.round(best * 10) / 10;
         return copy;
       });
 
@@ -547,7 +550,7 @@ export default function ExamPage() {
       });
 
       const parts = [
-        `${label(correctness)} — ${feedback}`,
+        `Score ${Number.isInteger(safeScore) ? safeScore : safeScore.toFixed(1)}/100 — ${label(correctness)} — ${feedback}`,
         correctness !== "correct" && tips ? `Tipp: ${tips}` : "",
       ].filter(Boolean);
       if (!hadSolution) pushProf(activeIndex, parts.join(" "));
@@ -596,8 +599,8 @@ export default function ExamPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           caseId: c.id,
-          score: totalPoints,
-          maxScore: maxPoints,
+          score: totalScorePct,
+          maxScore: 100,
           completed,
         }),
       });
@@ -615,8 +618,8 @@ export default function ExamPage() {
             title: c.title,
             subject: subj,
             category: cat,
-            score: totalPoints,
-            maxScore: maxPoints,
+            score: totalScorePct,
+            maxScore: 100,
             completed,
           },
           {
@@ -838,7 +841,7 @@ async function startExam() {
   </div>
 )}
 
-        <ScorePill points={totalPoints} maxPoints={maxPoints} last={lastCorrectness} />
+        <ScorePill pct={totalScorePct} last={lastCorrectness} />
 
         {/* Schritt-Progressbar */}
 <div className="hidden w-56 sm:block">
@@ -977,8 +980,9 @@ async function startExam() {
             )}
             {ended && (
               <div className="mt-2 text-sm text-green-700">
-                ✅ Fall abgeschlossen — Score {Number.isInteger(totalPoints) ? totalPoints : totalPoints.toFixed(1)}/
-                {maxPoints} ({Math.round(((totalPoints || 0) / Math.max(1, maxPoints)) * 100)}%)
+                ✅ Fall abgeschlossen — Score {Number.isInteger(totalScorePct)
+                  ? totalScorePct
+                  : totalScorePct.toFixed(1)}%
               </div>
             )}
           </div>
