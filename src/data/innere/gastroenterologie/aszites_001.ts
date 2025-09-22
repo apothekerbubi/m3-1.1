@@ -20,204 +20,134 @@ export const aszites_001: Case = {
     {
       order: 1,
       points: 2,
-      prompt: "Welche anamnestischen Fragen stellen Sie?",
-      hint: "Lebererkrankung, Blutungen, Risikofaktoren, B-Symptomatik",
+      prompt:
+        "Sie übernehmen die Betreuung des Patienten. Legen Sie Ihr weiteres Vorgehen strukturiert dar. Nennen Sie die angedachten Maßnahmen und beschreiben Sie diese sowie das genaue Vorgehen präzise.",
+      hint: "",
       rule: {
         mode: "anyOf",
         expected: [
-          "Ich erhebe zunächst eine strukturierte Anamnese, in der ich im Speziellen nach dem Alkoholkonsum, nach weiteren Risikofaktoren wie dem Rauchverhalten, nach bestehenden Vorerkrankungen und möglichen früheren Operationen frage. Außerdem erkundige ich mich nach einer möglichen B-Symptomatik mit ungewolltem Gewichtsverlust, Nachtschweiß oder Fieber sowie nach der aktuell eingenommenen Medikation.",
+          "Der Prüfling soll strukturiert antworten. Die initialen Basismaßnahmen bestehen aus Anamnese, Laboruntersuchung des Blutes sowie körperlicher Untersuchung. Im Weiteren Verlauf kann dann eine orientierende Sonographie erfolgen. Im Spezielleren sollte die Anamnese Fokus auf allgemeinen Aspekten wie Dauer, Art und Verlauf der Symptome, die Frage nach Schmerzen, Vorerkrankungen, momentan eingenommene Medikation und Familienanamnese abzielen. Bei der körperlichen sollte orientierend das Abdomen untersucht werden sowie inspektorisch auf periphere Ödeme und die allgemeine körperlichen Befund des Patienten geachtet werden (Blässe, Schwere Atmung etc.). Die Laboruntersuchung sollte ein kleines Blutbild enthalten, sowie Nieren- und Leberparameter, Gerinnungsparameter untersuchen und die Elektrolytsituation darstellen."
         ],
-        minHits: 2,
+        minHits: 1,
       },
     },
     {
       order: 2,
-      points: 2,
-      prompt: "Sie wollen nun den Patienten körperlich untersuchen, auf was achten Sie im Speziellen?",
-      rule: {
-        mode: "anyOf",
-        expected: [
-          "Bauchumfang vergrößert","prall gefüllter Bauch",
-          "Aszites nachweisbar (Flüssigkeitswelle, shifting dullness)",
-          "Ödeme",
-          "Splenomegalie", "Ikterus",
-        ],
-        minHits: 2,
-      },
-    },
-    {
-      order: 3,
-      points: 2,
-      prompt: "Welche initiale Diagnostik ist indiziert?",
-      rule: {
-        mode: "anyOf",
-        expected: [
-          "Sonografie des Abdomens",
-          "Labor (Leberwerte, Gerinnung, Kreatinin, Elektrolyte)",
-          "Aszitespunktion (Untersuchung Eiweiß, Zellzahl, Mikrobiologie)", 
-        ],
-        minHits: 2,
-      },
-    },
-    {
-      order: 4,
       points: 3,
       prompt:
-        "Sie entschließen sich, eine Abdomensonografie durchzuführen. Dabei ergibt sich folgendes Bild. Beschreiben Sie:",
+        "Bei der körperlichen Untersuchung zeigt sich ein übergewichtig wirkender Mann (BMI 28), wach und orientiert. Er ist blass, die Haut wirkt leicht ikterisch. Am Abdomen imponiert ein deutlich vergrößerter Umfang mit prall-elastischer Konsistenz. Beim Beklopfen besteht eine Shifting Dullness sowie eine tastbare Flüssigkeitswelle. Folgender Laborbefund ist eingetroffen. Beschreiben Sie die Ursache der Veränderung der Laborparameter in Verbindung mit einer passenden Differentialdiagnose.",
       rule: {
         mode: "anyOf",
         expected: [
-          "Aszites", "Echoleere Flüssigkeit um die Leber", 
-          "Hinweis auf Leberzirrhose",
-          
+          "Der Prüfling soll die Laborwerte strukturiert interpretieren und diese schlüssig mit der dafür ursächlichen Leberzirrhose verknüpfen."
         ],
-        minHits: 2,
+        minHits: 1,
       },
       image: {
-        path: "Ultraschall/Aszites.JPG",
-        alt: "Sonografie mit freier Flüssigkeit im Abdomen",
-        caption: "Sonografie des Abdomens: Nachweis von Aszites (freie Flüssigkeit).",
-      },
-    },
-    {
-      order: 5,
-      points: 2,
-      prompt:
-        "Sie haben die anschließende diagnostische Aszitespunktion erfolgreich durchgeführt und wollen nun eine Probe davon zum Labor schicken. Welche Laborparameter sind dabei von besonderem Interesse?",
-      rule: {
-        mode: "anyOf",
-        expected: ["Zellzahl", "Eiweißgehalt", "Mikrobiologische Untersuchung"],
-        minHits: 2,
-      },
-    },
-    {
-      order: 6,
-      points: 3,
-      prompt:
-        "Inzwischen ist auch folgender Laborbefund des Blutes eingetroffen. Interpretieren Sie erst die Ergebnisse und äußern Sie eine dazu passende Differentialdiagnose.",
-      rule: {
-        mode: "anyOf",
-        expected: [
-          "Erhöhte Transaminasen",
-          "Hypoalbuminämie",
-          "Erhöhte INR / Gerinnungsstörung",
-          "Leberzirrhose",
-          "Erhöhte Leberwerte", "erhöhte cholestasewerte", "Lebersynthesefunktion eingeschränkt", "Gerinnungsstörung",
-        ],
-        minHits: 3,
-      },
-      image: {
-        path: "Labor/Leberzirrhose.png",
+        path: "Hepatologie/Laborbefund_Leberzirrhose.png",
         alt: "Laborbefund mit erhöhten Transaminasen und erniedrigtem Albumin",
         caption: "Typischer Laborbefund bei fortgeschrittener Leberzirrhose.",
       },
     },
     {
-      order: 7,
+      order: 3,
       points: 3,
-      prompt: "Welche typischen Ursachen einer portalen Hypertension kennen Sie?",
+      prompt:
+        "Sie entschließen sich, eine Abdomensonografie durchzuführen. Dabei ergibt sich folgendes Bild. Beschreiben Sie zuerst das gezeigte Bild und gehen Sie auf die gezeigten Pathologien ein.",
+      rule: {
+        mode: "anyOf",
+        expected: [
+          "Der Prüfling soll strukturiert die wesentlichen Objekte im Bild benennen und beschreiben (Leber, Flüssigkeitsansammlung um die Leber, Gallenblase, Vena cava). Dabei soll der Nachweis der Flüssigkeit um die Leber als Aszites und die echoreichere Leber als Hinweis auf Leberzirrhose gedeutet werden."
+        ],
+        minHits: 1,
+      },
+      image: {
+        path: "Hepatologie/Aszites_Sono.png",
+        alt: "Sonografie mit freier Flüssigkeit im Abdomen",
+        caption: "Sonografie des Abdomens: Nachweis von Aszites (freie Flüssigkeit).",
+      },
+    },
+    {
+      order: 4,
+      points: 2,
+      prompt:
+        "In welchen Fällen führt man eine diagnostische Aszitespunktion durch und welche Laborparameter der Probe sind von Interesse?",
+      rule: {
+        mode: "anyOf",
+        expected: [
+          "Der Prüfling soll rekapitulieren, dass jeder neu diagnostizierte Aszites diagnostisch punktiert werden sollte. Wichtig sind dabei die Leukozytenzahl, der Eiweißgehalt und die mikrobiologische Untersuchung des Probenmaterials."
+        ],
+        minHits: 1,
+      },
+    },
+    {
+      order: 5,
+      points: 3,
+      prompt:
+        "Welche Ursachen einer portalen Hypertension kennen Sie? Nennen Sie die Ihnen bekannten Ursachen und teilen Sie diese systemisch ein.",
       hint: "Prä-, intra- und posthepatisch unterscheiden",
       rule: {
         mode: "anyOf",
         expected: [
-          "Pfortaderthrombose",
-          "Leberzirrhose",
-          "Schistosomiasis",
-          "Sinusoidales Okklusionssyndrom",
-          "Budd-Chiari-Syndrom",
-          "(Rechts)herzinsuffizienz",
-          "Pericarditis constrictiva",
-          "Leber(teil)resektion",
+          "Die Ursachen der portalen Hypertension lassen sich in prähepatische, intrahepatische und posthepatische Formen einteilen: Prähepatisch z. B. Pfortaderthrombose; intrahepatisch vor allem die Leberzirrhose, seltener Schistosomiasis oder ein sinusoidales Okklusionssyndrom; posthepatisch Budd-Chiari-Syndrom, Rechtsherzinsuffizienz oder eine konstriktive Perikarditis."
         ],
-        minHits: 3,
+        minHits: 1,
       },
     },
-
-    // 🔥 Akute Notfallsituation
     {
-      order: 8,
+      order: 6,
       points: 2,
       prompt:
-        "Während Sie die Laborwerte interpretieren, klagt der Patient plötzlich über Schwindel, wird blass und beginnt Blut zu erbrechen. Welche Symptome deuten auf eine akute Varizenblutung hin?",
+        "Der Patient klagt plötzlich über Schwindel, wird blass und beginnt Blut zu erbrechen. Worauf deuten die Symptome in Zusammenschau mit den bisherigen Befunden des Patienten hin?",
       rule: {
         mode: "anyOf",
         expected: [
-          "Hämatemesis",
-          "Schockzeichen (Tachykardie, Hypotonie, Blässe, Kaltschweißigkeit)",
-          "Schwindel", "Synkope",
-          "Frischblutiges Erbrechen",
+          "Die Symptome deuten auf eine akute obere gastrointestinale Blutung hin, am wahrscheinlichsten eine Ösophagusvarizenblutung im Rahmen der bekannten portalen Hypertension. Dafür sprechen die Hämatemesis in Kombination mit den Schockzeichen wie Schwindel, Blässe und Hypotonie."
         ],
-        minHits: 2,
+        minHits: 1,
       },
     },
     {
-      order: 9,
+      order: 7,
       points: 3,
       prompt: "Welche sofortigen Maßnahmen zur Kreislaufstabilisierung leiten Sie ein?",
       rule: {
         mode: "anyOf",
         expected: [
-          "Schocklage",
-          "Bluttransfusion je nach Schwere", "Magensonde", "Absaugen Blut", "Schutzintubation als Aspirationsprophylaxe",
-          "Sauerstoffgabe",
-          "Volumentherapie",
-          "Anlage von großlumigen Zugängen",
-          "Vorbereitung einer Bluttransfusion",
+          "Zunächst bringe ich den Patienten in Schocklage und verabreiche Sauerstoff zur Sicherung der Oxygenierung. Parallel lege ich zwei großlumige periphere i.v.-Zugänge, beginne mit einer Volumentherapie unter engmaschiger Kreislaufüberwachung und bereite die Gabe von Blutprodukten vor. Zusätzlich würde ich die Anlage eines Monitorings (EKG, Blutdruck, SpO₂) veranlassen und frühzeitig den Notfall-Laborstatus einschließlich Kreuzblut abnehmen."
         ],
-        minHits: 2,
+        minHits: 1,
       },
     },
     {
-      order: 10,
+      order: 8,
       points: 3,
       prompt:
-        "Sie leiten umgehend die Notfallversorgung ein. Welches Verfahren ist hier abgebildet?",
+        "Sie leiten umgehend die Notfallversorgung ein. Welches Verfahren ist hier abgebildet? Welche Alternativen hierzu gibt es in der Akutsituation?",
       rule: {
         mode: "anyOf",
         expected: [
-          "Ösophagusvarizenligatur", 
-          "Gummibandligatur",
-          "Endoskopische Ligatur",
+          "Das abgebildete Verfahren ist die endoskopische Varizenligatur, bei der Ösophagusvarizen mit Gummibändern abgebunden werden, um die Blutung direkt zu stillen. Sie gilt als Standardverfahren in der Akutsituation. Als Alternativen stehen die endoskopische Sklerotherapie, die medikamentöse Therapie mit vasoaktiven Substanzen wie Terlipressin oder Somatostatin/Octreotid sowie in seltenen Notfällen die Ballontamponade mittels Sengstaken-Blakemore-Sonde zur Verfügung."
         ],
         minHits: 1,
       },
       image: {
-        path: "Endoskopie/Oesophagusvarizenligatur.png",
-        alt: "Sonografie mit freier Flüssigkeit im Abdomen",
-        caption: "Sonografie des Abdomens: Nachweis von Aszites (freie Flüssigkeit).",
-      },
-    },
-
-    {
-      order: 11,
-      points: 3,
-      prompt:
-        "Welche spezifischen Therapien zur Blutstillung bei Ösophagusvarizenblutung kommen außerdem infrage ?",
-      rule: {
-        mode: "anyOf",
-        expected: [
-          "Terlipressin oder Somatostatin/Octreotid",
-          "Sklerotherapie (falls Ligatur nicht möglich)",
-          "Ballontamponade (Sengstaken-Blakemore-Sonde) als Notfallmaßnahme", "Stenting Ösophagus", "TIPS",
-        ],
-        minHits: 1,
+        path: "Hepatologie/Varizenligatur.png",
+        alt: "Endoskopische Varizenligatur",
+        caption: "Endoskopische Varizenligatur bei Ösophagusvarizenblutung.",
       },
     },
     {
-      order: 12,
+      order: 9,
       points: 2,
       prompt:
-        "Welche Maßnahmen ergreifen Sie zur Sekundärprophylaxe nach einer überstandenen Varizenblutung?",
+        "Sie wollen nach erfolgreicher Intervention Ihren Patienten nach Hause entlassen. Welche Maßnahmen ergreifen Sie zur Sekundärprophylaxe nach einer überstandenen Varizenblutung?",
       rule: {
         mode: "anyOf",
         expected: [
-          "Nicht-selektive Betablocker (z.B. Propranolol)",
-          "Regelmäßige endoskopische Ligatur",
-          "TIPS bei rezidivierender Blutung",
-          "Alkoholkarenz",
-          "Therapie der Grunderkrankung (Leberzirrhose)", 
+          "Zur Sekundärprophylaxe nach einer überstandenen Varizenblutung setze ich nicht-selektive Betablocker wie Propranolol ein, führe regelmäßige endoskopische Ligaturen der verbliebenen Varizen durch und empfehle eine strikte Alkoholkarenz. Bei rezidivierenden Blutungen kann ein TIPS erwogen werden; zudem behandle ich konsequent die zugrunde liegende Leberzirrhose."
         ],
-        minHits: 2,
+        minHits: 1,
       },
     },
   ],

@@ -588,6 +588,12 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
             - Beziehe dich NUR auf Vignette + bereits preisgegebene Infos.
             - Bewerte ausschließlich die AKTUELLE Frage (CURRENT_STEP_PROMPT).
 
+            NO-LEAK GUARD (streng, verbindlich)
+            - In attemptStage 1/2 UND correctness != "correct": KEINE konkreten Inhalte nennen, die noch fehlen.
+            - KEINE Aufzählungen („: …“, „z. B. …“, „etwa …“, „wie …“, „insbesondere …“) und KEINE Schlüsselwörter/Beispiele.
+            - Nur Meta-Hinweis (max. 1 Satz), z. B.: „Es fehlen noch mehrere Bereiche; strukturieren Sie vollständig.“
+            - Maximale Länge von evaluation.feedback bei attemptStage 1/2: 2 Sätze, keine Listen/Beispiele.
+
             KUMULATIVE WERTUNG (wichtig)
             - Entscheide die Korrektheit nach der **Gesamtheit** der bisher genannten Inhalte in diesem Schritt.
             - Du erhältst dazu strukturierte Felder:
@@ -597,7 +603,7 @@ Gib NUR den kurzen Erklärungstext zurück (1–2 Sätze + optional bis zu 2 Bul
             - Doppelnennungen zählen nicht mehrfach;
             - Falls etwas falsch geschrieben ist, z.b. Rechtschreibung stark abweichend; Tippfehler, ausgelassene Buchstaben, verdrehte Buchstaben und Schreibweisen nach Lautsprache (z. B. „Kolezüstitis“ für „Cholezystitis“), dann auch als richtig zählen.
 
-            NO-LEAK GUARD (streng, verbindlich)
+            NO-LEAK GUARD (streng, verbindlich, nochmal)
             - In attemptStage 1/2 UND correctness != "correct": KEINE konkreten Inhalte nennen, die noch fehlen.
             - KEINE Aufzählungen („: …“, „z. B. …“, „etwa …“, „wie …“, „insbesondere …“) und KEINE Schlüsselwörter/Beispiele.
             - Nur Meta-Hinweis (max. 1 Satz), z. B.: „Es fehlen noch mehrere Bereiche; strukturieren Sie vollständig.“
