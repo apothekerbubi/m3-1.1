@@ -129,13 +129,13 @@ export default function ReflectionPage() {
 
   if (!caseId) {
     return (
-      <main className="min-h-screen bg-slate-950 py-12 text-slate-100">
+      <main className="min-h-screen bg-white py-12 text-slate-900">
         <div className="mx-auto max-w-3xl px-6">
           <h1 className="text-3xl font-semibold tracking-tight">Fall nicht gefunden</h1>
-          <p className="mt-3 text-sm text-slate-300">Bitte wählen Sie einen Fall aus der Übersicht.</p>
+          <p className="mt-3 text-sm text-slate-600">Bitte wählen Sie einen Fall aus der Übersicht.</p>
           <Link
             href="/subjects"
-            className="mt-6 inline-flex items-center justify-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+            className="mt-6 inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Zur Übersicht
           </Link>
@@ -146,10 +146,10 @@ export default function ReflectionPage() {
 
   if (error) {
     return (
-      <main className="min-h-screen bg-slate-950 py-12 text-slate-100">
+      <main className="min-h-screen bg-white py-12 text-slate-900">
         <div className="mx-auto max-w-3xl px-6">
           <h1 className="text-3xl font-semibold tracking-tight">Auswertung nicht verfügbar</h1>
-          <p className="mt-3 text-sm text-slate-300">{error}</p>
+          <p className="mt-3 text-sm text-slate-600">{error}</p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               href={`/exam/${caseId}`}
@@ -159,7 +159,7 @@ export default function ReflectionPage() {
             </Link>
             <Link
               href="/subjects"
-              className="inline-flex items-center justify-center rounded-full border border-white/20 bg-white/10 px-5 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               Zur Übersicht
             </Link>
@@ -172,33 +172,33 @@ export default function ReflectionPage() {
   const display = analysis && snapshot ? analysis : snapshot ? buildFallback(snapshot) : null;
 
   return (
-    <main className="min-h-screen bg-slate-950 py-10 text-slate-100">
+    <main className="min-h-screen bg-white py-10 text-slate-900">
       <div className="mx-auto max-w-5xl px-6">
         <div className="mb-10">
           <button
             type="button"
             onClick={() => router.back()}
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:bg-white/20 hover:text-white"
+            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 transition hover:bg-slate-50 hover:text-slate-800"
           >
             ← Zurück
           </button>
         </div>
         {snapshot ? (
           <header className="relative mb-12 overflow-hidden rounded-3xl bg-gradient-to-br from-sky-500 via-indigo-500 to-fuchsia-500 p-[1px] shadow-2xl">
-            <div className="rounded-[calc(1.5rem-1px)] bg-slate-950/90 px-8 py-12 text-center sm:px-12">
-              <span className="inline-flex items-center justify-center rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.4em] text-white/80">
+            <div className="rounded-[calc(1.5rem-1px)] bg-white px-8 py-12 text-center sm:px-12">
+              <span className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1 text-xs font-semibold uppercase tracking-[0.4em] text-slate-500">
                 Fall-Auswertung
               </span>
-              <h1 className="mt-6 text-4xl font-semibold text-white">Gesamtscore</h1>
-              <div className="mt-3 text-6xl font-bold text-white">{snapshot.totalScore.toFixed(1)}%</div>
-              <p className="mt-6 text-base text-slate-200">{snapshot.caseTitle}</p>
-              <p className="mt-1 text-xs uppercase tracking-widest text-slate-300">
+              <h1 className="mt-6 text-4xl font-semibold text-slate-900">Gesamtscore</h1>
+              <div className="mt-3 text-6xl font-bold text-slate-900">{snapshot.totalScore.toFixed(1)}%</div>
+              <p className="mt-6 text-base text-slate-600">{snapshot.caseTitle}</p>
+              <p className="mt-1 text-xs uppercase tracking-widest text-slate-400">
                 Abgeschlossen am {new Date(snapshot.completedAt).toLocaleString()}
               </p>
               {display ? (
-                <div className="mt-10 rounded-2xl border border-white/10 bg-slate-900/80 px-6 py-6 text-left shadow-inner">
-                  <h2 className="text-lg font-semibold text-white">Gesamtfazit</h2>
-                  <p className="mt-3 whitespace-pre-line text-base text-slate-100/80">{display.overview}</p>
+                <div className="mt-10 rounded-2xl border border-slate-200 bg-slate-50 px-6 py-6 text-left shadow-inner">
+                  <h2 className="text-lg font-semibold text-slate-900">Gesamtfazit</h2>
+                  <p className="mt-3 whitespace-pre-line text-base text-slate-700">{display.overview}</p>
                 </div>
               ) : null}
             </div>
@@ -206,7 +206,7 @@ export default function ReflectionPage() {
         ) : null}
 
         {loading && (
-          <div className="mb-10 rounded-2xl border border-dashed border-white/20 bg-white/5 px-6 py-5 text-sm text-slate-200">
+          <div className="mb-10 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-5 text-sm text-slate-600">
             Die Stärken-Schwächen-Analyse wird geladen …
           </div>
         )}
@@ -214,22 +214,22 @@ export default function ReflectionPage() {
         {display ? (
           <section className="space-y-8">
             <div className="grid gap-6 lg:grid-cols-2">
-              <article className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-6 shadow-lg shadow-emerald-500/10">
-                <h3 className="text-lg font-semibold text-emerald-200">Stärken</h3>
-                <ul className="mt-3 space-y-2 text-sm text-emerald-50/80">
+              <article className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 shadow-lg shadow-emerald-200/40">
+                <h3 className="text-lg font-semibold text-emerald-800">Stärken</h3>
+                <ul className="mt-3 space-y-2 text-sm text-emerald-900/80">
                   {display.strengths.map((item, idx) => (
-                    <li key={`strength-${idx}`} className="rounded-lg bg-white/5 px-3 py-2">
+                    <li key={`strength-${idx}`} className="rounded-lg bg-white px-3 py-2 text-emerald-800">
                       {item}
                     </li>
                   ))}
                 </ul>
               </article>
 
-              <article className="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-6 shadow-lg shadow-amber-500/10">
-                <h3 className="text-lg font-semibold text-amber-200">Schwächen</h3>
-                <ul className="mt-3 space-y-2 text-sm text-amber-50/80">
+              <article className="rounded-2xl border border-amber-200 bg-amber-50 p-6 shadow-lg shadow-amber-200/50">
+                <h3 className="text-lg font-semibold text-amber-800">Schwächen</h3>
+                <ul className="mt-3 space-y-2 text-sm text-amber-900/80">
                   {display.weaknesses.map((item, idx) => (
-                    <li key={`weakness-${idx}`} className="rounded-lg bg-white/5 px-3 py-2">
+                    <li key={`weakness-${idx}`} className="rounded-lg bg-white px-3 py-2 text-amber-800">
                       {item}
                     </li>
                   ))}
@@ -237,11 +237,11 @@ export default function ReflectionPage() {
               </article>
             </div>
 
-            <article className="rounded-2xl border border-sky-400/40 bg-sky-500/10 p-6 shadow-lg shadow-sky-500/10">
-              <h3 className="text-lg font-semibold text-sky-200">Konkrete Verbesserungsschritte</h3>
-              <ul className="mt-3 space-y-2 text-sm text-sky-50/80">
+            <article className="rounded-2xl border border-sky-200 bg-sky-50 p-6 shadow-lg shadow-sky-200/50">
+              <h3 className="text-lg font-semibold text-sky-800">Konkrete Verbesserungsschritte</h3>
+              <ul className="mt-3 space-y-2 text-sm text-sky-900/80">
                 {display.improvements.map((item, idx) => (
-                  <li key={`improve-${idx}`} className="rounded-lg bg-white/5 px-3 py-2">
+                  <li key={`improve-${idx}`} className="rounded-lg bg-white px-3 py-2 text-sky-800">
                     {item}
                   </li>
                 ))}
@@ -253,7 +253,7 @@ export default function ReflectionPage() {
         <div className="mt-12 flex flex-wrap gap-4">
           <Link
             href={`/exam/${caseId}`}
-            className="inline-flex items-center justify-center rounded-full border border-white/20 bg-white/10 px-5 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+            className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Fall erneut üben
           </Link>
@@ -267,7 +267,7 @@ export default function ReflectionPage() {
           ) : null}
           <Link
             href="/subjects"
-            className="inline-flex items-center justify-center rounded-full border border-white/20 bg-white/10 px-5 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+            className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Zur Fallübersicht
           </Link>
