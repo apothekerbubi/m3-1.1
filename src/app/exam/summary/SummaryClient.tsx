@@ -146,7 +146,7 @@ export default function SummaryClient() {
     <main className="mx-auto max-w-5xl p-6">
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Dein Simulationsergebnis</h1>
-        <ScorePill points={flat.totalScore} maxPoints={flat.totalMax} last={null} />
+         <ScorePill pct={totalPct} last={null} detail={`${flat.totalScore}/${flat.totalMax}`} />
         <span className="ml-auto rounded-full border px-2.5 py-1 text-xs">{badge}</span>
       </div>
 
@@ -156,7 +156,8 @@ export default function SummaryClient() {
         <section className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-gray-700">Gesamtleistung</h2>
           <div className="mt-2 text-sm text-gray-800">
-            Score: <b>{flat.totalScore}</b> / <b>{flat.totalMax}</b>
+             Score: <b>{totalPct}%</b>
+            <span className="text-xs text-gray-500"> ({flat.totalScore}/{flat.totalMax})</span>
           </div>
           <div className="mt-2">
             <ProgressBar value={totalPct} />

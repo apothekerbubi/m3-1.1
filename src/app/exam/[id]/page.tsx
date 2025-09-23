@@ -6,8 +6,9 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { CASES } from "@/data/cases";
 import type { Case, Step, StepReveal } from "@/lib/types";
+import { saveReflectionSnapshot } from "@/lib/reflectionStore";
+import type { ReflectionTurn } from "@/lib/reflectionStore";
 import ProgressBar from "@/components/ProgressBar";
-import ScorePill from "@/components/ScorePill";
 import CaseImagePublic from "@/components/CaseImagePublic";
 
 
@@ -20,6 +21,7 @@ type ApiReply = {
   say_to_student: string | null;
   evaluation: null | {
     correctness: "correct" | "partially_correct" | "incorrect";
+     score: number; // 0-100
     feedback: string;
     tips?: string;
   };
@@ -28,6 +30,45 @@ type ApiReply = {
 };
 
 type Asked = { index: number; text: string; status: "pending" | "correct" | "partial" | "incorrect" };
+
+function shortQuestion(text: string): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return "Frage";
+  const words = normalized.split(" ");
+  const cropped = words.slice(0, 8).join(" ");
+  if (cropped.length >= normalized.length) return normalized;
+  return `${cropped}…`;
+}
+
+function solutionTextForStep(step?: Step | null): string {
+  if (!step) return "";
+  const { solutions } = step;
+  if (!solutions) return "";
+  if (Array.isArray(solutions)) {
+    return solutions.map((s) => (typeof s === "string" ? s.trim() : "")).filter(Boolean).join("\n\n");
+  }
+  return typeof solutions === "string" ? solutions.trim() : "";
+}
+
+function buildStudentUnionFromTurns(turns: Turn[]): string[] {
+  const items = turns
+    .filter((t) => t.role === "student")
+    .map((t) => t.text)
+    .join(" ; ")
+    .split(/[,;\/\n\r]+/g)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of items) {
+    const key = item.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
 
 type ObjMin = { id: string; label: string };
 type CompletionRules = { minObjectives: number; maxLLMTurns?: number; hardStopTurns?: number };
@@ -102,9 +143,9 @@ export default function ExamPage() {
   const caseId = Array.isArray(rawId) ? rawId[0] : rawId;
   const c = (CASES.find((x) => x.id === caseId) ?? null) as CaseWithRules | null;
 
-  // Router + Verzögerungsdauer
+  // Router
   const router = useRouter();
-  const REDIRECT_AFTER_MS = 900;
+ 
 
   // -------- Serie (aus Query ?s=...,&i=...,&sid=...) – OHNE useSearchParams --------
   function readSeriesFromLocation() {
@@ -149,8 +190,7 @@ export default function ExamPage() {
 
   // Punkte pro Schritt (Bestwert)
   const [perStepScores, setPerStepScores] = useState<number[]>([]);
-  const [lastCorrectness, setLastCorrectness] =
-    useState<"correct" | "partially_correct" | "incorrect" | null>(null);
+  
 
   // Versuchszähler für den aktiven Schritt
   const [attemptCount, setAttemptCount] = useState<number>(0);
@@ -174,24 +214,31 @@ export default function ExamPage() {
   const currentPrompt = stepsOrdered[activeIndex]?.prompt ?? "";
   const stepRule: unknown = stepsOrdered[activeIndex]?.rule ?? null;
 
-  const stepPoints = useMemo<number>(() => {
-    const p = stepsOrdered[activeIndex]?.points;
-    return typeof p === "number" ? p : 2;
+const stepSolutions = useMemo<string[]>(() => {
+    const raw = stepsOrdered[activeIndex]?.solutions;
+    if (!raw) return [];
+    if (Array.isArray(raw)) {
+      return raw.map((s) => (typeof s === "string" ? s.trim() : "")).filter(Boolean);
+    }
+    return typeof raw === "string" ? [raw.trim()].filter(Boolean) : [];
   }, [stepsOrdered, activeIndex]);
 
   const stepReveal: StepReveal | null = (stepsOrdered[activeIndex]?.reveal ?? null) as StepReveal | null;
 
-  // ❗ maximale Punktzahl
-  const maxPoints = useMemo<number>(
+  const totalWeight = useMemo<number>(
     () => stepsOrdered.reduce((acc, s) => acc + (typeof s.points === "number" ? s.points : 2), 0),
     [stepsOrdered]
   );
 
-  const totalPointsRaw = useMemo<number>(
-    () => perStepScores.reduce((a, b) => a + (b || 0), 0),
-    [perStepScores]
-  );
-  const totalPoints = Math.min(Math.round(totalPointsRaw * 10) / 10, maxPoints);
+  const totalScorePct = useMemo<number>(() => {
+    if (totalWeight <= 0) return 0;
+    const weightedSum = perStepScores.reduce((acc, score, idx) => {
+      const weight = typeof stepsOrdered[idx]?.points === "number" ? stepsOrdered[idx]!.points : 2;
+      return acc + ((score || 0) * weight);
+    }, 0);
+    const avg = weightedSum / totalWeight;
+    return Math.round(avg * 10) / 10;
+  }, [perStepScores, stepsOrdered, totalWeight]);
 
   // Fortschritt = erledigte Schritte / alle Schritte
   const progressPct = useMemo<number>(() => {
@@ -214,26 +261,7 @@ export default function ExamPage() {
     }
   }, [asked.length, activeIndex]);
 
-  // ✅ Nach Abschluss: entweder nächster Fall der Serie, sonst Summary (mit sid) oder zurück
-  useEffect(() => {
-    if (!ended) return;
-    const t = setTimeout(() => {
-      // Serie vorhanden & noch nicht am Ende?
-      if (seriesTotal > 0 && seriesIdx < seriesTotal - 1) {
-        const nextIdx = seriesIdx + 1;
-        const nextId = seriesIds[nextIdx];
-        const q = `?s=${encodeURIComponent(seriesIds.join(","))}&i=${nextIdx}${
-          seriesId ? `&sid=${encodeURIComponent(seriesId)}` : ""
-        }`;
-        router.replace(`/exam/${nextId}${q}`);
-      } else if (seriesId) {
-        router.replace(`/exam/summary?sid=${encodeURIComponent(seriesId)}`);
-      } else {
-        router.replace("/subjects");
-      }
-    }, REDIRECT_AFTER_MS);
-    return () => clearTimeout(t);
-  }, [ended, seriesIdx, seriesIds, seriesTotal, seriesId, router]);
+  // Nach Abschluss: Navigation erfolgt direkt in nextStep
 
   function label(correctness: "correct" | "partially_correct" | "incorrect") {
     return correctness === "correct"
@@ -461,7 +489,7 @@ export default function ExamPage() {
 
     const payload: Record<string, unknown> = {
       caseId: c.id,
-      points: totalPoints,
+      points: totalScorePct,
       progressPct,
       caseText: c.vignette,
       transcript: current.map((t): { role: "examiner" | "student"; text: string } => ({
@@ -476,6 +504,7 @@ export default function ExamPage() {
       stepIndex: activeIndex,
       stepsPrompts: [],
       stepRule,
+       stepSolutions,
       focusQuestion: currentPrompt,
 
       // 🔹 NEU: Felder für die kumulative Bewertung
@@ -509,22 +538,16 @@ export default function ExamPage() {
     if (hadSolution) pushProf(activeIndex, data.say_to_student);
 
     if (data.evaluation && opts.mode === "answer") {
-      const { correctness, feedback, tips } = data.evaluation;
-      setLastCorrectness(correctness);
+     const { correctness, feedback, tips, score } = data.evaluation;
+      const safeScore = Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0;
 
       // Punkte (Bestwert je Schritt)
       setPerStepScores((prev) => {
         const curPrev = prev[activeIndex] || 0;
-        const candidate =
-          correctness === "correct"
-            ? stepPoints
-            : correctness === "partially_correct"
-            ? stepPoints * 0.5
-            : 0;
-        const best = Math.max(curPrev, candidate);
+        const best = Math.max(curPrev, safeScore);
         if (best === curPrev) return prev;
         const copy = [...prev];
-        copy[activeIndex] = Math.min(Math.round(best * 10) / 10, stepPoints);
+         copy[activeIndex] = Math.round(best * 10) / 10;
         return copy;
       });
 
@@ -596,8 +619,8 @@ export default function ExamPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           caseId: c.id,
-          score: totalPoints,
-          maxScore: maxPoints,
+           score: totalScorePct,
+          maxScore: 100,
           completed,
         }),
       });
@@ -615,8 +638,8 @@ export default function ExamPage() {
             title: c.title,
             subject: subj,
             category: cat,
-            score: totalPoints,
-            maxScore: maxPoints,
+            score: totalScorePct,
+            maxScore: 100,
             completed,
           },
           {
@@ -628,10 +651,46 @@ export default function ExamPage() {
     }
   }
   // -------------------------------------------------
+function createReflectionSnapshot(): void {
+    if (!c) return;
+    const steps = stepsOrdered.map((step, idx) => {
+      const turnList = chats[idx] ?? [];
+      const transcript = turnList.map<ReflectionTurn>((t) => ({
+        role: t.role === "prof" ? "examiner" : "student",
+        text: t.text,
+      }));
+      const bestScore = Math.max(0, Math.min(100, perStepScores[idx] ?? 0));
+      return {
+        order: step.order,
+        prompt: step.prompt,
+        bestScore: Math.round(bestScore * 10) / 10,
+        transcript,
+        solutionText: solutionTextForStep(step),
+        studentUnion: buildStudentUnionFromTurns(turnList),
+        rule: step.rule ?? null,
+      };
+    });
+
+    const snapshot = {
+      caseId: c.id,
+      caseTitle: c.title,
+      vignette: c.vignette,
+      totalScore: Math.max(0, Math.min(100, totalScorePct)),
+      maxScore: 100,
+      completedAt: new Date().toISOString(),
+      steps,
+      series:
+        seriesIds.length || seriesId
+          ? { ids: [...seriesIds], index: seriesIdx, sid: seriesId ?? null }
+          : undefined,
+    };
+
+    saveReflectionSnapshot(c.id, snapshot);
+  }
 
  // *** Flow-Funktionen ***
-async function startExam() {
-  if (!c) return;
+  async function startExam() {
+    if (!c) return;
 
   // 🔹 Zähler in Supabase hochziehen
   try {
@@ -649,7 +708,7 @@ async function startExam() {
   // Reset
   setAsked([]);
   setPerStepScores(Array(n).fill(0));
-  setLastCorrectness(null);
+
   setAttemptCount(0);
   setActiveIndex(0);
   setViewIndex(0);
@@ -700,9 +759,12 @@ async function startExam() {
 
     const last = activeIndex >= nSteps - 1;
     if (last) {
+       createReflectionSnapshot();
       setEnded(true);
       // beim Abschließen Fortschritt speichern (+ lokal)
       void persistProgress({ completed: true });
+      const search = typeof window !== "undefined" ? window.location.search : "";
+      router.push(`/exam/${c.id}/reflection${search}`);
       return;
     }
 
@@ -719,7 +781,7 @@ async function startExam() {
       setActiveIndex(idx);
       setViewIndex(idx);
       setAttemptCount(0);
-      setLastCorrectness(null);
+   
       return;
     }
 
@@ -737,7 +799,7 @@ async function startExam() {
     setActiveIndex(idx);
     setViewIndex(idx);
     setAttemptCount(0);
-    setLastCorrectness(null);
+    
 
      let transitionText = fallbackPrompt;
 
@@ -838,7 +900,7 @@ async function startExam() {
   </div>
 )}
 
-        <ScorePill points={totalPoints} maxPoints={maxPoints} last={lastCorrectness} />
+        
 
         {/* Schritt-Progressbar */}
 <div className="hidden w-56 sm:block">
@@ -878,6 +940,18 @@ async function startExam() {
                   : "bg-red-500";
               const isView = a.index === viewIndex;
               const isActive = a.index === activeIndex;
+               const rawScore = perStepScores[a.index];
+              const showScore =
+                Number.isFinite(rawScore) && (a.status !== "pending" || (rawScore as number) > 0);
+              const scoreText = (() => {
+                if (!showScore) return null;
+                const pctRounded = Math.round((rawScore as number) * 10) / 10;
+                return Number.isInteger(pctRounded)
+                  ? `${pctRounded}%`
+                  : `${pctRounded.toFixed(1)}%`;
+              })();
+              const labelText = `Frage ${i + 1}`;
+              const summary = shortQuestion(a.text);
 
               return (
                 <li
@@ -885,19 +959,27 @@ async function startExam() {
                   ref={i === asked.length - 1 ? lastAskedRef : null}
                   className="grid grid-cols-[12px_1fr] items-start gap-2"
                 >
-                  <span className={`h-2.5 w-2.5 rounded-full self-start mt-2 flex-none ${dot}`} aria-hidden />
+                  <span className={`mt-2 h-2.5 w-2.5 flex-none self-start rounded-full ${dot}`} aria-hidden />
                   <button
                     type="button"
                     onClick={() => setViewIndex(a.index)}
                     className={[
-                      "block w-full rounded-2xl border px-3 py-2 text-left text-[13px] leading-snug",
+                       "block w-full rounded-2xl border px-3 py-2 text-left text-[12px] leading-snug",
                       "hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400",
                       isView ? "border-blue-400 bg-blue-50 ring-1 ring-blue-300" : "border-blue-200 bg-white",
                       isActive ? "text-gray-900" : "text-gray-800",
                     ].join(" ")}
                     title="Frage ansehen"
                   >
-                    {a.text}
+                     <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                      <span>{labelText}</span>
+                      {scoreText ? (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-700 tabular-nums">
+                          {scoreText}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-1 line-clamp-2 text-[12px] text-gray-600">{summary}</div>
                   </button>
                 </li>
               );
@@ -975,12 +1057,7 @@ async function startExam() {
                 Klicke auf <b>Prüfung starten</b>, um zu beginnen.
               </div>
             )}
-            {ended && (
-              <div className="mt-2 text-sm text-green-700">
-                ✅ Fall abgeschlossen — Score {Number.isInteger(totalPoints) ? totalPoints : totalPoints.toFixed(1)}/
-                {maxPoints} ({Math.round(((totalPoints || 0) / Math.max(1, maxPoints)) * 100)}%)
-              </div>
-            )}
+             {ended && <div className="mt-2 text-sm text-green-700">✅ Fall abgeschlossen</div>}
           </div>
 
           {/* Eingabezeile */}
