@@ -7,6 +7,7 @@ import Link from "next/link";
 import { CASES } from "@/data/cases";
 import type { Case, Step, StepReveal } from "@/lib/types";
 import { saveReflectionSnapshot } from "@/lib/reflectionStore";
+import type { ReflectionTurn } from "@/lib/reflectionStore";
 import ProgressBar from "@/components/ProgressBar";
 import CaseImagePublic from "@/components/CaseImagePublic";
 
@@ -650,7 +651,7 @@ export default function ExamPage() {
     if (!c) return;
     const steps = stepsOrdered.map((step, idx) => {
       const turnList = chats[idx] ?? [];
-      const transcript = turnList.map((t) => ({
+      const transcript = turnList.map<ReflectionTurn>((t) => ({
         role: t.role === "prof" ? "examiner" : "student",
         text: t.text,
       }));
