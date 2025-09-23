@@ -5,6 +5,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import LayoutVars from "@/components/LayoutVars";
 import AppShell from "@/components/AppShell";
 import type { ReactNode } from "react";
+import AnalyticsConsent from "@/components/AnalyticsConsent";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -25,7 +26,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="bg-[var(--bg)] text-[var(--fg)]">
         <LayoutVars>
            
-             <AppShell>{children}</AppShell>
+              <AnalyticsConsent />
+          <AppShell>{children}</AppShell>
         </LayoutVars>
       </body>
     </html>

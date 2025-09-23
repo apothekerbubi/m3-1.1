@@ -44,7 +44,7 @@ export const aszites_001: Case = {
         minHits: 1,
       },
       image: {
-        path: "Hepatologie/Laborbefund_Leberzirrhose.png",
+        path: "Labor/Leberzirrhose.png",
         alt: "Laborbefund mit erhöhten Transaminasen und erniedrigtem Albumin",
         caption: "Typischer Laborbefund bei fortgeschrittener Leberzirrhose.",
       },
@@ -62,7 +62,7 @@ export const aszites_001: Case = {
         minHits: 1,
       },
       image: {
-        path: "Hepatologie/Aszites_Sono.png",
+        path: "Ultraschall/Aszites.JPG",
         alt: "Sonografie mit freier Flüssigkeit im Abdomen",
         caption: "Sonografie des Abdomens: Nachweis von Aszites (freie Flüssigkeit).",
       },
@@ -132,7 +132,7 @@ export const aszites_001: Case = {
         minHits: 1,
       },
       image: {
-        path: "Hepatologie/Varizenligatur.png",
+        path: "Endoskopie/Oesophagusvarizenligatur.png",
         alt: "Endoskopische Varizenligatur",
         caption: "Endoskopische Varizenligatur bei Ösophagusvarizenblutung.",
       },
