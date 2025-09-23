@@ -165,112 +165,116 @@ export default function ReflectionPage() {
   const display = analysis && snapshot ? analysis : snapshot ? buildFallback(snapshot) : null;
 
   return (
-    <main className="mx-auto max-w-3xl p-6">
-      <div className="mb-6">
+    <main className="mx-auto max-w-5xl px-6 py-10">
+      <div className="mb-8 flex items-center justify-between gap-3">
         <button
           type="button"
           onClick={() => router.back()}
-          className="text-sm text-blue-600 hover:text-blue-700"
+          className="text-sm font-medium text-blue-600 transition-colors hover:text-blue-700"
         >
           ← Zurück
         </button>
+        {snapshot ? (
+          <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+            Abgeschlossen am {new Date(snapshot.completedAt).toLocaleString()}
+          </span>
+        ) : null}
       </div>
+
       {snapshot ? (
-        <header className="mb-6">
-          <h1 className="text-3xl font-semibold tracking-tight">Fall-Auswertung</h1>
-          <p className="mt-1 text-sm text-gray-600">{snapshot.caseTitle}</p>
-          <div className="mt-4 rounded-xl border border-black/10 bg-white p-4 shadow-sm">
-            <div className="text-xs uppercase tracking-wide text-gray-500">Gesamtscore</div>
-            <div className="mt-1 text-3xl font-bold text-blue-700">{snapshot.totalScore.toFixed(1)}%</div>
-            <p className="mt-2 text-sm text-gray-600">Abgeschlossen am {new Date(snapshot.completedAt).toLocaleString()}</p>
-          </div>
+        <header className="mb-10 text-center">
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">Fall-Auswertung</h1>
+          <p className="mt-2 text-sm text-slate-500">{snapshot.caseTitle}</p>
         </header>
       ) : null}
 
       {loading && (
-        <div className="mb-6 rounded-md border border-dashed border-black/10 p-4 text-sm text-gray-600">
+        <div className="mb-8 rounded-2xl border border-dashed border-slate-200 bg-white/70 p-5 text-sm text-slate-600 shadow-sm">
           Die Stärken-Schwächen-Analyse wird geladen …
         </div>
       )}
 
       {display ? (
-        <section className="space-y-6">
-          <article className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
-            <h2 className="text-xl font-semibold">Gesamtfazit</h2>
-            <p className="mt-2 text-sm text-gray-700 whitespace-pre-line">{display.overview}</p>
+        <section className="space-y-10">
+          <article className="relative mx-auto max-w-3xl overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 p-[1px] shadow-2xl">
+            <div className="rounded-[calc(1.5rem-1px)] bg-white/95 px-8 py-10 text-center backdrop-blur">
+              <div className="mx-auto inline-flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-500 text-4xl font-bold text-white shadow-lg">
+                {snapshot?.totalScore.toFixed(1)}%
+              </div>
+              <p className="mt-3 text-xs font-semibold uppercase tracking-[0.3em] text-indigo-500/80">
+                Gesamtscore
+              </p>
+              <h2 className="mt-6 text-2xl font-semibold text-slate-900">Gesamtfazit</h2>
+              <p className="mt-3 text-base leading-relaxed text-slate-600 whitespace-pre-line">
+                {display.overview}
+              </p>
+            </div>
           </article>
 
-          <article className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
-            <h3 className="text-lg font-semibold text-green-700">Stärken</h3>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
-              {display.strengths.map((item, idx) => (
-                <li key={`strength-${idx}`}>{item}</li>
-              ))}
-            </ul>
-          </article>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <article className="group relative overflow-hidden rounded-3xl border border-emerald-100 bg-emerald-50/70 p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg">
+              <div className="absolute -top-12 -left-12 h-32 w-32 rounded-full bg-emerald-200/60 blur-2xl transition-opacity group-hover:opacity-80" />
+              <div className="relative">
+                <h3 className="text-lg font-semibold text-emerald-700">Stärken</h3>
+                <ul className="mt-3 space-y-2 text-sm leading-relaxed text-emerald-900">
+                  {display.strengths.map((item, idx) => (
+                    <li key={`strength-${idx}`} className="flex gap-2">
+                      <span className="mt-1 inline-block h-1.5 w-1.5 flex-none rounded-full bg-emerald-500" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </article>
 
-          <article className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
-            <h3 className="text-lg font-semibold text-amber-700">Schwächen</h3>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
-              {display.weaknesses.map((item, idx) => (
-                <li key={`weakness-${idx}`}>{item}</li>
-              ))}
-            </ul>
-          </article>
+            <article className="group relative overflow-hidden rounded-3xl border border-rose-100 bg-rose-50/80 p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg">
+              <div className="absolute -top-14 -right-12 h-36 w-36 rounded-full bg-rose-200/60 blur-2xl transition-opacity group-hover:opacity-80" />
+              <div className="relative">
+                <h3 className="text-lg font-semibold text-rose-700">Schwächen</h3>
+                <ul className="mt-3 space-y-2 text-sm leading-relaxed text-rose-900">
+                  {display.weaknesses.map((item, idx) => (
+                    <li key={`weakness-${idx}`} className="flex gap-2">
+                      <span className="mt-1 inline-block h-1.5 w-1.5 flex-none rounded-full bg-rose-500" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </article>
+          </div>
 
-          <article className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
-            <h3 className="text-lg font-semibold text-blue-700">Konkrete Verbesserungsschritte</h3>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
+          <article className="rounded-3xl border border-sky-100 bg-sky-50/80 p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-sky-700">Konkrete Verbesserungsschritte</h3>
+            <ul className="mt-3 space-y-2 text-sm leading-relaxed text-slate-700">
               {display.improvements.map((item, idx) => (
-                <li key={`improve-${idx}`}>{item}</li>
+                <li key={`improve-${idx}`} className="flex gap-2">
+                  <span className="mt-1 inline-block h-1.5 w-1.5 flex-none rounded-full bg-sky-500" />
+                  <span>{item}</span>
+                </li>
               ))}
             </ul>
           </article>
         </section>
       ) : null}
 
-      {snapshot ? (
-        <section className="mt-8 space-y-4">
-          <h2 className="text-lg font-semibold">Schrittübersicht</h2>
-          <ul className="space-y-3">
-            {snapshot.steps.map((step, idx) => (
-              <li key={idx} className="rounded-lg border border-black/10 bg-white p-3 text-sm text-gray-700 shadow-sm">
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-semibold text-gray-900">Schritt {idx + 1}</span>
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
-                    {step.bestScore.toFixed(1)}%
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-gray-700">{shortLabel(step.prompt)}</p>
-                {step.studentUnion.length ? (
-                  <p className="mt-2 text-xs text-gray-500">
-                    Genannt: {step.studentUnion.join(", ")}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      <div className="mt-10 flex flex-wrap gap-3">
+      <div className="mt-12 flex flex-wrap gap-3">
         <Link
           href={`/exam/${caseId}`}
-          className="rounded-md border border-black/10 px-4 py-2 text-sm text-gray-900 hover:bg-gray-50"
+          className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
         >
           Fall erneut üben
         </Link>
         {nextHref ? (
           <Link
             href={nextHref}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+            className="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:shadow-md"
           >
             Nächster Fall der Serie
           </Link>
         ) : null}
         <Link
           href="/subjects"
-          className="rounded-md border border-black/10 px-4 py-2 text-sm text-gray-900 hover:bg-gray-50"
+          className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
         >
           Zur Fallübersicht
         </Link>
