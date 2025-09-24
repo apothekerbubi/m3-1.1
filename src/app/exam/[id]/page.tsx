@@ -221,7 +221,7 @@ export default function ExamPage() {
 
   // *** State ***
   const [asked, setAsked] = useState<Asked[]>([]);
-  const [style, setStyle] = useState<"strict" | "coaching">("coaching");
+  const [style] = useState<"strict" | "coaching">("coaching");
   const [ended, setEnded] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -942,56 +942,16 @@ function createReflectionSnapshot(): void {
   const caseSubtitle = c.shortTitle || c.title;
   const specialtyLabel = [c.specialty, c.subspecialty].filter(Boolean).join(" · ");
   const displayedStep = hasStarted ? Math.min(activeIndex + 1, nSteps) : 0;
-  const stepProgressValue = ended ? 100 : progressPct;
   const seriesProgressValue =
     seriesTotal > 0 ? (ended ? Math.round(((seriesIdx + 1) / seriesTotal) * 100) : seriesPct) : 0;
 
   return (
     <main className="min-h-screen bg-white pb-16 text-slate-900">
-      <div className="mx-auto max-w-6xl px-6 pt-10">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={hasStarted ? nextStep : startExam}
-              disabled={loading}
-              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
-            >
-              {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
-            </button>
-            {hasStarted && viewIndex !== activeIndex ? (
-              <button
-                type="button"
-                onClick={() => setViewIndex(activeIndex)}
-                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
-              >
-                Zur aktuellen Frage
-              </button>
-            ) : null}
-            <Link
-              href="/subjects"
-              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white/80 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
-            >
-              Fälle
-            </Link>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">Stil</label>
-            <select
-              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
-              value={style}
-              onChange={(e) => setStyle(e.target.value as "strict" | "coaching")}
-            >
-              <option value="coaching">Coaching</option>
-              <option value="strict">Streng</option>
-            </select>
-          </div>
-        </div>
-
-        <header className="relative mb-4 overflow-hidden rounded-3xl bg-gradient-to-br from-sky-500 via-indigo-500 to-fuchsia-500 p-[1px] shadow-2xl">
-          <div className="rounded-[calc(1.5rem-1px)] bg-white px-6 py-6 text-center sm:px-10 lg:text-left">
+      <div className="mx-auto max-w-6xl px-6 pt-8">
+        <header className="relative mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-sky-500 via-indigo-500 to-fuchsia-500 p-[1px] shadow-2xl">
+          <div className="rounded-[calc(1.5rem-1px)] bg-white px-6 py-6 sm:px-10">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-              <div>
+              <div className="max-w-2xl text-center lg:text-left">
                 <span className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.4em] text-slate-500">
                   Prüfungslauf
                 </span>
@@ -1001,61 +961,56 @@ function createReflectionSnapshot(): void {
                   <p className="mt-1 text-[11px] uppercase tracking-[0.4em] text-slate-400">{specialtyLabel}</p>
                 ) : null}
               </div>
-              <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-600 shadow-inner lg:items-end">
-                <span className="font-semibold text-slate-700">Fortschritt</span>
-                <ProgressBar value={stepProgressValue} />
+              <div className="grid w-full max-w-xl gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-500">Prüfungslauf</div>
+                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">Fortlaufend</p>
+                      <p className="mt-1 text-xl font-semibold text-slate-900">
+                        {displayedStep}
+                        <span className="ml-1 text-sm font-normal text-slate-500">/ {nSteps}</span>
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">Bester Score</p>
+                      <p className="mt-1 text-xl font-semibold text-slate-900">{averageScoreText}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-500">Gesamtwertung</div>
+                  <div className="mt-3 flex flex-col gap-2 text-sm">
+                    <p className="text-2xl font-semibold text-slate-900">{totalScoreText}</p>
+                    <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.3em] text-slate-400">
+                      <span>Gewichtete Punkte</span>
+                      <span className="rounded-full bg-gradient-to-r from-sky-100 via-indigo-100 to-fuchsia-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                        {answeredSteps}/{nSteps}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                {seriesTotal > 0 ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm sm:col-span-2">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-500">Serie</div>
+                    <div className="mt-3 flex items-end justify-between gap-3 text-sm">
+                      <div>
+                        <p className="text-2xl font-semibold text-slate-900">
+                          {seriesIdx + 1}
+                          <span className="ml-1 text-base font-normal text-slate-500">/ {seriesTotal}</span>
+                        </p>
+                        <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">Fortschritt</p>
+                      </div>
+                      <div className="min-w-[120px]">
+                        <ProgressBar value={seriesProgressValue} />
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
         </header>
-        <div className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-500">Prüfungslauf</div>
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">Fortlaufend</p>
-                <p className="mt-1 text-xl font-semibold text-slate-900">
-                  {displayedStep}
-                  <span className="ml-1 text-sm font-normal text-slate-500">/ {nSteps}</span>
-                </p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">Bester Score</p>
-                <p className="mt-1 text-xl font-semibold text-slate-900">{averageScoreText}</p>
-              </div>
-            </div>
-            <div className="mt-3">
-              <ProgressBar value={stepProgressValue} />
-            </div>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-500">Gesamtwertung</div>
-            <div className="mt-3 flex items-end justify-between gap-3">
-              <div>
-                <p className="text-2xl font-semibold text-slate-900">{totalScoreText}</p>
-                <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">Gewichtete Punkte</p>
-              </div>
-              <span className="rounded-full bg-gradient-to-r from-sky-100 via-indigo-100 to-fuchsia-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                {answeredSteps}/{nSteps} Schritte
-              </span>
-            </div>
-          </div>
-          {seriesTotal > 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-500">Serie</div>
-              <div className="mt-3 flex items-end justify-between gap-3">
-                <div>
-                  <p className="text-2xl font-semibold text-slate-900">
-                    {seriesIdx + 1}
-                    <span className="ml-1 text-base font-normal text-slate-500">/ {seriesTotal}</span>
-                  </p>
-                  <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">Fortschritt</p>
-                </div>
-                <ProgressBar value={seriesProgressValue} />
-              </div>
-            </div>
-          ) : null}
-        </div>
 
         <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
           <aside
