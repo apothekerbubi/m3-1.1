@@ -790,14 +790,6 @@ function createReflectionSnapshot(): void {
     void callExamAPI(current, { mode: "answer" });
   }
 
-  function goToStep(idx: number) {
-    if (!c) return;
-    // Nur bereits freigegebene Fragen wählbar
-    if (!asked.find((a) => a.index === idx)) return;
-
-    setViewIndex(idx);
-  }
-
    async function nextStep() {
     if (!c || loading) return;
 
@@ -906,6 +898,30 @@ function createReflectionSnapshot(): void {
     await callExamAPI(current, { mode: "solution" });
   }
 
+  const formatPercentValue = (value: number): string => {
+    if (!Number.isFinite(value)) return "–";
+    const normalized = Math.round(value * 10) / 10;
+    return Number.isInteger(normalized) ? `${normalized}%` : `${normalized.toFixed(1)}%`;
+  };
+
+  const answeredSummary = useMemo(() => {
+    const answeredIndices = asked.filter((item) => item.status !== "pending").map((item) => item.index);
+    const answeredSet = new Set(answeredIndices);
+    const totalScoreSum = perStepScores.reduce((sum, value, idx) => {
+      if (!answeredSet.has(idx)) return sum;
+      const safe = Number.isFinite(value) ? Number(value) : 0;
+      return sum + safe;
+    }, 0);
+    const answeredSteps = answeredSet.size;
+    const averageScore = answeredSteps > 0 ? Math.round((totalScoreSum / answeredSteps) * 10) / 10 : 0;
+    return { answeredSteps, averageScore };
+  }, [asked, perStepScores]);
+
+  const answeredSteps = answeredSummary.answeredSteps;
+  const averageScore = answeredSummary.averageScore;
+  const totalScoreText = formatPercentValue(totalScorePct);
+  const averageScoreText = answeredSteps > 0 ? formatPercentValue(averageScore) : "–";
+
   if (!c) {
     return (
       <main className="p-6">
@@ -919,297 +935,380 @@ function createReflectionSnapshot(): void {
 
   const hasStarted = asked.length > 0;
   const isLastStep = activeIndex >= nSteps - 1;
-  const viewingPast = viewIndex !== activeIndex;
 
   // Bild des gerade betrachteten Schritts (für Chat-Panel)
   const stepImg = stepsOrdered[viewIndex]?.image;
 
+  const caseSubtitle = c.shortTitle || c.title;
+  const specialtyLabel = [c.specialty, c.subspecialty].filter(Boolean).join(" · ");
+  const displayedStep = hasStarted ? Math.min(activeIndex + 1, nSteps) : 0;
+  const stepProgressValue = ended ? 100 : progressPct;
+  const seriesProgressValue =
+    seriesTotal > 0 ? (ended ? Math.round(((seriesIdx + 1) / seriesTotal) * 100) : seriesPct) : 0;
+
   return (
-    <main className="p-0">
-      {/* Kopfzeile */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h2 className="flex-1 text-2xl font-semibold tracking-tight">
-          Prüfung: {anonymousTitle(c)}
-        </h2>
-
-        {/* Serien-Progressbar (falls Serie vorhanden) */}
-        {seriesTotal > 0 && (
-  <div className="w-48">
-    <div className="mb-1 text-[11px] text-gray-600">
-      Serie {seriesIdx + 1}/{seriesTotal}
-    </div>
-    <ProgressBar
-      value={ended ? Math.round(((seriesIdx + 1) / seriesTotal) * 100) : seriesPct}
-    />
-  </div>
-)}
-
-        
-
-        {/* Schritt-Progressbar */}
-<div className="hidden w-56 sm:block">
-  <div className="mb-1 text-[11px] text-gray-600">Fortschritt</div>
-  <ProgressBar value={ended ? 100 : progressPct} />
-</div>
-
-        <label className="text-xs text-gray-600">Stil</label>
-        <select
-          className="rounded-md border px-2 py-1 text-sm"
-          value={style}
-          onChange={(e) => setStyle(e.target.value as "strict" | "coaching")}
-        >
-          <option value="coaching">Coaching</option>
-          <option value="strict">Streng</option>
-        </select>
-      </div>
-
-      {/* Zwei Spalten */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-[var(--steps-w,260px)_1fr]">
-        {/* Linke Spalte */}
-        <aside
-          ref={sidebarRef}
-          className="rounded-xl border border-black/10 bg-white/70 p-3 md:sticky md:top-20
-                     overflow-y-auto max-h-[calc(100vh-120px)]"
-        >
-          <div className="mb-2 text-xs font-medium text-gray-700">Fragenfolge</div>
-          <ul className="space-y-2">
-            {asked.map((a, i) => {
-              const dot =
-                a.status === "pending"
-                  ? "bg-gray-300"
-                  : a.status === "correct"
-                  ? "bg-green-500"
-                  : a.status === "partial"
-                  ? "bg-yellow-400"
-                  : "bg-red-500";
-              const isView = a.index === viewIndex;
-              const isActive = a.index === activeIndex;
-               const rawScore = perStepScores[a.index];
-              const showScore =
-                Number.isFinite(rawScore) && (a.status !== "pending" || (rawScore as number) > 0);
-              const scoreText = (() => {
-                if (!showScore) return null;
-                const pctRounded = Math.round((rawScore as number) * 10) / 10;
-                return Number.isInteger(pctRounded)
-                  ? `${pctRounded}%`
-                  : `${pctRounded.toFixed(1)}%`;
-              })();
-              const labelText = `Frage ${i + 1}`;
-              const summary = shortQuestion(a.text);
-
-              return (
-                <li
-                  key={a.index}
-                  ref={i === asked.length - 1 ? lastAskedRef : null}
-                  className="grid grid-cols-[12px_1fr] items-start gap-2"
-                >
-                  <span className={`mt-2 h-2.5 w-2.5 flex-none self-start rounded-full ${dot}`} aria-hidden />
-                  <button
-                    type="button"
-                    onClick={() => setViewIndex(a.index)}
-                    className={[
-                       "block w-full rounded-2xl border px-3 py-2 text-left text-[12px] leading-snug",
-                      "hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400",
-                      isView ? "border-blue-400 bg-blue-50 ring-1 ring-blue-300" : "border-blue-200 bg-white",
-                      isActive ? "text-gray-900" : "text-gray-800",
-                    ].join(" ")}
-                    title="Frage ansehen"
-                  >
-                     <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                      <span>{labelText}</span>
-                      {scoreText ? (
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-700 tabular-nums">
-                          {scoreText}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="mt-1 line-clamp-2 text-[12px] text-gray-600">{summary}</div>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-
-          {/* Start / Nächste Frage */}
-          <div className="mt-4 flex flex-col gap-2">
+    <main className="min-h-screen bg-white pb-16 text-slate-900">
+      <div className="mx-auto max-w-6xl px-6 pt-10">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={hasStarted ? nextStep : startExam}
               disabled={loading}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
             >
-              {hasStarted ? (activeIndex >= stepsOrdered.length - 1 ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
+              {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
             </button>
-
-            {hasStarted && viewIndex !== activeIndex && (
+            {hasStarted && viewIndex !== activeIndex ? (
               <button
                 type="button"
                 onClick={() => setViewIndex(activeIndex)}
-                className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs text-gray-800 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
               >
-                Zur aktuellen Frage springen
+                Zur aktuellen Frage
               </button>
-            )}
+            ) : null}
+            <Link
+              href="/subjects"
+              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white/80 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+            >
+              Fälle
+            </Link>
           </div>
-        </aside>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">Stil</label>
+            <select
+              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+              value={style}
+              onChange={(e) => setStyle(e.target.value as "strict" | "coaching")}
+            >
+              <option value="coaching">Coaching</option>
+              <option value="strict">Streng</option>
+            </select>
+          </div>
+        </div>
 
-        {/* Rechte Spalte: Chat */}
-        <section className="relative flex flex-col gap-3">
-          <div
-            ref={listRef}
-            className="relative z-10 h-[58vh] overflow-y-auto rounded-2xl border border-black/10 bg-white p-4 shadow-card text-gray-900"
-          >
-            {/* Bild nur anzeigen, wenn gestartet & aktueller Schritt aktiv ist */}
-            {hasStarted && viewIndex === activeIndex && stepImg && (
-              <div className="mb-3">
-                <CaseImagePublic
-                  path={stepImg.path}
-                  alt={stepImg.alt}
-                  caption={stepImg.caption}
-                  zoomable
-                  thumbMaxHeight={220}
-                />
+        <header className="relative mb-4 overflow-hidden rounded-3xl bg-gradient-to-br from-sky-500 via-indigo-500 to-fuchsia-500 p-[1px] shadow-2xl">
+          <div className="rounded-[calc(1.5rem-1px)] bg-white px-6 py-6 text-center sm:px-10 lg:text-left">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <span className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.4em] text-slate-500">
+                  Prüfungslauf
+                </span>
+                <h1 className="mt-4 text-3xl font-semibold text-slate-900">{anonymousTitle(c)}</h1>
+                <p className="mt-2 text-base text-slate-600">{caseSubtitle}</p>
+                {specialtyLabel ? (
+                  <p className="mt-1 text-[11px] uppercase tracking-[0.4em] text-slate-400">{specialtyLabel}</p>
+                ) : null}
               </div>
-            )}
+              <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-600 shadow-inner lg:items-end">
+                <span className="font-semibold text-slate-700">Fortschritt</span>
+                <ProgressBar value={stepProgressValue} />
+              </div>
+            </div>
+          </div>
+        </header>
+        <div className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-500">Prüfungslauf</div>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">Fortlaufend</p>
+                <p className="mt-1 text-xl font-semibold text-slate-900">
+                  {displayedStep}
+                  <span className="ml-1 text-sm font-normal text-slate-500">/ {nSteps}</span>
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">Bester Score</p>
+                <p className="mt-1 text-xl font-semibold text-slate-900">{averageScoreText}</p>
+              </div>
+            </div>
+            <div className="mt-3">
+              <ProgressBar value={stepProgressValue} />
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-500">Gesamtwertung</div>
+            <div className="mt-3 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-2xl font-semibold text-slate-900">{totalScoreText}</p>
+                <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">Gewichtete Punkte</p>
+              </div>
+              <span className="rounded-full bg-gradient-to-r from-sky-100 via-indigo-100 to-fuchsia-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                {answeredSteps}/{nSteps} Schritte
+              </span>
+            </div>
+          </div>
+          {seriesTotal > 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-500">Serie</div>
+              <div className="mt-3 flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-2xl font-semibold text-slate-900">
+                    {seriesIdx + 1}
+                    <span className="ml-1 text-base font-normal text-slate-500">/ {seriesTotal}</span>
+                  </p>
+                  <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">Fortschritt</p>
+                </div>
+                <ProgressBar value={seriesProgressValue} />
+              </div>
+            </div>
+          ) : null}
+        </div>
 
-             {viewChat.map((t, i) => {
-              const isProf = t.role === "prof";
-              const isLatest = i === viewChat.length - 1;
+        <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+          <aside
+            ref={sidebarRef}
+            className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-xl ring-1 ring-black/5 lg:sticky lg:top-36 lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto"
+          >
+            <div className="text-[10px] font-semibold uppercase tracking-[0.4em] text-slate-500">Fragenfolge</div>
+            <ul className="mt-4 space-y-3">
+              {asked.map((a, i) => {
+                const dot =
+                  a.status === "pending"
+                    ? "bg-slate-300"
+                    : a.status === "correct"
+                    ? "bg-emerald-500"
+                    : a.status === "partial"
+                    ? "bg-amber-400"
+                    : "bg-rose-500";
+                const isView = a.index === viewIndex;
+                const isActive = a.index === activeIndex;
+                const rawScore = perStepScores[a.index];
+                const showScore =
+                  Number.isFinite(rawScore) && (a.status !== "pending" || (rawScore as number) > 0);
+                const scoreText = showScore ? formatPercentValue(rawScore as number) : null;
+                const labelText = `Frage ${i + 1}`;
+                const summary = shortQuestion(a.text);
 
-              return (
-                <div key={i} className={`mb-3 ${isProf ? "" : "text-right"}`}>
-                  <div
-                    className={`inline-block max-w-[80%] rounded-2xl px-3 py-2 shadow-sm ${
-                      isProf ? "border border-black/10 bg-white text-gray-900" : "bg-blue-600 text-white"
-                    }`}
-                  >
-                    <span className="text-sm leading-relaxed">
-                      <b className="opacity-80">{isProf ? "Prüfer" : "Du"}:</b>{" "}
-                      <TypewriterText
-                        text={t.text}
-                        enabled={
-                          isProf &&
-                          isLatest &&
-                          hasStarted &&
-                          viewIndex === activeIndex &&
-                          !loading
-                        }
-                      />
-                    </span>
+                return (
+                  <li key={a.index} ref={i === asked.length - 1 ? lastAskedRef : null}>
+                    <button
+                      type="button"
+                      onClick={() => setViewIndex(a.index)}
+                      className={[
+                        "group relative w-full overflow-hidden rounded-2xl border px-4 py-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300",
+                        isView
+                          ? "border-transparent bg-gradient-to-r from-sky-50 via-indigo-50 to-fuchsia-50 shadow-lg"
+                          : "border-slate-200 bg-white/80 hover:border-slate-300 hover:bg-slate-50/80",
+                      ].join(" ")}
+                      aria-current={isView ? "step" : undefined}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500">
+                          <span className={`h-2.5 w-2.5 rounded-full ${dot}`} aria-hidden />
+                          {labelText}
+                        </div>
+                        {scoreText ? (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-inner">
+                            {scoreText}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className={`mt-2 line-clamp-2 text-sm ${isActive ? "text-slate-700" : "text-slate-500"}`}>
+                        {summary}
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            {!hasStarted ? (
+              <p className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-600">
+                Klicke auf <span className="font-semibold text-slate-700">Prüfung starten</span>, um zu beginnen.
+              </p>
+            ) : null}
+            <div className="mt-6 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={hasStarted ? nextStep : startExam}
+                disabled={loading}
+                className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:from-sky-400 hover:via-indigo-500 hover:to-fuchsia-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
+              >
+                {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
+              </button>
+              {hasStarted && viewIndex !== activeIndex ? (
+                <button
+                  type="button"
+                  onClick={() => setViewIndex(activeIndex)}
+                  className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white/80 px-5 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+                >
+                  Zur aktuellen Frage
+                </button>
+              ) : null}
+              <Link
+                href={`/cases/${c.id}`}
+                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white/80 px-5 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+              >
+                Fallinfo
+              </Link>
+            </div>
+          </aside>
+
+          <section className="flex flex-col gap-4">
+            <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white/95 shadow-2xl ring-1 ring-black/5">
+              <div ref={listRef} className="h-[60vh] overflow-y-auto px-6 py-6 text-slate-900">
+                {hasStarted && viewIndex === activeIndex && stepImg ? (
+                  <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 shadow-inner">
+                    <CaseImagePublic
+                      path={stepImg.path}
+                      alt={stepImg.alt}
+                      caption={stepImg.caption}
+                      zoomable
+                      thumbMaxHeight={220}
+                    />
+                  </div>
+                ) : null}
+
+                {viewChat.map((t, i) => (
+                  <div key={i} className={`mb-3 flex ${t.role === "prof" ? "justify-start" : "justify-end"}`}>
+                    <div
+                      className={`inline-block max-w-[80%] rounded-3xl px-4 py-3 text-sm shadow-lg ${
+                        t.role === "prof"
+                          ? "border border-slate-200 bg-white/90 text-slate-900"
+                          : "bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 text-white"
+                      }`}
+                    >
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.25em] opacity-70">
+                        {t.role === "prof" ? "Prüfer" : "Du"}
+                      </span>
+                      <p className="mt-1 text-sm leading-relaxed">
+                        {t.role === "prof" ? (
+                          <TypewriterText
+                            text={t.text}
+                            enabled={
+                              i === viewChat.length - 1 &&
+                              t.role === "prof" &&
+                              hasStarted &&
+                              viewIndex === activeIndex &&
+                              !loading
+                            }
+                          />
+                        ) : (
+                          t.text
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+
+                {loading && hasStarted && viewIndex === activeIndex ? (
+                  <div className="mb-3 flex justify-start">
+                    <div className="inline-flex items-center gap-2 rounded-3xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-900 shadow-lg">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.25em] opacity-70">Prüfer</span>
+                      <TypingDots />
+                    </div>
+                  </div>
+                ) : null}
+
+                {!hasStarted ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-4 text-sm text-slate-600">
+                    Klicke auf <span className="font-semibold text-slate-700">Prüfung starten</span>, um den Chat zu öffnen.
+                  </div>
+                ) : null}
+
+                {ended ? (
+                  <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 shadow-inner">
+                    ✅ Fall abgeschlossen
+                  </div>
+                ) : null}
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!hasStarted) return startExam();
+                  if (!ended) onSend();
+                }}
+                className="border-t border-slate-200 bg-slate-50/80 px-4 py-4 backdrop-blur"
+              >
+                <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                  <input
+                    className="min-w-0 flex-1 rounded-full border border-slate-300 bg-white/90 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 shadow-inner focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+                    placeholder={
+                      ended
+                        ? "Fall beendet"
+                        : !hasStarted
+                        ? "Zum Start bitte links klicken"
+                        : viewIndex !== activeIndex
+                        ? "Nur Ansicht – zur aktuellen Frage wechseln"
+                        : "Deine Antwort…"
+                    }
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    disabled={!hasStarted || ended || viewIndex !== activeIndex}
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={recording ? stopRecording : startRecording}
+                      disabled={!hasStarted || ended || viewIndex !== activeIndex}
+                      className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {recording ? "⏹️" : "🎙️"}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading || !hasStarted || ended || viewIndex !== activeIndex || !input.trim()}
+                      className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:from-sky-400 hover:via-indigo-500 hover:to-fuchsia-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
+                    >
+                      Senden
+                    </button>
                   </div>
                 </div>
-              );
-            })}
-            {loading && hasStarted && viewIndex === activeIndex && (
-              <div className="mb-3">
-                <div className="inline-flex max-w-[80%] items-center gap-2 rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm">
-                  <b className="opacity-80">Prüfer:</b>
-                   <TypingDots />
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={requestTip}
+                    disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
+                    className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    💡 Tipp
+                  </button>
+                  <button
+                    type="button"
+                    onClick={requestExplain}
+                    disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
+                    className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    📘 Erklären
+                  </button>
+                  <button
+                    type="button"
+                    onClick={requestSolution}
+                    disabled={loading || !hasStarted || viewIndex !== activeIndex}
+                    className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    📝 Lösung anzeigen
+                  </button>
+                  <label className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-inner">
+                    <input
+                      type="checkbox"
+                      checked={ttsEnabled}
+                      onChange={(e) => setTtsEnabled(e.target.checked)}
+                    />
+                    Antworten vorlesen
+                  </label>
+                  <button
+                    type="button"
+                    onClick={hasStarted ? nextStep : startExam}
+                    disabled={loading}
+                    className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:from-sky-400 hover:via-indigo-500 hover:to-fuchsia-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
+                  >
+                    {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
+                  </button>
+                  <Link
+                    href={`/cases/${c.id}`}
+                    className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white/80 px-5 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+                  >
+                    Fallinfo
+                  </Link>
                 </div>
-              </div>
-            )}
-            {!hasStarted && (
-              <div className="text-sm text-gray-600">
-                Klicke auf <b>Prüfung starten</b>, um zu beginnen.
-              </div>
-            )}
-             {ended && <div className="mt-2 text-sm text-green-700">✅ Fall abgeschlossen</div>}
-          </div>
-
-          {/* Eingabezeile */}
-<form
-  onSubmit={(e) => {
-    e.preventDefault();
-    if (!hasStarted) return startExam();
-    if (!ended) onSend();
-  }}
-  className="sticky bottom-0 left-0 right-0 z-20 flex flex-col gap-2 border-t bg-white p-2"
->
-  {/* Reihe 1: Eingabe + Senden */}
-  <div className="flex gap-2">
-    <input
-      className="min-w-0 flex-1 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-      placeholder={
-        ended
-          ? "Fall beendet"
-          : !hasStarted
-          ? "Zum Start bitte links klicken"
-          : viewIndex !== activeIndex
-          ? "Nur Ansicht – zurück zur aktuellen Frage wechseln"
-          : "Deine Antwort…"
-      }
-      value={input}
-      onChange={(e) => setInput(e.target.value)}
-      disabled={!hasStarted || ended || viewIndex !== activeIndex}
-    />
-      <button
-      type="button"
-      onClick={recording ? stopRecording : startRecording}
-      disabled={!hasStarted || ended || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      {recording ? "⏹️" : "🎙️"}
-    </button>
-    <button
-      type="submit"
-      disabled={loading || !hasStarted || ended || viewIndex !== activeIndex || !input.trim()}
-      className="rounded-md border border-black/10 bg-blue-600 text-white px-4 py-2 text-sm hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      Senden
-    </button>
-  </div>
-
-  {/* Reihe 2: Zusatz-Buttons */}
-  <div className="flex flex-wrap gap-2">
-    <button
-      type="button"
-      onClick={requestTip}
-      disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      💡 Tipp
-    </button>
-    <button
-      type="button"
-      onClick={requestExplain}
-      disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      📘 Erklären
-    </button>
-     <button
-      type="button"
-      onClick={requestSolution}
-      disabled={loading || !hasStarted || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      📝 Lösung anzeigen
-    </button>
-    <label className="flex items-center gap-1 text-xs text-gray-600">
-      <input
-        type="checkbox"
-        checked={ttsEnabled}
-        onChange={(e) => setTtsEnabled(e.target.checked)}
-      />
-      Antworten vorlesen
-    </label>
-    <button
-      type="button"
-      onClick={hasStarted ? nextStep : startExam}
-      disabled={loading}
-      className="ml-auto rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
-    </button>
-    <Link
-      href={`/cases/${c.id}`}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      Fallinfo
-    </Link>
-  </div>
-</form>
-        </section>
+              </form>
+            </div>
+          </section>
+        </div>
       </div>
     </main>
   );
