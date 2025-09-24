@@ -18,6 +18,10 @@ import Footer from "@/components/Footer";
 import SideNav from "@/components/SideNav";
 import GlobalSkeleton from "@/components/GlobalSkeleton";
 
+type CSSPropertiesWithVars = CSSProperties & {
+  [key: `--${string}`]: string | number;
+};
+
 const MARKETING_ROUTES = new Set(["/", "/landing"]);
 
 function normalizePath(pathname: string | null): string {
@@ -44,7 +48,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     () =>
       ({
         "--nav-current-width": navCollapsed ? "0px" : "var(--nav-w)",
-      }) satisfies CSSProperties,
+      }) satisfies CSSPropertiesWithVars,
     [navCollapsed]
   );
 
