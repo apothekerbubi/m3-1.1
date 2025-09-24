@@ -221,7 +221,7 @@ export default function ExamPage() {
 
   // *** State ***
   const [asked, setAsked] = useState<Asked[]>([]);
-  const [style, setStyle] = useState<"strict" | "coaching">("coaching");
+  const style = "coaching" as const;
   const [ended, setEnded] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -925,291 +925,285 @@ function createReflectionSnapshot(): void {
   const stepImg = stepsOrdered[viewIndex]?.image;
 
   return (
-    <main className="p-0">
-      {/* Kopfzeile */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h2 className="flex-1 text-2xl font-semibold tracking-tight">
-          Prüfung: {anonymousTitle(c)}
-        </h2>
+    <main className="min-h-screen bg-white py-10 text-slate-900">
+      <div className="mx-auto max-w-6xl px-6">
+        <div className="mb-8 flex flex-wrap items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-500">
+          <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-1 text-[10px] font-semibold uppercase tracking-[0.4em] text-slate-600">
+            Fall · {anonymousTitle(c)}
+          </span>
 
-        {/* Serien-Progressbar (falls Serie vorhanden) */}
-        {seriesTotal > 0 && (
-  <div className="w-48">
-    <div className="mb-1 text-[11px] text-gray-600">
-      Serie {seriesIdx + 1}/{seriesTotal}
-    </div>
-    <ProgressBar
-      value={ended ? Math.round(((seriesIdx + 1) / seriesTotal) * 100) : seriesPct}
-    />
-  </div>
-)}
+          <div className="flex items-center gap-2">
+            <span className="hidden text-[10px] uppercase tracking-[0.4em] text-slate-500 sm:inline">Fortschritt</span>
+            <div className="w-40">
+              <ProgressBar value={ended ? 100 : progressPct} />
+            </div>
+          </div>
 
-        
+          {seriesTotal > 0 ? (
+            <div className="flex items-center gap-2">
+              <span className="hidden text-[10px] uppercase tracking-[0.4em] text-slate-500 sm:inline">
+                Serie {seriesIdx + 1}/{seriesTotal}
+              </span>
+              <div className="w-40">
+                <ProgressBar value={ended ? Math.round(((seriesIdx + 1) / seriesTotal) * 100) : seriesPct} />
+              </div>
+            </div>
+          ) : null}
+        </div>
 
-        {/* Schritt-Progressbar */}
-<div className="hidden w-56 sm:block">
-  <div className="mb-1 text-[11px] text-gray-600">Fortschritt</div>
-  <ProgressBar value={ended ? 100 : progressPct} />
-</div>
+        {/* Zwei Spalten */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+          {/* Linke Spalte */}
+          <aside
+            ref={sidebarRef}
+            className="rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-lg shadow-slate-200/60 md:sticky md:top-28 md:max-h-[calc(100vh-180px)] md:overflow-y-auto"
+          >
+            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+              Fragenfolge
+            </div>
+            <ul className="space-y-2">
+              {asked.map((a, i) => {
+                const dot =
+                  a.status === "pending"
+                    ? "bg-gray-300"
+                    : a.status === "correct"
+                    ? "bg-green-500"
+                    : a.status === "partial"
+                    ? "bg-yellow-400"
+                    : "bg-red-500";
+                const isView = a.index === viewIndex;
+                const isActive = a.index === activeIndex;
+                const rawScore = perStepScores[a.index];
+                const showScore =
+                  Number.isFinite(rawScore) && (a.status !== "pending" || (rawScore as number) > 0);
+                const scoreText = (() => {
+                  if (!showScore) return null;
+                  const pctRounded = Math.round((rawScore as number) * 10) / 10;
+                  return Number.isInteger(pctRounded)
+                    ? `${pctRounded}%`
+                    : `${pctRounded.toFixed(1)}%`;
+                })();
+                const labelText = `Frage ${i + 1}`;
+                const summary = shortQuestion(a.text);
 
-        <label className="text-xs text-gray-600">Stil</label>
-        <select
-          className="rounded-md border px-2 py-1 text-sm"
-          value={style}
-          onChange={(e) => setStyle(e.target.value as "strict" | "coaching")}
-        >
-          <option value="coaching">Coaching</option>
-          <option value="strict">Streng</option>
-        </select>
-      </div>
-
-      {/* Zwei Spalten */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-[var(--steps-w,260px)_1fr]">
-        {/* Linke Spalte */}
-        <aside
-          ref={sidebarRef}
-          className="rounded-xl border border-black/10 bg-white/70 p-3 md:sticky md:top-20
-                     overflow-y-auto max-h-[calc(100vh-120px)]"
-        >
-          <div className="mb-2 text-xs font-medium text-gray-700">Fragenfolge</div>
-          <ul className="space-y-2">
-            {asked.map((a, i) => {
-              const dot =
-                a.status === "pending"
-                  ? "bg-gray-300"
-                  : a.status === "correct"
-                  ? "bg-green-500"
-                  : a.status === "partial"
-                  ? "bg-yellow-400"
-                  : "bg-red-500";
-              const isView = a.index === viewIndex;
-              const isActive = a.index === activeIndex;
-               const rawScore = perStepScores[a.index];
-              const showScore =
-                Number.isFinite(rawScore) && (a.status !== "pending" || (rawScore as number) > 0);
-              const scoreText = (() => {
-                if (!showScore) return null;
-                const pctRounded = Math.round((rawScore as number) * 10) / 10;
-                return Number.isInteger(pctRounded)
-                  ? `${pctRounded}%`
-                  : `${pctRounded.toFixed(1)}%`;
-              })();
-              const labelText = `Frage ${i + 1}`;
-              const summary = shortQuestion(a.text);
-
-              return (
-                <li
-                  key={a.index}
-                  ref={i === asked.length - 1 ? lastAskedRef : null}
-                  className="grid grid-cols-[12px_1fr] items-start gap-2"
-                >
-                  <span className={`mt-2 h-2.5 w-2.5 flex-none self-start rounded-full ${dot}`} aria-hidden />
-                  <button
-                    type="button"
-                    onClick={() => setViewIndex(a.index)}
-                    className={[
-                       "block w-full rounded-2xl border px-3 py-2 text-left text-[12px] leading-snug",
-                      "hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400",
-                      isView ? "border-blue-400 bg-blue-50 ring-1 ring-blue-300" : "border-blue-200 bg-white",
-                      isActive ? "text-gray-900" : "text-gray-800",
-                    ].join(" ")}
-                    title="Frage ansehen"
+                return (
+                  <li
+                    key={a.index}
+                    ref={i === asked.length - 1 ? lastAskedRef : null}
+                    className="grid grid-cols-[12px_1fr] items-start gap-2"
                   >
-                     <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                      <span>{labelText}</span>
-                      {scoreText ? (
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-700 tabular-nums">
-                          {scoreText}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="mt-1 line-clamp-2 text-[12px] text-gray-600">{summary}</div>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+                    <span className={`mt-2 h-2.5 w-2.5 flex-none self-start rounded-full ${dot}`} aria-hidden />
+                    <button
+                      type="button"
+                      onClick={() => setViewIndex(a.index)}
+                      className={[
+                        "block w-full rounded-2xl border px-3 py-2 text-left text-[12px] leading-snug transition",
+                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400",
+                        isView
+                          ? "border-sky-300 bg-sky-50/70 ring-1 ring-sky-200"
+                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
+                        isActive ? "text-slate-900" : "text-slate-700",
+                      ].join(" ")}
+                      title="Frage ansehen"
+                    >
+                      <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">
+                        <span>{labelText}</span>
+                        {scoreText ? (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 tabular-nums">
+                            {scoreText}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="mt-1 line-clamp-2 text-[12px] text-slate-600">{summary}</div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
 
-          {/* Start / Nächste Frage */}
-          <div className="mt-4 flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={hasStarted ? nextStep : startExam}
-              disabled={loading}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-            >
-              {hasStarted ? (activeIndex >= stepsOrdered.length - 1 ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
-            </button>
-
-            {hasStarted && viewIndex !== activeIndex && (
+            {/* Start / Nächste Frage */}
+            <div className="mt-4 flex flex-col gap-2">
               <button
                 type="button"
-                onClick={() => setViewIndex(activeIndex)}
-                className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs text-gray-800 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                onClick={hasStarted ? nextStep : startExam}
+                disabled={loading}
+                className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
               >
-                Zur aktuellen Frage springen
+                {hasStarted ? (activeIndex >= stepsOrdered.length - 1 ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
               </button>
-            )}
-          </div>
-        </aside>
 
-        {/* Rechte Spalte: Chat */}
-        <section className="relative flex flex-col gap-3">
-          <div
-            ref={listRef}
-            className="relative z-10 h-[58vh] overflow-y-auto rounded-2xl border border-black/10 bg-white p-4 shadow-card text-gray-900"
-          >
-            {/* Bild nur anzeigen, wenn gestartet & aktueller Schritt aktiv ist */}
-            {hasStarted && viewIndex === activeIndex && stepImg && (
-              <div className="mb-3">
-                <CaseImagePublic
-                  path={stepImg.path}
-                  alt={stepImg.alt}
-                  caption={stepImg.caption}
-                  zoomable
-                  thumbMaxHeight={220}
-                />
-              </div>
-            )}
+              {hasStarted && viewIndex !== activeIndex && (
+                <button
+                  type="button"
+                  onClick={() => setViewIndex(activeIndex)}
+                  className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                >
+                  Zur aktuellen Frage springen
+                </button>
+              )}
+            </div>
+          </aside>
 
-             {viewChat.map((t, i) => {
-              const isProf = t.role === "prof";
-              const isLatest = i === viewChat.length - 1;
+          {/* Rechte Spalte: Chat */}
+          <section className="relative flex flex-col gap-4">
+            <div
+              ref={listRef}
+              className="relative z-10 h-[60vh] overflow-y-auto rounded-3xl border border-slate-200 bg-white/90 p-6 text-slate-900 shadow-xl shadow-slate-200/70"
+            >
+              {/* Bild nur anzeigen, wenn gestartet & aktueller Schritt aktiv ist */}
+              {hasStarted && viewIndex === activeIndex && stepImg && (
+                <div className="mb-3">
+                  <CaseImagePublic
+                    path={stepImg.path}
+                    alt={stepImg.alt}
+                    caption={stepImg.caption}
+                    zoomable
+                    thumbMaxHeight={220}
+                  />
+                </div>
+              )}
 
-              return (
-                <div key={i} className={`mb-3 ${isProf ? "" : "text-right"}`}>
-                  <div
-                    className={`inline-block max-w-[80%] rounded-2xl px-3 py-2 shadow-sm ${
-                      isProf ? "border border-black/10 bg-white text-gray-900" : "bg-blue-600 text-white"
-                    }`}
-                  >
-                    <span className="text-sm leading-relaxed">
-                      <b className="opacity-80">{isProf ? "Prüfer" : "Du"}:</b>{" "}
-                      <TypewriterText
-                        text={t.text}
-                        enabled={
-                          isProf &&
-                          isLatest &&
-                          hasStarted &&
-                          viewIndex === activeIndex &&
-                          !loading
-                        }
-                      />
-                    </span>
+              {viewChat.map((t, i) => {
+                const isProf = t.role === "prof";
+                const isLatest = i === viewChat.length - 1;
+
+                return (
+                  <div key={i} className={`mb-4 ${isProf ? "" : "text-right"}`}>
+                    <div
+                      className={`inline-block max-w-[80%] rounded-2xl px-3 py-2 shadow-sm ${
+                        isProf ? "border border-slate-200 bg-white text-slate-900" : "bg-blue-600 text-white"
+                      }`}
+                    >
+                      <span className="text-sm leading-relaxed">
+                        <b className="opacity-80">{isProf ? "Prüfer" : "Du"}:</b>{" "}
+                        <TypewriterText
+                          text={t.text}
+                          enabled={
+                            isProf &&
+                            isLatest &&
+                            hasStarted &&
+                            viewIndex === activeIndex &&
+                            !loading
+                          }
+                        />
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+              {loading && hasStarted && viewIndex === activeIndex && (
+                <div className="mb-3">
+                  <div className="inline-flex max-w-[80%] items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm">
+                    <b className="opacity-80">Prüfer:</b>
+                    <TypingDots />
                   </div>
                 </div>
-              );
-            })}
-            {loading && hasStarted && viewIndex === activeIndex && (
-              <div className="mb-3">
-                <div className="inline-flex max-w-[80%] items-center gap-2 rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm">
-                  <b className="opacity-80">Prüfer:</b>
-                   <TypingDots />
+              )}
+              {!hasStarted && (
+                <div className="text-sm text-slate-600">
+                  Klicke auf <b>Prüfung starten</b>, um zu beginnen.
+                </div>
+              )}
+              {ended && <div className="mt-2 text-sm text-emerald-600">✅ Fall abgeschlossen</div>}
+            </div>
+
+            {/* Eingabezeile */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!hasStarted) return startExam();
+                if (!ended) onSend();
+              }}
+              className="sticky bottom-0 left-0 right-0 z-20 flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-lg shadow-slate-200/60 backdrop-blur"
+            >
+              {/* Reihe 1: Eingabe + Senden */}
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input
+                  className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                  placeholder={
+                    ended
+                      ? "Fall beendet"
+                      : !hasStarted
+                      ? "Zum Start bitte links klicken"
+                      : viewIndex !== activeIndex
+                      ? "Nur Ansicht – zurück zur aktuellen Frage wechseln"
+                      : "Deine Antwort…"
+                  }
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  disabled={!hasStarted || ended || viewIndex !== activeIndex}
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={recording ? stopRecording : startRecording}
+                    disabled={!hasStarted || ended || viewIndex !== activeIndex}
+                    className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 transition hover:bg-slate-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                  >
+                    {recording ? "⏹️" : "🎙️"}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading || !hasStarted || ended || viewIndex !== activeIndex || !input.trim()}
+                    className="rounded-2xl border border-transparent bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                  >
+                    Senden
+                  </button>
                 </div>
               </div>
-            )}
-            {!hasStarted && (
-              <div className="text-sm text-gray-600">
-                Klicke auf <b>Prüfung starten</b>, um zu beginnen.
+
+              {/* Reihe 2: Zusatz-Buttons */}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={requestTip}
+                  disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
+                  className="rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 transition hover:bg-slate-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                >
+                  💡 Tipp
+                </button>
+                <button
+                  type="button"
+                  onClick={requestExplain}
+                  disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
+                  className="rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 transition hover:bg-slate-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                >
+                  📘 Erklären
+                </button>
+                <button
+                  type="button"
+                  onClick={requestSolution}
+                  disabled={loading || !hasStarted || viewIndex !== activeIndex}
+                  className="rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 transition hover:bg-slate-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                >
+                  📝 Lösung anzeigen
+                </button>
+                <label className="flex items-center gap-1 text-xs text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={ttsEnabled}
+                    onChange={(e) => setTtsEnabled(e.target.checked)}
+                  />
+                  Antworten vorlesen
+                </label>
+                <button
+                  type="button"
+                  onClick={hasStarted ? nextStep : startExam}
+                  disabled={loading}
+                  className="ml-auto rounded-2xl bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                >
+                  {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
+                </button>
+                <Link
+                  href={`/cases/${c.id}`}
+                  className="rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                >
+                  Fallinfo
+                </Link>
               </div>
-            )}
-             {ended && <div className="mt-2 text-sm text-green-700">✅ Fall abgeschlossen</div>}
-          </div>
-
-          {/* Eingabezeile */}
-<form
-  onSubmit={(e) => {
-    e.preventDefault();
-    if (!hasStarted) return startExam();
-    if (!ended) onSend();
-  }}
-  className="sticky bottom-0 left-0 right-0 z-20 flex flex-col gap-2 border-t bg-white p-2"
->
-  {/* Reihe 1: Eingabe + Senden */}
-  <div className="flex gap-2">
-    <input
-      className="min-w-0 flex-1 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-      placeholder={
-        ended
-          ? "Fall beendet"
-          : !hasStarted
-          ? "Zum Start bitte links klicken"
-          : viewIndex !== activeIndex
-          ? "Nur Ansicht – zurück zur aktuellen Frage wechseln"
-          : "Deine Antwort…"
-      }
-      value={input}
-      onChange={(e) => setInput(e.target.value)}
-      disabled={!hasStarted || ended || viewIndex !== activeIndex}
-    />
-      <button
-      type="button"
-      onClick={recording ? stopRecording : startRecording}
-      disabled={!hasStarted || ended || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      {recording ? "⏹️" : "🎙️"}
-    </button>
-    <button
-      type="submit"
-      disabled={loading || !hasStarted || ended || viewIndex !== activeIndex || !input.trim()}
-      className="rounded-md border border-black/10 bg-blue-600 text-white px-4 py-2 text-sm hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      Senden
-    </button>
-  </div>
-
-  {/* Reihe 2: Zusatz-Buttons */}
-  <div className="flex flex-wrap gap-2">
-    <button
-      type="button"
-      onClick={requestTip}
-      disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      💡 Tipp
-    </button>
-    <button
-      type="button"
-      onClick={requestExplain}
-      disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      📘 Erklären
-    </button>
-     <button
-      type="button"
-      onClick={requestSolution}
-      disabled={loading || !hasStarted || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      📝 Lösung anzeigen
-    </button>
-    <label className="flex items-center gap-1 text-xs text-gray-600">
-      <input
-        type="checkbox"
-        checked={ttsEnabled}
-        onChange={(e) => setTtsEnabled(e.target.checked)}
-      />
-      Antworten vorlesen
-    </label>
-    <button
-      type="button"
-      onClick={hasStarted ? nextStep : startExam}
-      disabled={loading}
-      className="ml-auto rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
-    </button>
-    <Link
-      href={`/cases/${c.id}`}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      Fallinfo
-    </Link>
-  </div>
-</form>
-        </section>
+            </form>
+          </section>
+        </div>
       </div>
     </main>
   );
