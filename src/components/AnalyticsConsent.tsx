@@ -10,6 +10,14 @@ type ConsentChoice = "granted" | "denied";
 
 type ConsentState = ConsentChoice | "unknown";
 
+declare global {
+  interface Window {
+    dataLayer?: unknown[];
+    gtag?: (...args: unknown[]) => void;
+  }
+}
+
+
 export default function AnalyticsConsent() {
   const [consent, setConsent] = useState<ConsentState>("unknown");
   const [bannerVisible, setBannerVisible] = useState(false);
@@ -30,13 +38,32 @@ export default function AnalyticsConsent() {
     if (stored === "granted" || stored === "denied") {
       setConsent(stored);
       setBannerVisible(false);
-      setGaDisable(stored === "denied");
+      
     } else {
       setConsent("unknown");
       setBannerVisible(true);
+       }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (consent === "granted") {
+      setGaDisable(false);
+      window.gtag?.("consent", "update", {
+        ad_storage: "granted",
+        analytics_storage: "granted",
+      });
+      window.gtag?.("js", new Date());
+      window.gtag?.("config", GA_MEASUREMENT_ID);
+    } else {
       setGaDisable(true);
+        window.gtag?.("consent", "update", {
+        ad_storage: "denied",
+        analytics_storage: "denied",
+      });
     }
-  }, [setGaDisable]);
+ }, [consent, setGaDisable]);
 
   const handleChoice = useCallback(
     (choice: ConsentChoice) => {
@@ -45,29 +72,27 @@ export default function AnalyticsConsent() {
       }
       setConsent(choice);
       setBannerVisible(false);
-      setGaDisable(choice === "denied");
+      
     },
-    [setGaDisable]
+   []
   );
 
   return (
     <>
-      {consent === "granted" && (
-        <>
-          <Script
-            src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
-            strategy="afterInteractive"
-          />
-          <Script id="google-analytics" strategy="afterInteractive">
-            {`
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              gtag('js', new Date());
-              gtag('config', '${GA_MEASUREMENT_ID}');
-            `}
-          </Script>
-        </>
-      )}
+       <Script
+        src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+        strategy="afterInteractive"
+      />
+      <Script id="ga-consent-default" strategy="afterInteractive">
+        {`
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('consent', 'default', {
+            ad_storage: 'denied',
+            analytics_storage: 'denied'
+          });
+        `}
+      </Script>
 
       {bannerVisible && (
         <div className="fixed inset-x-0 bottom-0 z-50 bg-[var(--fg)] px-6 py-4 text-[var(--bg)] shadow-lg">

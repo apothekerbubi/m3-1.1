@@ -129,31 +129,13 @@ export default function ReflectionPage() {
 
   if (!caseId) {
     return (
-      <main className="mx-auto max-w-3xl p-6">
-        <h1 className="text-2xl font-semibold">Fall nicht gefunden</h1>
-        <p className="mt-2 text-sm text-gray-600">Bitte wählen Sie einen Fall aus der Übersicht.</p>
-        <Link href="/subjects" className="mt-4 inline-block rounded-md border px-3 py-2 text-sm text-gray-900 hover:bg-gray-50">
-          Zur Übersicht
-        </Link>
-      </main>
-    );
-  }
-
-  if (error) {
-    return (
-      <main className="mx-auto max-w-3xl p-6">
-        <h1 className="text-2xl font-semibold">Auswertung nicht verfügbar</h1>
-        <p className="mt-2 text-sm text-gray-600">{error}</p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link
-            href={`/exam/${caseId}`}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-          >
-            Fall erneut starten
-          </Link>
+      <main className="min-h-screen bg-white py-12 text-slate-900">
+        <div className="mx-auto max-w-3xl px-6">
+          <h1 className="text-3xl font-semibold tracking-tight">Fall nicht gefunden</h1>
+          <p className="mt-3 text-sm text-slate-600">Bitte wählen Sie einen Fall aus der Übersicht.</p>
           <Link
             href="/subjects"
-            className="rounded-md border px-4 py-2 text-sm text-gray-900 hover:bg-gray-50"
+            className="mt-6 inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Zur Übersicht
           </Link>
@@ -162,118 +144,134 @@ export default function ReflectionPage() {
     );
   }
 
+  if (error) {
+    return (
+      <main className="min-h-screen bg-white py-12 text-slate-900">
+        <div className="mx-auto max-w-3xl px-6">
+          <h1 className="text-3xl font-semibold tracking-tight">Auswertung nicht verfügbar</h1>
+          <p className="mt-3 text-sm text-slate-600">{error}</p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link
+              href={`/exam/${caseId}`}
+              className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:from-sky-400 hover:via-indigo-500 hover:to-fuchsia-600"
+            >
+              Fall erneut starten
+            </Link>
+            <Link
+              href="/subjects"
+              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Zur Übersicht
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   const display = analysis && snapshot ? analysis : snapshot ? buildFallback(snapshot) : null;
 
   return (
-    <main className="mx-auto max-w-3xl p-6">
-      <div className="mb-6">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="text-sm text-blue-600 hover:text-blue-700"
-        >
-          ← Zurück
-        </button>
-      </div>
-      {snapshot ? (
-        <header className="mb-6">
-          <h1 className="text-3xl font-semibold tracking-tight">Fall-Auswertung</h1>
-          <p className="mt-1 text-sm text-gray-600">{snapshot.caseTitle}</p>
-          <div className="mt-4 rounded-xl border border-black/10 bg-white p-4 shadow-sm">
-            <div className="text-xs uppercase tracking-wide text-gray-500">Gesamtscore</div>
-            <div className="mt-1 text-3xl font-bold text-blue-700">{snapshot.totalScore.toFixed(1)}%</div>
-            <p className="mt-2 text-sm text-gray-600">Abgeschlossen am {new Date(snapshot.completedAt).toLocaleString()}</p>
-          </div>
-        </header>
-      ) : null}
-
-      {loading && (
-        <div className="mb-6 rounded-md border border-dashed border-black/10 p-4 text-sm text-gray-600">
-          Die Stärken-Schwächen-Analyse wird geladen …
-        </div>
-      )}
-
-      {display ? (
-        <section className="space-y-6">
-          <article className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
-            <h2 className="text-xl font-semibold">Gesamtfazit</h2>
-            <p className="mt-2 text-sm text-gray-700 whitespace-pre-line">{display.overview}</p>
-          </article>
-
-          <article className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
-            <h3 className="text-lg font-semibold text-green-700">Stärken</h3>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
-              {display.strengths.map((item, idx) => (
-                <li key={`strength-${idx}`}>{item}</li>
-              ))}
-            </ul>
-          </article>
-
-          <article className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
-            <h3 className="text-lg font-semibold text-amber-700">Schwächen</h3>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
-              {display.weaknesses.map((item, idx) => (
-                <li key={`weakness-${idx}`}>{item}</li>
-              ))}
-            </ul>
-          </article>
-
-          <article className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
-            <h3 className="text-lg font-semibold text-blue-700">Konkrete Verbesserungsschritte</h3>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
-              {display.improvements.map((item, idx) => (
-                <li key={`improve-${idx}`}>{item}</li>
-              ))}
-            </ul>
-          </article>
-        </section>
-      ) : null}
-
-      {snapshot ? (
-        <section className="mt-8 space-y-4">
-          <h2 className="text-lg font-semibold">Schrittübersicht</h2>
-          <ul className="space-y-3">
-            {snapshot.steps.map((step, idx) => (
-              <li key={idx} className="rounded-lg border border-black/10 bg-white p-3 text-sm text-gray-700 shadow-sm">
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-semibold text-gray-900">Schritt {idx + 1}</span>
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
-                    {step.bestScore.toFixed(1)}%
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-gray-700">{shortLabel(step.prompt)}</p>
-                {step.studentUnion.length ? (
-                  <p className="mt-2 text-xs text-gray-500">
-                    Genannt: {step.studentUnion.join(", ")}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      <div className="mt-10 flex flex-wrap gap-3">
-        <Link
-          href={`/exam/${caseId}`}
-          className="rounded-md border border-black/10 px-4 py-2 text-sm text-gray-900 hover:bg-gray-50"
-        >
-          Fall erneut üben
-        </Link>
-        {nextHref ? (
-          <Link
-            href={nextHref}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+    <main className="min-h-screen bg-white py-10 text-slate-900">
+      <div className="mx-auto max-w-5xl px-6">
+        <div className="mb-10">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 transition hover:bg-slate-50 hover:text-slate-800"
           >
-            Nächster Fall der Serie
-          </Link>
+            ← Zurück
+          </button>
+        </div>
+        {snapshot ? (
+          <header className="relative mb-12 overflow-hidden rounded-3xl bg-gradient-to-br from-sky-500 via-indigo-500 to-fuchsia-500 p-[1px] shadow-2xl">
+            <div className="rounded-[calc(1.5rem-1px)] bg-white px-8 py-12 text-center sm:px-12">
+              <span className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1 text-xs font-semibold uppercase tracking-[0.4em] text-slate-500">
+                Fall-Auswertung
+              </span>
+              <h1 className="mt-6 text-4xl font-semibold text-slate-900">Gesamtscore</h1>
+              <div className="mt-3 text-6xl font-bold text-slate-900">{snapshot.totalScore.toFixed(1)}%</div>
+              <p className="mt-6 text-base text-slate-600">{snapshot.caseTitle}</p>
+              <p className="mt-1 text-xs uppercase tracking-widest text-slate-400">
+                Abgeschlossen am {new Date(snapshot.completedAt).toLocaleString()}
+              </p>
+              {display ? (
+                <div className="mt-10 rounded-2xl border border-slate-200 bg-slate-50 px-6 py-6 text-left shadow-inner">
+                  <h2 className="text-lg font-semibold text-slate-900">Gesamtfazit</h2>
+                  <p className="mt-3 whitespace-pre-line text-base text-slate-700">{display.overview}</p>
+                </div>
+              ) : null}
+            </div>
+          </header>
         ) : null}
-        <Link
-          href="/subjects"
-          className="rounded-md border border-black/10 px-4 py-2 text-sm text-gray-900 hover:bg-gray-50"
-        >
-          Zur Fallübersicht
-        </Link>
+
+        {loading && (
+          <div className="mb-10 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-5 text-sm text-slate-600">
+            Die Stärken-Schwächen-Analyse wird geladen …
+          </div>
+        )}
+
+        {display ? (
+          <section className="space-y-8">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <article className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 shadow-lg shadow-emerald-200/40">
+                <h3 className="text-lg font-semibold text-emerald-800">Stärken</h3>
+                <ul className="mt-3 space-y-2 text-sm text-emerald-900/80">
+                  {display.strengths.map((item, idx) => (
+                    <li key={`strength-${idx}`} className="rounded-lg bg-white px-3 py-2 text-emerald-800">
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </article>
+
+              <article className="rounded-2xl border border-amber-200 bg-amber-50 p-6 shadow-lg shadow-amber-200/50">
+                <h3 className="text-lg font-semibold text-amber-800">Schwächen</h3>
+                <ul className="mt-3 space-y-2 text-sm text-amber-900/80">
+                  {display.weaknesses.map((item, idx) => (
+                    <li key={`weakness-${idx}`} className="rounded-lg bg-white px-3 py-2 text-amber-800">
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            </div>
+
+            <article className="rounded-2xl border border-sky-200 bg-sky-50 p-6 shadow-lg shadow-sky-200/50">
+              <h3 className="text-lg font-semibold text-sky-800">Konkrete Verbesserungsschritte</h3>
+              <ul className="mt-3 space-y-2 text-sm text-sky-900/80">
+                {display.improvements.map((item, idx) => (
+                  <li key={`improve-${idx}`} className="rounded-lg bg-white px-3 py-2 text-sky-800">
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </article>
+          </section>
+        ) : null}
+
+        <div className="mt-12 flex flex-wrap gap-4">
+          <Link
+            href={`/exam/${caseId}`}
+            className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            Fall erneut üben
+          </Link>
+          {nextHref ? (
+            <Link
+              href={nextHref}
+              className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:from-sky-400 hover:via-indigo-500 hover:to-fuchsia-600"
+            >
+              Nächster Fall der Serie
+            </Link>
+          ) : null}
+          <Link
+            href="/subjects"
+            className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            Zur Fallübersicht
+          </Link>
+        </div>
       </div>
     </main>
   );
