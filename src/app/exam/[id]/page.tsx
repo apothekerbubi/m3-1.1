@@ -9,6 +9,7 @@ import type { Case, Step, StepReveal } from "@/lib/types";
 import { saveReflectionSnapshot } from "@/lib/reflectionStore";
 import type { ReflectionTurn } from "@/lib/reflectionStore";
 import ProgressBar from "@/components/ProgressBar";
+import { scoreBandComment } from "@/lib/feedbackBands";
 import CaseImagePublic from "@/components/CaseImagePublic";
 
 
@@ -30,6 +31,54 @@ type ApiReply = {
 };
 
 type Asked = { index: number; text: string; status: "pending" | "correct" | "partial" | "incorrect" };
+
+function TypingDots() {
+  return (
+    <div className="flex items-end gap-1">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="h-2 w-2 rounded-full bg-blue-500/90 animate-bounce"
+          style={{ animationDelay: `${i * 0.15}s`, animationDuration: "0.9s" }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function TypewriterText({ text, enabled, speed = 20 }: { text: string; enabled: boolean; speed?: number }) {
+  const [displayed, setDisplayed] = useState(enabled ? "" : text);
+
+  useEffect(() => {
+    if (!enabled) {
+      setDisplayed(text);
+      return;
+    }
+
+    setDisplayed("");
+    let index = 0;
+    let active = true;
+
+    const tick = () => {
+      if (!active) return;
+      index = Math.min(index + 1, text.length);
+      setDisplayed(text.slice(0, index));
+      if (index < text.length) {
+        timeout = window.setTimeout(tick, speed);
+      }
+    };
+
+    let timeout = window.setTimeout(tick, speed);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+    };
+  }, [text, enabled, speed]);
+
+  return <span>{displayed}</span>;
+}
+
 
 function shortQuestion(text: string): string {
   const normalized = text.replace(/\s+/g, " ").trim();
@@ -263,13 +312,6 @@ const stepSolutions = useMemo<string[]>(() => {
 
   // Nach Abschluss: Navigation erfolgt direkt in nextStep
 
-  function label(correctness: "correct" | "partially_correct" | "incorrect") {
-    return correctness === "correct"
-      ? "✅ Richtig"
-      : correctness === "partially_correct"
-      ? "🟨 Teilweise richtig"
-      : "❌ Nicht korrekt";
-  }
   const normalize = (s: string) =>
     s.toLowerCase().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "").trim();
 
@@ -568,9 +610,11 @@ const stepSolutions = useMemo<string[]>(() => {
         }
         return copy;
       });
+const nuance = scoreBandComment(safeScore);
+      const base = feedback ? `${nuance} ${feedback}` : nuance;
 
       const parts = [
-        `${label(correctness)} — ${feedback}`,
+        base,
         correctness !== "correct" && tips ? `Tipp: ${tips}` : "",
       ].filter(Boolean);
       if (!hadSolution) pushProf(activeIndex, parts.join(" "));
@@ -1028,27 +1072,39 @@ function createReflectionSnapshot(): void {
               </div>
             )}
 
-            {viewChat.map((t, i) => (
-              <div key={i} className={`mb-3 ${t.role === "prof" ? "" : "text-right"}`}>
-                <div
-                  className={`inline-block max-w-[80%] rounded-2xl px-3 py-2 shadow-sm ${
-                    t.role === "prof" ? "border border-black/10 bg-white text-gray-900" : "bg-blue-600 text-white"
-                  }`}
-                >
-                  <span className="text-sm leading-relaxed">
-                    <b className="opacity-80">{t.role === "prof" ? "Prüfer" : "Du"}:</b> {t.text}
-                  </span>
+             {viewChat.map((t, i) => {
+              const isProf = t.role === "prof";
+              const isLatest = i === viewChat.length - 1;
+
+              return (
+                <div key={i} className={`mb-3 ${isProf ? "" : "text-right"}`}>
+                  <div
+                    className={`inline-block max-w-[80%] rounded-2xl px-3 py-2 shadow-sm ${
+                      isProf ? "border border-black/10 bg-white text-gray-900" : "bg-blue-600 text-white"
+                    }`}
+                  >
+                    <span className="text-sm leading-relaxed">
+                      <b className="opacity-80">{isProf ? "Prüfer" : "Du"}:</b>{" "}
+                      <TypewriterText
+                        text={t.text}
+                        enabled={
+                          isProf &&
+                          isLatest &&
+                          hasStarted &&
+                          viewIndex === activeIndex &&
+                          !loading
+                        }
+                      />
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
-             {loading && hasStarted && viewIndex === activeIndex && (
+              );
+            })}
+            {loading && hasStarted && viewIndex === activeIndex && (
               <div className="mb-3">
                 <div className="inline-flex max-w-[80%] items-center gap-2 rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm">
                   <b className="opacity-80">Prüfer:</b>
-                  <span className="relative inline-flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-600" />
-                  </span>
+                   <TypingDots />
                 </div>
               </div>
             )}

@@ -7,6 +7,7 @@ import { CASES } from "@/data/cases";
 import type { Case } from "@/lib/types";
 import ProgressBar from "@/components/ProgressBar";
 import ScorePill from "@/components/ScorePill";
+import { scoreBandComment } from "@/lib/feedbackBands";
 
 /** ---- Zusatttypen ---- */
 type RevealWhen = "on_enter" | "always" | "after_answer" | "after_full" | "after_partial";
@@ -152,13 +153,7 @@ const totalScorePct = useMemo<number>(() => {
     return () => clearTimeout(t);
   }, [ended, router]);
 
-  function label(correctness: "correct" | "partially_correct" | "incorrect") {
-    return correctness === "correct"
-      ? "✅ Richtig"
-      : correctness === "partially_correct"
-      ? "🟨 Teilweise richtig"
-      : "❌ Nicht korrekt";
-  }
+  
   const normalize = (s: string) =>
     s.toLowerCase().replace(/\s+/g, " ").replace(/[.,;:!?]+$/g, "").trim();
 
@@ -350,9 +345,12 @@ const totalScorePct = useMemo<number>(() => {
           }
           return copy;
         });
+ const nuance = scoreBandComment(safeScore);
+        const base = `Score ${Number.isInteger(safeScore) ? safeScore : safeScore.toFixed(1)}/100 — ${nuance}`;
+
 
         const parts = [
-         `Score ${Number.isInteger(safeScore) ? safeScore : safeScore.toFixed(1)}/100 — ${label(correctness)} — ${feedback}`,
+         feedback ? `${base} ${feedback}` : base,
           correctness !== "correct" && tips ? `Tipp: ${tips}` : "",
         ].filter(Boolean);
         if (!hadSolution) pushProf(activeIndex, parts.join(" "));

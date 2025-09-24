@@ -44,7 +44,7 @@ export const aszites_001: Case = {
         minHits: 1,
       },
       image: {
-        path: "Labor/Leberzirrhose.png",
+        path: "Labor/Leberzirrhose_lab.PNG",
         alt: "Laborbefund mit erhöhten Transaminasen und erniedrigtem Albumin",
         caption: "Typischer Laborbefund bei fortgeschrittener Leberzirrhose.",
       },
