@@ -5,7 +5,6 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import LayoutVars from "@/components/LayoutVars";
 import AppShell from "@/components/AppShell";
 import type { ReactNode } from "react";
-import AnalyticsConsent from "@/components/AnalyticsConsent";
 import Script from "next/script";
 
 const jakarta = Plus_Jakarta_Sans({
