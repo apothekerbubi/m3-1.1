@@ -26,11 +26,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="de" className={jakarta.variable}>
       <head>
         <Script
-          src="https://cdn.consentmanager.net/delivery/autoblocking/45d02fe7d27a0.js"
+           type="text/javascript"
+          src="https://cdn.consentmanager.net/delivery/autoblocking/82049fe772b7e.js"
           data-cmp-ab="1"
-          data-cmp-host="a.delivery.consentmanager.net"
+           data-cmp-host="b.delivery.consentmanager.net"
           data-cmp-cdn="cdn.consentmanager.net"
-          data-cmp-codesrc="16"
+           data-cmp-codesrc="0"
           strategy="beforeInteractive"
         />
       </head>
