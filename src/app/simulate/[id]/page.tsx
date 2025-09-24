@@ -67,7 +67,7 @@ export default function ExamPage() {
 
   // *** State ***
   const [asked, setAsked] = useState<Asked[]>([]);
-  const [style, setStyle] = useState<"strict" | "coaching">("coaching");
+  const style = "coaching" as const;
   const [ended, setEnded] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -525,41 +525,46 @@ const totalScorePct = useMemo<number>(() => {
   const isLastStep = activeIndex >= nSteps - 1;
 
   return (
-    <main className="p-0">
-      {/* Kopfzeile */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h2 className="flex-1 text-2xl font-semibold tracking-tight">Prüfung: {c.title}</h2>
-        <ScorePill pct={totalScorePct} last={lastCorrectness} />
-
-        {/* 🔁 Serien-Progress (klein) */}
-        {seriesTotal > 0 && (
-          <div className="hidden w-48 sm:block">
-            <ProgressBar
-              value={Math.round((seriesIdx / Math.max(1, seriesTotal)) * 100)}
-            />
+    <main className="min-h-screen bg-white py-10 text-slate-900">
+      <div className="mx-auto flex max-w-6xl flex-col gap-8 px-6">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-4 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">
+                Fall
+              </span>
+              <span className="text-[12px] font-semibold tracking-[0.15em] text-slate-600">
+                {c.title}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              {seriesTotal > 0 && (
+                <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">
+                  <span>
+                    Serie {seriesPos}/{seriesTotal}
+                  </span>
+                  <ProgressBar value={Math.round(((seriesIdx + 1) / Math.max(1, seriesTotal)) * 100)} />
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">
+                <span>Fortschritt</span>
+                <ProgressBar value={ended ? 100 : progressPct} />
+              </div>
+            </div>
           </div>
-        )}
-
-        <div className="hidden w-56 sm:block">
-          <ProgressBar value={ended ? 100 : progressPct} />
+          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
+            <ScorePill pct={totalScorePct} last={lastCorrectness} />
+            <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
+              {scoreBandComment(totalScorePct)}
+            </span>
+          </div>
         </div>
 
-        <label className="text-xs text-gray-600">Stil</label>
-        <select
-          className="rounded-md border px-2 py-1 text-sm"
-          value={style}
-          onChange={(e) => setStyle(e.target.value as "strict" | "coaching")}
-        >
-          <option value="coaching">Coaching</option>
-          <option value="strict">Streng</option>
-        </select>
-      </div>
-
-      {/* Zwei Spalten */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-[var(--steps-w,260px)_1fr]">
-        {/* Linke Spalte */}
-        <aside className="h-fit rounded-xl border border-black/10 bg-white/70 p-3 md:sticky md:top-20">
-          <div className="mb-2 text-xs font-medium text-gray-700">Fragenfolge</div>
+        {/* Zwei Spalten */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-[var(--steps-w,260px)_1fr]">
+          {/* Linke Spalte */}
+          <aside className="h-fit rounded-xl border border-black/10 bg-white/70 p-3 md:sticky md:top-20">
+            <div className="mb-2 text-xs font-medium text-gray-700">Fragenfolge</div>
           <ul className="space-y-2">
             {asked.map((a) => {
               const dot =
@@ -725,6 +730,7 @@ const totalScorePct = useMemo<number>(() => {
           </form>
         </section>
       </div>
+    </div>
     </main>
   );
 }
