@@ -947,38 +947,38 @@ function createReflectionSnapshot(): void {
 
   return (
     <main className="min-h-screen bg-white pb-16 text-slate-900">
-      <div className="mx-auto max-w-6xl px-6 pt-8">
+      <div className="mx-auto max-w-6xl px-4 pt-2 sm:px-6 sm:pt-4">
         <header className="relative mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-sky-500 via-indigo-500 to-fuchsia-500 p-[1px] shadow-2xl">
-          <div className="rounded-[calc(1.5rem-1px)] bg-white px-6 py-6 sm:px-10">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-              <div className="max-w-2xl text-center lg:text-left">
+          <div className="rounded-[calc(1.5rem-1px)] bg-white px-5 py-5 sm:px-8">
+            <div className="flex flex-col gap-5">
+              <div className="flex flex-col gap-2 text-center lg:text-left">
                 <span className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.4em] text-slate-500">
                   Prüfungslauf
                 </span>
-                <h1 className="mt-4 text-3xl font-semibold text-slate-900">{anonymousTitle(c)}</h1>
-                <p className="mt-2 text-base text-slate-600">{caseSubtitle}</p>
+                <h1 className="text-3xl font-semibold text-slate-900">{anonymousTitle(c)}</h1>
+                <p className="text-base text-slate-600">{caseSubtitle}</p>
                 {specialtyLabel ? (
-                  <p className="mt-1 text-[11px] uppercase tracking-[0.4em] text-slate-400">{specialtyLabel}</p>
+                  <p className="text-[11px] uppercase tracking-[0.4em] text-slate-400">{specialtyLabel}</p>
                 ) : null}
               </div>
-              <div className="grid w-full max-w-xl gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-left shadow-sm">
                   <div className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-500">Prüfungslauf</div>
                   <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                    <div>
+                    <div className="flex flex-col gap-1">
                       <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">Fortlaufend</p>
-                      <p className="mt-1 text-xl font-semibold text-slate-900">
+                      <p className="text-xl font-semibold text-slate-900">
                         {displayedStep}
                         <span className="ml-1 text-sm font-normal text-slate-500">/ {nSteps}</span>
                       </p>
                     </div>
-                    <div>
+                    <div className="flex flex-col gap-1">
                       <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">Bester Score</p>
-                      <p className="mt-1 text-xl font-semibold text-slate-900">{averageScoreText}</p>
+                      <p className="text-xl font-semibold text-slate-900">{averageScoreText}</p>
                     </div>
                   </div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm">
+                <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-left shadow-sm">
                   <div className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-500">Gesamtwertung</div>
                   <div className="mt-3 flex flex-col gap-2 text-sm">
                     <p className="text-2xl font-semibold text-slate-900">{totalScoreText}</p>
@@ -991,7 +991,7 @@ function createReflectionSnapshot(): void {
                   </div>
                 </div>
                 {seriesTotal > 0 ? (
-                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm sm:col-span-2">
+                  <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-left shadow-sm">
                     <div className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-500">Serie</div>
                     <div className="mt-3 flex items-end justify-between gap-3 text-sm">
                       <div>
@@ -1015,7 +1015,7 @@ function createReflectionSnapshot(): void {
         <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
           <aside
             ref={sidebarRef}
-            className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-xl ring-1 ring-black/5 lg:sticky lg:top-36 lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto"
+            className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-xl ring-1 ring-black/5 lg:sticky lg:top-28 lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto"
           >
             <div className="text-[10px] font-semibold uppercase tracking-[0.4em] text-slate-500">Fragenfolge</div>
             <ul className="mt-4 space-y-3">
@@ -1103,7 +1103,7 @@ function createReflectionSnapshot(): void {
 
           <section className="flex flex-col gap-4">
             <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white/95 shadow-2xl ring-1 ring-black/5">
-              <div ref={listRef} className="h-[60vh] overflow-y-auto px-6 py-6 text-slate-900">
+              <div ref={listRef} className="min-h-[60vh] overflow-y-auto px-6 py-6 text-slate-900">
                 {hasStarted && viewIndex === activeIndex && stepImg ? (
                   <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 shadow-inner">
                     <CaseImagePublic
