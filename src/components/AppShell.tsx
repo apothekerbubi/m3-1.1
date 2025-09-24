@@ -1,6 +1,14 @@
 "use client";
 
-import { ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  ReactNode,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { usePathname } from "next/navigation";
 import { Bars3Icon, ChevronLeftIcon } from "@heroicons/react/24/outline";
 import clsx from "clsx";
@@ -31,6 +39,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
     shouldStartCollapsed(normalized)
   );
   const prevPathRef = useRef<string | null>(null);
+
+  const layoutStyle = useMemo(
+    () =>
+      ({
+        "--nav-current-width": navCollapsed ? "0px" : "var(--nav-w)",
+      }) satisfies CSSProperties,
+    [navCollapsed]
+  );
 
   useEffect(() => {
     const shouldCollapse = shouldStartCollapsed(normalized);
@@ -69,9 +85,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <div
           id="app-layout"
           className="grid grid-cols-1 items-start gap-4 md:grid-cols-[var(--nav-current-width)_1fr]"
-          style={{
-            ["--nav-current-width" as const]: navCollapsed ? "0px" : "var(--nav-w)",
-          }}
+          style={layoutStyle}
         >
           <aside
             id="app-sidenav-container"
