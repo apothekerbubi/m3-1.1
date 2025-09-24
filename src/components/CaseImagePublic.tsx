@@ -33,6 +33,20 @@ export default function CaseImagePublic({
   const src = useMemo(() => publicImageUrl(path, bucket), [path, bucket]);
   const [errored, setErrored] = useState(false);
   const [open, setOpen] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [imageKey, setImageKey] = useState(0);
+  const retryTimerRef = useRef<number | null>(null);
+
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 1500;
+
+  useEffect(() => {
+    return () => {
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
+      }
+    };
+  }, []);
 
   // === Overlay Transform- und Interaktions-Status ===
   const stageRef = useRef<HTMLDivElement | null>(null); // nur der Bildbereich (Stage)
@@ -200,8 +214,42 @@ export default function CaseImagePublic({
     cursor: isDraggingRef.current ? "grabbing" : scale > 1 ? "grab" : "default",
   };
 
+  const handleThumbError = () => {
+    console.error("[CaseImagePublic] next/image load error:", src);
+
+    if (retryCount < MAX_RETRIES) {
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
+      }
+
+      retryTimerRef.current = window.setTimeout(() => {
+        setRetryCount((prev) => prev + 1);
+        setImageKey((prev) => prev + 1);
+      }, RETRY_DELAY_MS);
+      return;
+    }
+
+    setErrored(true);
+  };
+
+  const handleThumbLoaded = () => {
+    if (retryTimerRef.current !== null) {
+      window.clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+
+    if (retryCount !== 0) {
+      setRetryCount(0);
+    }
+
+    if (errored) {
+      setErrored(false);
+    }
+  };
+
   const Thumb = (
     <Image
+      key={imageKey}
       src={src}
       alt={alt}
       width={width}
@@ -211,10 +259,8 @@ export default function CaseImagePublic({
       className="w-full h-auto object-contain"
       style={thumbStyles}
       sizes="(max-width: 768px) 100vw, 700px"
-      onError={() => {
-        console.error("[CaseImagePublic] next/image load error:", src);
-        setErrored(true);
-      }}
+      onError={handleThumbError}
+      onLoadingComplete={handleThumbLoaded}
     />
   );
 
