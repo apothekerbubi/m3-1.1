@@ -172,7 +172,7 @@ export default function ExamPage() {
 
   // *** State ***
   const [asked, setAsked] = useState<Asked[]>([]);
-  const [style, setStyle] = useState<"strict" | "coaching">("coaching");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [ended, setEnded] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -504,7 +504,7 @@ const stepSolutions = useMemo<string[]>(() => {
         text: t.text,
       })),
       outline: [],
-      style,
+      style: "coaching",
       objectives: c.objectives ?? [],
       completion: c.completion ?? null,
 
@@ -818,7 +818,7 @@ function createReflectionSnapshot(): void {
         body: JSON.stringify({
           caseId: c.id,
           caseText: c.vignette,
-          style,
+          style: "coaching",
           nextPrompt: fallbackPrompt,
           transcript: transcriptForBridge,
         }),
@@ -922,13 +922,23 @@ function createReflectionSnapshot(): void {
     <main className="min-h-screen bg-white pb-16 text-slate-900">
       <div className="mx-auto max-w-6xl px-6 pt-10">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
-          >
-            ← Zurück
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen((prev) => !prev)}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+              aria-expanded={sidebarOpen}
+            >
+              {sidebarOpen ? "Fragen ausblenden" : "Fragen anzeigen"}
+            </button>
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+            >
+              ← Zurück
+            </button>
+          </div>
           <Link
             href="/subjects"
             className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white/80 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
@@ -937,40 +947,40 @@ function createReflectionSnapshot(): void {
           </Link>
         </div>
         <header className="relative mb-10 overflow-hidden rounded-3xl bg-gradient-to-br from-sky-500 via-indigo-500 to-fuchsia-500 p-[1px] shadow-2xl">
-          <div className="rounded-[calc(1.5rem-1px)] bg-white px-8 py-10 text-center sm:px-12 lg:text-left">
-            <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between">
+          <div className="rounded-[calc(1.5rem-1px)] bg-white px-6 py-6 text-center sm:px-10 lg:text-left">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <span className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.4em] text-slate-500">
                   Prüfungslauf
                 </span>
-                <h1 className="mt-6 text-4xl font-semibold text-slate-900">{anonymousTitle(c)}</h1>
-                <p className="mt-3 text-base text-slate-600">{caseSubtitle}</p>
+                <h1 className="mt-4 text-3xl font-semibold text-slate-900">{anonymousTitle(c)}</h1>
+                <p className="mt-2 text-base text-slate-600">{caseSubtitle}</p>
                 {specialtyLabel ? (
                   <p className="mt-1 text-[11px] uppercase tracking-[0.4em] text-slate-400">{specialtyLabel}</p>
                 ) : null}
-                <p className="mt-6 inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-50/80 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.4em] text-slate-500">
+                <p className="mt-4 inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-50/80 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.4em] text-slate-500">
                   {stateBadgeLabel}
                 </p>
               </div>
-              <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-slate-50/80 p-6 shadow-inner">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+              <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-slate-50/80 p-4 shadow-inner">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
                     <div className="text-[10px] font-semibold uppercase tracking-[0.4em] text-slate-500">Fortlauf</div>
-                    <div className="mt-3 flex items-end justify-between gap-3">
+                    <div className="mt-2 flex items-end justify-between gap-3">
                       <div>
-                        <div className="text-3xl font-semibold text-slate-900">
+                        <div className="text-2xl font-semibold text-slate-900">
                           {displayedStep}
-                          <span className="ml-1 text-lg font-normal text-slate-500">/ {nSteps}</span>
+                          <span className="ml-1 text-base font-normal text-slate-500">/ {nSteps}</span>
                         </div>
                         <div className="text-[10px] uppercase tracking-[0.4em] text-slate-400">{stateBadgeLabel}</div>
                       </div>
                       <ProgressBar value={stepProgressValue} />
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+                  <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
                     <div className="text-[10px] font-semibold uppercase tracking-[0.4em] text-slate-500">Bester Score</div>
-                    <div className="mt-3 flex items-end justify-between gap-3">
-                      <div className="text-3xl font-semibold text-slate-900">
+                    <div className="mt-2 flex items-end justify-between gap-3">
+                      <div className="text-2xl font-semibold text-slate-900">
                         {answeredSteps > 0 ? `${averageScore}%` : "–"}
                       </div>
                       <span className="rounded-full bg-gradient-to-r from-sky-100 via-indigo-100 to-fuchsia-100 px-3 py-1 text-xs font-semibold text-slate-600">
@@ -979,13 +989,13 @@ function createReflectionSnapshot(): void {
                     </div>
                   </div>
                   {seriesTotal > 0 ? (
-                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:col-span-2">
+                    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm sm:col-span-2 lg:col-span-1">
                       <div className="text-[10px] font-semibold uppercase tracking-[0.4em] text-slate-500">Serie</div>
-                      <div className="mt-3 flex items-end justify-between gap-3">
+                      <div className="mt-2 flex items-end justify-between gap-3">
                         <div>
-                          <div className="text-3xl font-semibold text-slate-900">
+                          <div className="text-2xl font-semibold text-slate-900">
                             {seriesIdx + 1}
-                            <span className="ml-1 text-lg font-normal text-slate-500">/ {seriesTotal}</span>
+                            <span className="ml-1 text-base font-normal text-slate-500">/ {seriesTotal}</span>
                           </div>
                           <div className="text-[10px] uppercase tracking-[0.4em] text-slate-400">Fortschritt</div>
                         </div>
@@ -994,29 +1004,16 @@ function createReflectionSnapshot(): void {
                     </div>
                   ) : null}
                 </div>
-                <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-                  <label className="text-[10px] font-semibold uppercase tracking-[0.4em] text-slate-500" htmlFor="answer-style">
-                    Antwortstil
-                  </label>
-                  <select
-                    id="answer-style"
-                    className="mt-3 w-full rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
-                    value={style}
-                    onChange={(e) => setStyle(e.target.value as "strict" | "coaching")}
-                  >
-                    <option value="coaching">Coaching</option>
-                    <option value="strict">Streng</option>
-                  </select>
-                </div>
               </div>
             </div>
           </div>
         </header>
-        <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-          <aside
-            ref={sidebarRef}
-            className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-xl ring-1 ring-black/5 md:sticky md:top-36 md:max-h-[calc(100vh-220px)] md:overflow-y-auto"
-          >
+        <div className={`grid gap-6 ${sidebarOpen ? "lg:grid-cols-[320px_1fr]" : "lg:grid-cols-1"}`}>
+          {sidebarOpen ? (
+            <aside
+              ref={sidebarRef}
+              className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-xl ring-1 ring-black/5 md:sticky md:top-36 md:max-h-[calc(100vh-220px)] md:overflow-y-auto"
+            >
             <div className="text-[10px] font-semibold uppercase tracking-[0.4em] text-slate-500">Fragenfolge</div>
             <ul className="mt-4 space-y-3">
               {asked.map((a, i) => {
@@ -1101,7 +1098,8 @@ function createReflectionSnapshot(): void {
                 Fallinfo
               </Link>
             </div>
-          </aside>
+            </aside>
+          ) : null}
           <section className="flex flex-col gap-4">
             <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white/95 shadow-2xl ring-1 ring-black/5">
               <div ref={listRef} className="h-[60vh] overflow-y-auto px-6 py-6 text-slate-900">
