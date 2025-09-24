@@ -221,7 +221,7 @@ export default function ExamPage() {
 
   // *** State ***
   const [asked, setAsked] = useState<Asked[]>([]);
-  const [style, setStyle] = useState<"strict" | "coaching">("coaching");
+  const style = "coaching" as const;
   const [ended, setEnded] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -295,6 +295,15 @@ const stepSolutions = useMemo<string[]>(() => {
     const done = asked.filter((a) => a.status !== "pending").length;
     return Math.round((done / total) * 100);
   }, [asked, nSteps]);
+
+  const currentStepNumber = Math.min(activeIndex + 1, Math.max(1, nSteps));
+  const caseTitle = c?.title?.trim() || anonymousTitle(c);
+  const seriesProgress =
+    seriesTotal > 0
+      ? ended
+        ? Math.round(((seriesIdx + 1) / seriesTotal) * 100)
+        : seriesPct
+      : 0;
 
   const viewChat: Turn[] = useMemo(() => chats[viewIndex] ?? [], [chats, viewIndex]);
 
@@ -925,53 +934,45 @@ function createReflectionSnapshot(): void {
   const stepImg = stepsOrdered[viewIndex]?.image;
 
   return (
-    <main className="p-0">
-      {/* Kopfzeile */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h2 className="flex-1 text-2xl font-semibold tracking-tight">
-          Prüfung: {anonymousTitle(c)}
-        </h2>
+    <main className="min-h-screen bg-white pb-16 text-slate-900">
+      <div className="mx-auto max-w-6xl px-4 py-10">
+        <header className="relative mb-8 overflow-hidden rounded-3xl bg-gradient-to-br from-sky-500 via-indigo-500 to-fuchsia-500 p-[1px] shadow-2xl">
+          <div className="rounded-[calc(1.5rem-1px)] bg-white px-6 py-6 sm:px-10">
+            <div className="flex flex-col gap-2 text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+              <span className="truncate">Fall: {caseTitle}</span>
+              <div className="flex flex-wrap items-center gap-3">
+                <span>Frage {currentStepNumber}/{Math.max(1, nSteps)}</span>
+                <span>Fortschritt {ended ? 100 : progressPct}%</span>
+                {seriesTotal > 0 ? <span>Serie {seriesIdx + 1}/{seriesTotal}</span> : null}
+              </div>
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-inner">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-400">Fall-Fortschritt</div>
+                <div className="mt-3 flex justify-start">
+                  <ProgressBar value={ended ? 100 : progressPct} />
+                </div>
+              </div>
+              {seriesTotal > 0 ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-inner">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-400">Serien-Fortschritt</div>
+                  <div className="mt-3 flex justify-start">
+                    <ProgressBar value={seriesProgress} />
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </header>
 
-        {/* Serien-Progressbar (falls Serie vorhanden) */}
-        {seriesTotal > 0 && (
-  <div className="w-48">
-    <div className="mb-1 text-[11px] text-gray-600">
-      Serie {seriesIdx + 1}/{seriesTotal}
-    </div>
-    <ProgressBar
-      value={ended ? Math.round(((seriesIdx + 1) / seriesTotal) * 100) : seriesPct}
-    />
-  </div>
-)}
-
-        
-
-        {/* Schritt-Progressbar */}
-<div className="hidden w-56 sm:block">
-  <div className="mb-1 text-[11px] text-gray-600">Fortschritt</div>
-  <ProgressBar value={ended ? 100 : progressPct} />
-</div>
-
-        <label className="text-xs text-gray-600">Stil</label>
-        <select
-          className="rounded-md border px-2 py-1 text-sm"
-          value={style}
-          onChange={(e) => setStyle(e.target.value as "strict" | "coaching")}
+        {/* Zwei Spalten */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[var(--steps-w,260px)_1fr]">
+          {/* Linke Spalte */}
+          <aside
+            ref={sidebarRef}
+            className="rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-lg shadow-slate-200/60 md:sticky md:top-24 overflow-y-auto max-h-[calc(100vh-140px)]"
         >
-          <option value="coaching">Coaching</option>
-          <option value="strict">Streng</option>
-        </select>
-      </div>
-
-      {/* Zwei Spalten */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-[var(--steps-w,260px)_1fr]">
-        {/* Linke Spalte */}
-        <aside
-          ref={sidebarRef}
-          className="rounded-xl border border-black/10 bg-white/70 p-3 md:sticky md:top-20
-                     overflow-y-auto max-h-[calc(100vh-120px)]"
-        >
-          <div className="mb-2 text-xs font-medium text-gray-700">Fragenfolge</div>
+          <div className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">Fragenfolge</div>
           <ul className="space-y-2">
             {asked.map((a, i) => {
               const dot =
@@ -1036,7 +1037,7 @@ function createReflectionSnapshot(): void {
               type="button"
               onClick={hasStarted ? nextStep : startExam}
               disabled={loading}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
             >
               {hasStarted ? (activeIndex >= stepsOrdered.length - 1 ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
             </button>
@@ -1045,7 +1046,7 @@ function createReflectionSnapshot(): void {
               <button
                 type="button"
                 onClick={() => setViewIndex(activeIndex)}
-                className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs text-gray-800 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
               >
                 Zur aktuellen Frage springen
               </button>
@@ -1057,7 +1058,7 @@ function createReflectionSnapshot(): void {
         <section className="relative flex flex-col gap-3">
           <div
             ref={listRef}
-            className="relative z-10 h-[58vh] overflow-y-auto rounded-2xl border border-black/10 bg-white p-4 shadow-card text-gray-900"
+            className="relative z-10 h-[58vh] overflow-y-auto rounded-3xl border border-slate-200 bg-white/90 p-5 text-gray-900 shadow-xl shadow-slate-200/70"
           >
             {/* Bild nur anzeigen, wenn gestartet & aktueller Schritt aktiv ist */}
             {hasStarted && viewIndex === activeIndex && stepImg && (
@@ -1117,100 +1118,101 @@ function createReflectionSnapshot(): void {
           </div>
 
           {/* Eingabezeile */}
-<form
-  onSubmit={(e) => {
-    e.preventDefault();
-    if (!hasStarted) return startExam();
-    if (!ended) onSend();
-  }}
-  className="sticky bottom-0 left-0 right-0 z-20 flex flex-col gap-2 border-t bg-white p-2"
->
-  {/* Reihe 1: Eingabe + Senden */}
-  <div className="flex gap-2">
-    <input
-      className="min-w-0 flex-1 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-      placeholder={
-        ended
-          ? "Fall beendet"
-          : !hasStarted
-          ? "Zum Start bitte links klicken"
-          : viewIndex !== activeIndex
-          ? "Nur Ansicht – zurück zur aktuellen Frage wechseln"
-          : "Deine Antwort…"
-      }
-      value={input}
-      onChange={(e) => setInput(e.target.value)}
-      disabled={!hasStarted || ended || viewIndex !== activeIndex}
-    />
-      <button
-      type="button"
-      onClick={recording ? stopRecording : startRecording}
-      disabled={!hasStarted || ended || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      {recording ? "⏹️" : "🎙️"}
-    </button>
-    <button
-      type="submit"
-      disabled={loading || !hasStarted || ended || viewIndex !== activeIndex || !input.trim()}
-      className="rounded-md border border-black/10 bg-blue-600 text-white px-4 py-2 text-sm hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      Senden
-    </button>
-  </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!hasStarted) return startExam();
+              if (!ended) onSend();
+            }}
+            className="sticky bottom-0 left-0 right-0 z-20 flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-xl shadow-slate-200/70"
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                className="min-w-0 flex-1 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                placeholder={
+                  ended
+                    ? "Fall beendet"
+                    : !hasStarted
+                    ? "Zum Start bitte links klicken"
+                    : viewIndex !== activeIndex
+                    ? "Nur Ansicht – zurück zur aktuellen Frage wechseln"
+                    : "Deine Antwort…"
+                }
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                disabled={!hasStarted || ended || viewIndex !== activeIndex}
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={recording ? stopRecording : startRecording}
+                  disabled={!hasStarted || ended || viewIndex !== activeIndex}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-sm text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                >
+                  {recording ? "⏹️" : "🎙️"}
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || !hasStarted || ended || viewIndex !== activeIndex || !input.trim()}
+                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:from-sky-400 hover:via-indigo-500 hover:to-fuchsia-600 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Senden
+                </button>
+              </div>
+            </div>
 
-  {/* Reihe 2: Zusatz-Buttons */}
-  <div className="flex flex-wrap gap-2">
-    <button
-      type="button"
-      onClick={requestTip}
-      disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      💡 Tipp
-    </button>
-    <button
-      type="button"
-      onClick={requestExplain}
-      disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      📘 Erklären
-    </button>
-     <button
-      type="button"
-      onClick={requestSolution}
-      disabled={loading || !hasStarted || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      📝 Lösung anzeigen
-    </button>
-    <label className="flex items-center gap-1 text-xs text-gray-600">
-      <input
-        type="checkbox"
-        checked={ttsEnabled}
-        onChange={(e) => setTtsEnabled(e.target.checked)}
-      />
-      Antworten vorlesen
-    </label>
-    <button
-      type="button"
-      onClick={hasStarted ? nextStep : startExam}
-      disabled={loading}
-      className="ml-auto rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
-    </button>
-    <Link
-      href={`/cases/${c.id}`}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      Fallinfo
-    </Link>
-  </div>
-</form>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={requestTip}
+                disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
+                className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-sm text-slate-800 transition hover:bg-slate-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              >
+                💡 Tipp
+              </button>
+              <button
+                type="button"
+                onClick={requestExplain}
+                disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
+                className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-sm text-slate-800 transition hover:bg-slate-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              >
+                📘 Erklären
+              </button>
+              <button
+                type="button"
+                onClick={requestSolution}
+                disabled={loading || !hasStarted || viewIndex !== activeIndex}
+                className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-sm text-slate-800 transition hover:bg-slate-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              >
+                📝 Lösung anzeigen
+              </button>
+              <label className="flex items-center gap-1 text-xs text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={ttsEnabled}
+                  onChange={(e) => setTtsEnabled(e.target.checked)}
+                />
+                Antworten vorlesen
+              </label>
+              <button
+                type="button"
+                onClick={hasStarted ? nextStep : startExam}
+                disabled={loading}
+                className="ml-auto inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 px-4 py-1.5 text-sm font-semibold text-white shadow-lg transition hover:from-sky-400 hover:via-indigo-500 hover:to-fuchsia-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
+              </button>
+              <Link
+                href={`/cases/${c.id}`}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-medium text-slate-800 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              >
+                Fallinfo
+              </Link>
+            </div>
+          </form>
         </section>
       </div>
-    </main>
+    </div>
+  </main>
   );
 }
