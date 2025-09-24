@@ -1,11 +1,13 @@
 // src/app/layout.tsx
 import "./globals.css";
+
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
-import LayoutVars from "@/components/LayoutVars";
-import AppShell from "@/components/AppShell";
-import type { ReactNode } from "react";
 import Script from "next/script";
+import type { ReactNode } from "react";
+
+import AppShell from "@/components/AppShell";
+import LayoutVars from "@/components/LayoutVars";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -20,11 +22,15 @@ export const metadata: Metadata = {
   description: "Prüfungsnahe M3-Simulation – Innere, Chirurgie & Wahlfach",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+type RootLayoutProps = {
+  children: ReactNode;
+};
+
+export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="de" className={jakarta.variable}>
       <head>
-         {/* Google Tag Manager */}
+        {/* Google Tag Manager */}
         <Script id="google-tag-manager" strategy="beforeInteractive">
           {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
@@ -33,12 +39,12 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 })(window,document,'script','dataLayer','GTM-5GB3NKJV');`}
         </Script>
         <Script
-           type="text/javascript"
+          type="text/javascript"
           src="https://cdn.consentmanager.net/delivery/autoblocking/82049fe772b7e.js"
           data-cmp-ab="1"
-           data-cmp-host="b.delivery.consentmanager.net"
+          data-cmp-host="b.delivery.consentmanager.net"
           data-cmp-cdn="cdn.consentmanager.net"
-           data-cmp-codesrc="0"
+          data-cmp-codesrc="0"
           strategy="beforeInteractive"
         />
       </head>
@@ -53,7 +59,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           />
         </noscript>
         <LayoutVars>
-         
           <AppShell>{children}</AppShell>
         </LayoutVars>
       </body>
