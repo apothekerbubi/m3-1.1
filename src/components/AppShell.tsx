@@ -45,10 +45,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const prevPathRef = useRef<string | null>(null);
 
   const layoutStyle = useMemo(
-    () =>
-      ({
-        "--nav-current-width": navCollapsed ? "0px" : "var(--nav-w)",
-      }) satisfies CSSPropertiesWithVars,
+    (): CSSPropertiesWithVars => ({
+      "--nav-current-width": navCollapsed ? "0px" : "var(--nav-w)",
+    }),
     [navCollapsed]
   );
 
