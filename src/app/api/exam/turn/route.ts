@@ -120,6 +120,40 @@ function normalizeText(s: string): string {
     .trim();
 }
 
+function isAnamnesisPrompt(prompt: string): boolean {
+  const p = (prompt || "").toLowerCase();
+  if (!p) return false;
+  const keywords = [
+    "anamnes",
+    "anamnese",
+    "nachfrage",
+    "nachfragen",
+    "fragen stellen",
+    "weitere fragen",
+    "patientenbefrag",
+  ];
+  return keywords.some(keyword => p.includes(keyword));
+}
+
+function extractPatientStatements(text: string | null | undefined): string[] {
+  const raw = (text || "")
+    .replace(/[•\-*]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!raw) return [];
+
+  const matches: string[] = [];
+  const regex = /\b(?:der|die) patient(?:in)?[^.?!]*(?:[.?!]|$)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(raw)) !== null) {
+    const sentence = m[0].trim();
+    if (!sentence) continue;
+    const withPunctuation = /[.?!]$/.test(sentence) ? sentence : `${sentence}.`;
+    matches.push(withPunctuation);
+  }
+  return matches;
+}
+
 function studentSinceLastExaminerQuestion(transcript: TranscriptItem[]): string[] {
   let lastQIdx = -1;
   for (let i = transcript.length - 1; i >= 0; i--) {
@@ -767,6 +801,29 @@ Erzeuge NUR das JSON-Objekt.`.trim();
     }
     payload.next_question = stripMd((payload.next_question ?? "") as string) || null;
     payload.end = Boolean(payload.end);
+
+    if (isAnamnesisPrompt(currentPrompt) && payload.evaluation?.feedback) {
+      const patientSnippets = extractPatientStatements(payload.say_to_student);
+      if (patientSnippets.length > 0) {
+        const feedback = payload.evaluation.feedback || "";
+        let normalizedFeedback = normalizeText(feedback);
+        const additions: string[] = [];
+        for (const snippet of patientSnippets) {
+          const normalizedSnippet = normalizeText(snippet);
+          if (!normalizedSnippet) continue;
+          if (!normalizedFeedback.includes(normalizedSnippet)) {
+            additions.push(snippet);
+            normalizedFeedback = `${normalizedFeedback} ${normalizedSnippet}`.trim();
+          }
+        }
+        if (additions.length > 0) {
+          const trimmedFeedback = feedback.trim();
+          const needsSpace = trimmedFeedback.length > 0 && /[.?!]$/.test(trimmedFeedback);
+          const joiner = trimmedFeedback.length === 0 ? "" : needsSpace ? " " : ". ";
+          payload.evaluation.feedback = `${trimmedFeedback}${joiner}${additions.join(" ")}`.trim();
+        }
+      }
+    }
 
     // Spoiler-Schutz NUR für frühe Versuche und NICHT bei korrekter Antwort
     if (payload.evaluation && effectiveAttempt < 3 && payload.evaluation.correctness !== "correct") {
