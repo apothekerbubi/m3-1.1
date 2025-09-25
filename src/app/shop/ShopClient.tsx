@@ -1,6 +1,58 @@
 "use client";
 
+type Option = {
+  label: string;
+  price: string;
+  description?: string;
+  priceId?: string;
+  highlight?: boolean;
+};
+
 export default function ShopClient() {
+   const caseBundles: Option[] = [
+    {
+      label: "25 Fälle",
+      price: "3,99 €",
+      description: "Perfekt zum Reinschnuppern in unsere Fallsimulationen.",
+      priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_CASE_25,
+    },
+    {
+      label: "50 Fälle",
+      price: "6,99 €",
+      description: "Vertiefe gezielt einzelne Fächer mit ausgewählten Fällen.",
+      priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_CASE_50,
+      highlight: true,
+    },
+    {
+      label: "100 Fälle",
+      price: "12,99 €",
+      description: "Unser umfangreichstes Paket für fokussierte Lerneinheiten.",
+      priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_CASE_100,
+    },
+  ];
+
+  const subscriptions: Option[] = [
+    {
+      label: "1 Monat",
+      price: "9,99 €",
+      description: "Volle Flexibilität für kurze Intensivphasen.",
+      priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_SUB_1M,
+    },
+    {
+      label: "3 Monate",
+      price: "26,99 €",
+      description: "Beliebt für das Semesterendspurt – spare gegenüber dem Monatsplan.",
+      priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_SUB_3M,
+      highlight: true,
+    },
+    {
+      label: "6 Monate",
+      price: "49,99 €",
+      description: "Langfristige Begleitung über alle Phasen deiner Vorbereitung.",
+      priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_SUB_6M,
+    },
+  ];
+
   async function onUpgrade(priceId: string) {
     const res = await fetch("/api/stripe/create-checkout-session", {
       method: "POST",
@@ -12,115 +64,159 @@ export default function ShopClient() {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {/* ExaSim Unlimited */}
-      <div className="rounded-xl border bg-white shadow-sm flex flex-col">
-        <div className="p-6 border-b">
-          <h2 className="text-xl font-semibold">ExaSim Unlimited</h2>
-          <p className="text-sm text-gray-600 mt-2">
-            Mit <strong>ExaSim Unlimited</strong> erhältst du vollen Zugriff auf
-            alle aktuellen und zukünftigen Fälle, inklusive unserer stetig
-            wachsenden <strong>Premium-Simulationen</strong>. Perfekt für alle, die ihre
-            Examensvorbereitung auf das nächste Level heben wollen – ohne
-            Einschränkungen, jederzeit verfügbar. Dazu bekommst du Zugriff auf
-            unsere Detailanalysen und exklusive Zusatzmaterialien,
-            die dich optimal durch die gesamte Prüfungsphase begleiten.
+     <div className="space-y-16">
+      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-sky-800 px-8 py-16 text-white shadow-xl">
+        <div className="absolute inset-y-0 right-0 w-1/2 opacity-20 blur-3xl bg-gradient-to-b from-sky-400 via-cyan-500 to-emerald-400" />
+        <div className="relative z-10 max-w-2xl">
+          <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs uppercase tracking-[0.2em] text-sky-200">
+            ExaSim Shop
+          </span>
+          <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-5xl">
+            Finde das Modell, das zu deiner Prüfungsvorbereitung passt.
+          </h1>
+          <p className="mt-4 text-base text-slate-200 sm:text-lg">
+            Kombiniere flexibel Fallpakete mit unserem Unlimited-Abo. So kannst du genau dort trainieren, wo du gerade die größte Hebelwirkung brauchst.
           </p>
+          <ul className="mt-8 grid gap-3 text-sm text-slate-200 sm:grid-cols-2">
+            <li className="flex items-center gap-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
+              </span>
+              Premium-Fälle &amp; Simulationen aus allen Fächern
+            </li>
+            <li className="flex items-center gap-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
+              </span>
+              Sofortige Aktivierung nach dem Checkout
+            </li>
+            <li className="flex items-center gap-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
+                <span className="h-2.5 w-2.5 rounded-full bg-sky-300" />
+              </span>
+              Analyse-Dashboards &amp; Feedback inklusive
+            </li>
+            <li className="flex items-center gap-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
+                <span className="h-2.5 w-2.5 rounded-full bg-fuchsia-300" />
+              </span>
+              Kündbar und kombinierbar – ganz ohne Risiko
+            </li>
+          </ul>
         </div>
-        <div className="flex flex-col justify-end p-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <OptionButton
-              label="1 Monat"
-              price="9,99 €"
-              onClick={() =>
-                onUpgrade(process.env.NEXT_PUBLIC_STRIPE_PRICE_ID!)
-              }
-            />
-            <OptionButton
-              label="2 Monate"
-              price="18,99 €"
-              onClick={() =>
-                onUpgrade(process.env.NEXT_PUBLIC_STRIPE_PRICE_ID!)
-              }
-            />
-            <OptionButton
-              label="3 Monate"
-              price="26,99 €"
-              onClick={() =>
-                onUpgrade(process.env.NEXT_PUBLIC_STRIPE_PRICE_ID!)
-              }
-            />
-            <OptionButton
-              label="6 Monate"
-              price="49,99 €"
-              onClick={() =>
-                onUpgrade(process.env.NEXT_PUBLIC_STRIPE_PRICE_ID!)
-              }
-            />
-          </div>
-        </div>
-      </div>
+          </section>
 
-      {/* ExaSim Essentials */}
-      <div className="rounded-xl border bg-white shadow-sm flex flex-col">
-        <div className="p-6 border-b">
-          <h2 className="text-xl font-semibold">ExaSim Essentials</h2>
-          <p className="text-sm text-gray-600 mt-2">
-            Starte deine Vorbereitung mit <strong>ExaSim Essentials</strong>.
-            Dieses Paket bietet dir Zugang zu einer festen Anzahl an Fällen –
-            perfekt, wenn du dich auf bestimmte Themen fokussieren oder das
-            ExaSim-Training zunächst ausprobieren möchtest. Lerne praxisnah,
-            erhalte direktes Feedback und steigere Schritt für Schritt deine
-            Sicherheit. Ideal für kürzere Vorbereitungsphasen oder zur
-            gezielten Vertiefung einzelner Schwerpunkte. Examenssimulation nicht inbegriffen.
-          </p>
-        </div>
-        <div className="flex flex-col justify-end p-6">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            <OptionButton
-              label="50 Fälle"
-              price="4,99 €"
-              onClick={() =>
-                onUpgrade(process.env.NEXT_PUBLIC_STRIPE_PRICE_ID!)
-              }
-            />
-            <OptionButton
-              label="100 Fälle"
-              price="8,99 €"
-              onClick={() =>
-                onUpgrade(process.env.NEXT_PUBLIC_STRIPE_PRICE_ID!)
-              }
-            />
-            <OptionButton
-              label="200 Fälle"
-              price="14,99 €"
-              onClick={() =>
-                onUpgrade(process.env.NEXT_PUBLIC_STRIPE_PRICE_ID!)
-              }
-            />
-          </div>
-        </div>
-      </div>
+       <section className="grid gap-10 lg:grid-cols-[1.1fr_1fr]">
+        <ProductCard
+          title="Fallpakete"
+          subtitle="Hol dir eine kuratierte Auswahl an Fällen für gezielte Lernziele."
+          badge="Flexibel"
+          options={caseBundles}
+          onSelect={onUpgrade}
+        />
+        <ProductCard
+          title="ExaSim Unlimited"
+          subtitle="Unbegrenzter Zugriff auf alle Fälle, Simulationen und neue Inhalte."
+          badge="Abo"
+          highlight
+          options={subscriptions}
+          onSelect={onUpgrade}
+        />
+      </section>
     </div>
+  );
+}
+function ProductCard({
+  title,
+  subtitle,
+  badge,
+  highlight,
+  options,
+  onSelect,
+}: {
+  title: string;
+  subtitle: string;
+  badge: string;
+  highlight?: boolean;
+  options: Option[];
+  onSelect: (priceId: string) => void;
+}) {
+  return (
+    <article
+      className={`relative flex h-full flex-col justify-between overflow-hidden rounded-3xl border bg-white p-10 shadow-sm transition hover:shadow-lg ${
+        highlight ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200"
+      }`}
+    >
+      <div className="absolute -top-16 -right-16 h-40 w-40 rounded-full bg-gradient-to-br from-sky-500/40 to-violet-500/40 blur-3xl" />
+      <div className="absolute bottom-4 right-6 text-7xl font-black text-black/5">
+        {badge}
+      </div>
+      <div className="relative z-10">
+        <span
+          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] ${
+            highlight ? "bg-white/10 text-sky-200" : "bg-sky-100 text-sky-700"
+          }`}
+        >
+          {badge}
+        </span>
+        <h2 className="mt-6 text-3xl font-semibold tracking-tight">{title}</h2>
+        <p className={`mt-3 text-sm leading-relaxed ${highlight ? "text-slate-100" : "text-slate-600"}`}>
+          {subtitle}
+        </p>
+      </div>
+      <div className="relative z-10 mt-8 space-y-4">
+        {options.map((option) => (
+          <OptionButton key={option.label} option={option} onSelect={onSelect} inverted={highlight} />
+        ))}
+      </div>
+    </article>
   );
 }
 
 function OptionButton({
-  label,
-  price,
-  onClick,
+   option,
+  onSelect,
+  inverted,
 }: {
-  label: string;
-  price: string;
-  onClick: () => void;
+  option: Option;
+  onSelect: (priceId: string) => void;
+  inverted?: boolean;
 }) {
+  const { label, price, description, priceId, highlight } = option;
+  const disabled = !priceId;
   return (
     <button
-      onClick={onClick}
-      className="rounded-lg border px-3 py-2 text-sm text-gray-800 hover:border-blue-600 hover:text-blue-600 flex flex-col items-center"
+        type="button"
+      onClick={() => priceId && onSelect(priceId)}
+      disabled={disabled}
+      className={`group w-full rounded-2xl border px-5 py-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 ${
+        inverted
+          ? "border-white/40 bg-white/10 text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:border-white/20 disabled:text-white/50 focus-visible:ring-offset-slate-900"
+          : "border-slate-200 bg-white text-slate-900 hover:border-slate-900/60 hover:shadow-md disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 focus-visible:ring-offset-white"
+      } ${highlight ? "ring-1 ring-inset ring-sky-300/70" : ""}`}
     >
-      <span className="font-medium">{label}</span>
-      <span className="text-gray-600">{price}</span>
+     <div className="flex items-center justify-between gap-6">
+        <div>
+          <div className="text-base font-semibold tracking-tight">{label}</div>
+          {description && (
+            <p className={`mt-1 text-sm ${inverted ? "text-slate-100" : "text-slate-500"}`}>
+              {description}
+            </p>
+          )}
+        </div>
+        <div
+          className={`text-lg font-semibold ${
+            inverted ? "text-white" : "text-slate-900"
+          }`}
+        >
+          {price}
+        </div>
+      </div>
+      {disabled && (
+        <p className={`mt-3 text-xs uppercase tracking-wider ${inverted ? "text-slate-200/70" : "text-slate-500/80"}`}>
+          Bald verfügbar – kontaktiere uns für Zugang
+        </p>
+      )}
     </button>
   );
 }

@@ -275,7 +275,7 @@ export default function SubjectsPageInner() {
                         <div className="truncate font-medium">{shortName(c)}</div>
                         {done && <CheckCircleIcon className="h-4 w-4 text-emerald-600" aria-hidden />}
                       </div>
-                      <div className="text-xs text-gray-600">{c.tags?.slice(0, 2).join(" · ")}</div>
+                      
                       <MiniBar pct={pct} />
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
