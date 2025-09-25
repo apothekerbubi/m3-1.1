@@ -239,6 +239,7 @@ export default function ExamPage() {
 
   // Punkte pro Schritt (Bestwert)
   const [perStepScores, setPerStepScores] = useState<number[]>([]);
+  const [questionsCollapsed, setQuestionsCollapsed] = useState(false);
   
 
   // Versuchszähler für den aktiven Schritt
@@ -928,14 +929,14 @@ function createReflectionSnapshot(): void {
     <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 py-8 text-slate-900">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4">
         {/* Kopfzeile */}
-        <div className="flex flex-wrap items-center gap-3 rounded-3xl border border-slate-200 bg-white/80 px-5 py-4 shadow-xl shadow-slate-200/70 backdrop-blur">
+        <div className="flex flex-wrap items-center gap-3 rounded-3xl border border-white/80 bg-white/95 px-5 py-4 shadow-[0_35px_80px_-45px_rgba(15,23,42,0.55)] ring-1 ring-slate-900/5 backdrop-blur">
           <h2 className="flex-1 text-2xl font-semibold tracking-tight text-slate-900">
             Prüfung: {anonymousTitle(c)}
           </h2>
 
           {/* Serien-Progressbar (falls Serie vorhanden) */}
           {seriesTotal > 0 && (
-            <div className="w-48 rounded-2xl border border-slate-200 bg-white/70 px-3 py-2 text-slate-600 shadow-sm">
+            <div className="w-48 rounded-2xl border border-white/70 bg-white/90 px-3 py-2 text-slate-600 shadow-[0_25px_40px_-35px_rgba(15,23,42,0.45)] ring-1 ring-slate-900/5">
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500">
                 Serie {seriesIdx + 1}/{seriesTotal}
               </div>
@@ -944,7 +945,7 @@ function createReflectionSnapshot(): void {
           )}
 
           {/* Schritt-Progressbar */}
-          <div className="hidden w-56 rounded-2xl border border-slate-200 bg-white/70 px-3 py-2 text-slate-600 shadow-sm sm:block">
+          <div className="hidden w-56 rounded-2xl border border-white/70 bg-white/90 px-3 py-2 text-slate-600 shadow-[0_25px_40px_-35px_rgba(15,23,42,0.45)] ring-1 ring-slate-900/5 sm:block">
             <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500">Fortschritt</div>
             <ProgressBar value={ended ? 100 : progressPct} />
           </div>
@@ -965,10 +966,24 @@ function createReflectionSnapshot(): void {
         {/* Linke Spalte */}
         <aside
           ref={sidebarRef}
-          className="max-h-[calc(100vh-140px)] overflow-y-auto rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-xl shadow-slate-200/70 backdrop-blur md:sticky md:top-24"
+          className="max-h-[calc(100vh-140px)] overflow-y-auto rounded-3xl border border-white/80 bg-white/95 p-4 shadow-[0_35px_80px_-45px_rgba(15,23,42,0.55)] ring-1 ring-slate-900/5 backdrop-blur md:sticky md:top-24"
         >
-          <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500">Fragenfolge</div>
-          <ul className="space-y-2">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500">Fragenfolge</span>
+            <button
+              type="button"
+              onClick={() => setQuestionsCollapsed((prev) => !prev)}
+              className="rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-600 shadow-[0_12px_25px_-20px_rgba(15,23,42,0.45)] transition hover:border-sky-200 hover:bg-sky-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+            >
+              {questionsCollapsed ? "Anzeigen" : "Einklappen"}
+            </button>
+          </div>
+          {questionsCollapsed && (
+            <div className="mb-3 rounded-2xl border border-dashed border-slate-200 bg-white/85 px-3 py-2 text-[11px] text-slate-500 shadow-[inset_0_18px_40px_-35px_rgba(15,23,42,0.45)]">
+              Fragenliste ausgeblendet – zum Anzeigen erneut anklicken.
+            </div>
+          )}
+          <ul className={`space-y-2 ${questionsCollapsed ? "hidden" : ""}`}>
             {asked.map((a, i) => {
               const dot =
                 a.status === "pending"
@@ -1004,9 +1019,9 @@ function createReflectionSnapshot(): void {
                     type="button"
                     onClick={() => setViewIndex(a.index)}
                     className={[
-                      "block w-full rounded-2xl border border-slate-200 px-3 py-2 text-left text-[12px] leading-snug shadow-sm transition",
+                      "block w-full rounded-2xl border border-slate-200 px-3 py-2 text-left text-[12px] leading-snug shadow-[0_18px_35px_-30px_rgba(15,23,42,0.55)] transition",
                       "hover:border-sky-300 hover:bg-sky-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300",
-                      isView ? "border-sky-400 bg-sky-50 shadow" : "bg-white/80",
+                      isView ? "border-sky-400 bg-sky-50" : "bg-white/85",
                       isActive ? "text-slate-900" : "text-slate-700",
                     ].join(" ")}
                     title="Frage ansehen"
@@ -1027,12 +1042,12 @@ function createReflectionSnapshot(): void {
           </ul>
 
           {/* Start / Nächste Frage */}
-          <div className="mt-4 flex flex-col gap-2">
+          <div className={`mt-4 flex flex-col gap-2 ${questionsCollapsed ? "border-t border-dashed border-slate-200 pt-4" : ""}`}>
             <button
               type="button"
               onClick={hasStarted ? nextStep : startExam}
               disabled={loading}
-              className="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+              className="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-semibold text-slate-700 shadow-[0_18px_35px_-30px_rgba(15,23,42,0.55)] transition hover:border-sky-200 hover:bg-sky-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
             >
               {hasStarted ? (activeIndex >= stepsOrdered.length - 1 ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
             </button>
@@ -1041,7 +1056,7 @@ function createReflectionSnapshot(): void {
               <button
                 type="button"
                 onClick={() => setViewIndex(activeIndex)}
-                className="rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-600 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+                className="rounded-full border border-slate-200 bg-white/85 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-600 shadow-[0_18px_35px_-30px_rgba(15,23,42,0.55)] transition hover:border-sky-200 hover:bg-sky-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
               >
                 Zur aktuellen Frage springen
               </button>
@@ -1053,7 +1068,7 @@ function createReflectionSnapshot(): void {
         <section className="relative flex flex-col gap-4">
           <div
             ref={listRef}
-            className="relative z-10 h-[58vh] overflow-y-auto rounded-3xl border border-slate-200 bg-white/95 p-5 text-slate-900 shadow-2xl shadow-slate-200/70 backdrop-blur"
+            className="relative z-10 h-[58vh] overflow-y-auto rounded-3xl border border-white/80 bg-white/98 p-5 text-slate-900 shadow-[0_35px_80px_-45px_rgba(15,23,42,0.55)] ring-1 ring-slate-900/5 backdrop-blur"
           >
             {/* Bild nur anzeigen, wenn gestartet & aktueller Schritt aktiv ist */}
             {hasStarted && viewIndex === activeIndex && stepImg && (
@@ -1100,9 +1115,9 @@ function createReflectionSnapshot(): void {
             })}
             {loading && hasStarted && viewIndex === activeIndex && (
               <div className="mb-3">
-                <div className="inline-flex max-w-[80%] items-center gap-2 rounded-2xl border border-slate-200 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow">
+                <div className="inline-flex max-w-[80%] items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 text-sm text-slate-900 shadow-[0_18px_35px_-30px_rgba(15,23,42,0.45)]">
                   <b className="opacity-80">Prüfer:</b>
-                   <TypingDots />
+                  <TypingDots />
                 </div>
               </div>
             )}
@@ -1121,12 +1136,12 @@ function createReflectionSnapshot(): void {
     if (!hasStarted) return startExam();
     if (!ended) onSend();
   }}
-  className="sticky bottom-0 left-0 right-0 z-20 flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-2xl shadow-slate-200/70 backdrop-blur"
+  className="sticky bottom-0 left-0 right-0 z-20 flex flex-col gap-3 rounded-3xl border border-white/80 bg-white/98 p-4 shadow-[0_35px_80px_-45px_rgba(15,23,42,0.55)] ring-1 ring-slate-900/5 backdrop-blur"
 >
   {/* Reihe 1: Eingabe + Senden */}
   <div className="flex gap-2">
     <input
-      className="min-w-0 flex-1 rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+      className="min-w-0 flex-1 rounded-full border border-slate-200 bg-white/95 px-4 py-2 text-sm text-slate-900 placeholder:text-slate-400 shadow-[0_12px_28px_-20px_rgba(15,23,42,0.35)] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
       placeholder={
         ended
           ? "Fall beendet"
@@ -1144,14 +1159,14 @@ function createReflectionSnapshot(): void {
       type="button"
       onClick={recording ? stopRecording : startRecording}
       disabled={!hasStarted || ended || viewIndex !== activeIndex}
-      className="rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-sm text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+      className="rounded-full border border-slate-200 bg-white/85 px-4 py-2 text-sm text-slate-700 shadow-[0_12px_28px_-20px_rgba(15,23,42,0.35)] transition hover:border-sky-200 hover:bg-sky-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
     >
       {recording ? "⏹️" : "🎙️"}
     </button>
     <button
       type="submit"
       disabled={loading || !hasStarted || ended || viewIndex !== activeIndex || !input.trim()}
-      className="rounded-full border border-sky-600 bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:from-sky-400 hover:via-indigo-500 hover:to-fuchsia-600 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+      className="rounded-full border border-sky-600 bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 px-5 py-2 text-sm font-semibold text-white shadow-[0_20px_35px_-18px_rgba(56,189,248,0.65)] transition hover:from-sky-400 hover:via-indigo-500 hover:to-fuchsia-600 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
     >
       Senden
     </button>
@@ -1163,7 +1178,7 @@ function createReflectionSnapshot(): void {
       type="button"
       onClick={requestTip}
       disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-      className="rounded-full border border-slate-200 bg-white/80 px-4 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+      className="rounded-full border border-slate-200 bg-white/85 px-4 py-1.5 text-sm font-medium text-slate-700 shadow-[0_12px_28px_-20px_rgba(15,23,42,0.35)] transition hover:border-sky-200 hover:bg-sky-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
     >
       💡 Tipp
     </button>
@@ -1171,7 +1186,7 @@ function createReflectionSnapshot(): void {
       type="button"
       onClick={requestExplain}
       disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-      className="rounded-full border border-slate-200 bg-white/80 px-4 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+      className="rounded-full border border-slate-200 bg-white/85 px-4 py-1.5 text-sm font-medium text-slate-700 shadow-[0_12px_28px_-20px_rgba(15,23,42,0.35)] transition hover:border-sky-200 hover:bg-sky-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
     >
       📘 Erklären
     </button>
@@ -1179,7 +1194,7 @@ function createReflectionSnapshot(): void {
       type="button"
       onClick={requestSolution}
       disabled={loading || !hasStarted || viewIndex !== activeIndex}
-      className="rounded-full border border-slate-200 bg-white/80 px-4 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+      className="rounded-full border border-slate-200 bg-white/85 px-4 py-1.5 text-sm font-medium text-slate-700 shadow-[0_12px_28px_-20px_rgba(15,23,42,0.35)] transition hover:border-sky-200 hover:bg-sky-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
     >
       📝 Lösung anzeigen
     </button>
@@ -1195,13 +1210,13 @@ function createReflectionSnapshot(): void {
       type="button"
       onClick={hasStarted ? nextStep : startExam}
       disabled={loading}
-      className="ml-auto rounded-full bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 px-4 py-1.5 text-sm font-semibold text-white shadow-lg transition hover:from-sky-400 hover:via-indigo-500 hover:to-fuchsia-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+      className="ml-auto rounded-full bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 px-4 py-1.5 text-sm font-semibold text-white shadow-[0_20px_35px_-18px_rgba(56,189,248,0.65)] transition hover:from-sky-400 hover:via-indigo-500 hover:to-fuchsia-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
     >
       {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
     </button>
     <Link
       href={`/cases/${c.id}`}
-      className="rounded-full border border-slate-200 bg-white/80 px-4 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+      className="rounded-full border border-slate-200 bg-white/85 px-4 py-1.5 text-sm font-medium text-slate-700 shadow-[0_12px_28px_-20px_rgba(15,23,42,0.35)] transition hover:border-sky-200 hover:bg-sky-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
     >
       Fallinfo
     </Link>
