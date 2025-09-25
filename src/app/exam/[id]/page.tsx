@@ -925,63 +925,59 @@ function createReflectionSnapshot(): void {
   const stepImg = stepsOrdered[viewIndex]?.image;
 
   return (
-    <main className="p-0">
-      {/* Kopfzeile */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h2 className="flex-1 text-2xl font-semibold tracking-tight">
-          Prüfung: {anonymousTitle(c)}
-        </h2>
+    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 py-8 text-slate-900">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4">
+        {/* Kopfzeile */}
+        <div className="flex flex-wrap items-center gap-3 rounded-3xl border border-slate-200 bg-white/80 px-5 py-4 shadow-xl shadow-slate-200/70 backdrop-blur">
+          <h2 className="flex-1 text-2xl font-semibold tracking-tight text-slate-900">
+            Prüfung: {anonymousTitle(c)}
+          </h2>
 
-        {/* Serien-Progressbar (falls Serie vorhanden) */}
-        {seriesTotal > 0 && (
-  <div className="w-48">
-    <div className="mb-1 text-[11px] text-gray-600">
-      Serie {seriesIdx + 1}/{seriesTotal}
-    </div>
-    <ProgressBar
-      value={ended ? Math.round(((seriesIdx + 1) / seriesTotal) * 100) : seriesPct}
-    />
-  </div>
-)}
+          {/* Serien-Progressbar (falls Serie vorhanden) */}
+          {seriesTotal > 0 && (
+            <div className="w-48 rounded-2xl border border-slate-200 bg-white/70 px-3 py-2 text-slate-600 shadow-sm">
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500">
+                Serie {seriesIdx + 1}/{seriesTotal}
+              </div>
+              <ProgressBar value={ended ? Math.round(((seriesIdx + 1) / seriesTotal) * 100) : seriesPct} />
+            </div>
+          )}
 
-        
+          {/* Schritt-Progressbar */}
+          <div className="hidden w-56 rounded-2xl border border-slate-200 bg-white/70 px-3 py-2 text-slate-600 shadow-sm sm:block">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500">Fortschritt</div>
+            <ProgressBar value={ended ? 100 : progressPct} />
+          </div>
 
-        {/* Schritt-Progressbar */}
-<div className="hidden w-56 sm:block">
-  <div className="mb-1 text-[11px] text-gray-600">Fortschritt</div>
-  <ProgressBar value={ended ? 100 : progressPct} />
-</div>
+          <label className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">Stil</label>
+          <select
+            className="rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-600 shadow-sm outline-none transition hover:border-sky-200 focus-visible:border-sky-300 focus-visible:ring-2 focus-visible:ring-sky-200"
+            value={style}
+            onChange={(e) => setStyle(e.target.value as "strict" | "coaching")}
+          >
+            <option value="coaching">Coaching</option>
+            <option value="strict">Streng</option>
+          </select>
+        </div>
 
-        <label className="text-xs text-gray-600">Stil</label>
-        <select
-          className="rounded-md border px-2 py-1 text-sm"
-          value={style}
-          onChange={(e) => setStyle(e.target.value as "strict" | "coaching")}
-        >
-          <option value="coaching">Coaching</option>
-          <option value="strict">Streng</option>
-        </select>
-      </div>
-
-      {/* Zwei Spalten */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-[var(--steps-w,260px)_1fr]">
+        {/* Zwei Spalten */}
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-[var(--steps-w,260px)_1fr]">
         {/* Linke Spalte */}
         <aside
           ref={sidebarRef}
-          className="rounded-xl border border-black/10 bg-white/70 p-3 md:sticky md:top-20
-                     overflow-y-auto max-h-[calc(100vh-120px)]"
+          className="max-h-[calc(100vh-140px)] overflow-y-auto rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-xl shadow-slate-200/70 backdrop-blur md:sticky md:top-24"
         >
-          <div className="mb-2 text-xs font-medium text-gray-700">Fragenfolge</div>
+          <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500">Fragenfolge</div>
           <ul className="space-y-2">
             {asked.map((a, i) => {
               const dot =
                 a.status === "pending"
-                  ? "bg-gray-300"
+                  ? "bg-slate-300"
                   : a.status === "correct"
-                  ? "bg-green-500"
+                  ? "bg-emerald-500"
                   : a.status === "partial"
-                  ? "bg-yellow-400"
-                  : "bg-red-500";
+                  ? "bg-amber-400"
+                  : "bg-rose-500";
               const isView = a.index === viewIndex;
               const isActive = a.index === activeIndex;
                const rawScore = perStepScores[a.index];
@@ -1001,29 +997,29 @@ function createReflectionSnapshot(): void {
                 <li
                   key={a.index}
                   ref={i === asked.length - 1 ? lastAskedRef : null}
-                  className="grid grid-cols-[12px_1fr] items-start gap-2"
+                  className="grid grid-cols-[12px_1fr] items-start gap-3"
                 >
                   <span className={`mt-2 h-2.5 w-2.5 flex-none self-start rounded-full ${dot}`} aria-hidden />
                   <button
                     type="button"
                     onClick={() => setViewIndex(a.index)}
                     className={[
-                       "block w-full rounded-2xl border px-3 py-2 text-left text-[12px] leading-snug",
-                      "hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400",
-                      isView ? "border-blue-400 bg-blue-50 ring-1 ring-blue-300" : "border-blue-200 bg-white",
-                      isActive ? "text-gray-900" : "text-gray-800",
+                      "block w-full rounded-2xl border border-slate-200 px-3 py-2 text-left text-[12px] leading-snug shadow-sm transition",
+                      "hover:border-sky-300 hover:bg-sky-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300",
+                      isView ? "border-sky-400 bg-sky-50 shadow" : "bg-white/80",
+                      isActive ? "text-slate-900" : "text-slate-700",
                     ].join(" ")}
                     title="Frage ansehen"
                   >
-                     <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                    <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">
                       <span>{labelText}</span>
                       {scoreText ? (
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-700 tabular-nums">
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 tabular-nums">
                           {scoreText}
                         </span>
                       ) : null}
                     </div>
-                    <div className="mt-1 line-clamp-2 text-[12px] text-gray-600">{summary}</div>
+                    <div className="mt-1 line-clamp-2 text-[12px] text-slate-600">{summary}</div>
                   </button>
                 </li>
               );
@@ -1036,7 +1032,7 @@ function createReflectionSnapshot(): void {
               type="button"
               onClick={hasStarted ? nextStep : startExam}
               disabled={loading}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              className="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
             >
               {hasStarted ? (activeIndex >= stepsOrdered.length - 1 ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
             </button>
@@ -1045,7 +1041,7 @@ function createReflectionSnapshot(): void {
               <button
                 type="button"
                 onClick={() => setViewIndex(activeIndex)}
-                className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs text-gray-800 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                className="rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-600 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
               >
                 Zur aktuellen Frage springen
               </button>
@@ -1054,10 +1050,10 @@ function createReflectionSnapshot(): void {
         </aside>
 
         {/* Rechte Spalte: Chat */}
-        <section className="relative flex flex-col gap-3">
+        <section className="relative flex flex-col gap-4">
           <div
             ref={listRef}
-            className="relative z-10 h-[58vh] overflow-y-auto rounded-2xl border border-black/10 bg-white p-4 shadow-card text-gray-900"
+            className="relative z-10 h-[58vh] overflow-y-auto rounded-3xl border border-slate-200 bg-white/95 p-5 text-slate-900 shadow-2xl shadow-slate-200/70 backdrop-blur"
           >
             {/* Bild nur anzeigen, wenn gestartet & aktueller Schritt aktiv ist */}
             {hasStarted && viewIndex === activeIndex && stepImg && (
@@ -1079,8 +1075,10 @@ function createReflectionSnapshot(): void {
               return (
                 <div key={i} className={`mb-3 ${isProf ? "" : "text-right"}`}>
                   <div
-                    className={`inline-block max-w-[80%] rounded-2xl px-3 py-2 shadow-sm ${
-                      isProf ? "border border-black/10 bg-white text-gray-900" : "bg-blue-600 text-white"
+                    className={`inline-block max-w-[80%] rounded-2xl px-4 py-2 shadow ${
+                      isProf
+                        ? "border border-slate-200 bg-white/90 text-slate-900"
+                        : "bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 text-white"
                     }`}
                   >
                     <span className="text-sm leading-relaxed">
@@ -1102,18 +1100,18 @@ function createReflectionSnapshot(): void {
             })}
             {loading && hasStarted && viewIndex === activeIndex && (
               <div className="mb-3">
-                <div className="inline-flex max-w-[80%] items-center gap-2 rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm">
+                <div className="inline-flex max-w-[80%] items-center gap-2 rounded-2xl border border-slate-200 bg-white/90 px-3 py-2 text-sm text-slate-900 shadow">
                   <b className="opacity-80">Prüfer:</b>
                    <TypingDots />
                 </div>
               </div>
             )}
             {!hasStarted && (
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-slate-600">
                 Klicke auf <b>Prüfung starten</b>, um zu beginnen.
               </div>
             )}
-             {ended && <div className="mt-2 text-sm text-green-700">✅ Fall abgeschlossen</div>}
+             {ended && <div className="mt-2 text-sm text-emerald-600">✅ Fall abgeschlossen</div>}
           </div>
 
           {/* Eingabezeile */}
@@ -1123,12 +1121,12 @@ function createReflectionSnapshot(): void {
     if (!hasStarted) return startExam();
     if (!ended) onSend();
   }}
-  className="sticky bottom-0 left-0 right-0 z-20 flex flex-col gap-2 border-t bg-white p-2"
+  className="sticky bottom-0 left-0 right-0 z-20 flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-2xl shadow-slate-200/70 backdrop-blur"
 >
   {/* Reihe 1: Eingabe + Senden */}
   <div className="flex gap-2">
     <input
-      className="min-w-0 flex-1 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+      className="min-w-0 flex-1 rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
       placeholder={
         ended
           ? "Fall beendet"
@@ -1146,14 +1144,14 @@ function createReflectionSnapshot(): void {
       type="button"
       onClick={recording ? stopRecording : startRecording}
       disabled={!hasStarted || ended || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+      className="rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-sm text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
     >
       {recording ? "⏹️" : "🎙️"}
     </button>
     <button
       type="submit"
       disabled={loading || !hasStarted || ended || viewIndex !== activeIndex || !input.trim()}
-      className="rounded-md border border-black/10 bg-blue-600 text-white px-4 py-2 text-sm hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+      className="rounded-full border border-sky-600 bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:from-sky-400 hover:via-indigo-500 hover:to-fuchsia-600 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
     >
       Senden
     </button>
@@ -1165,7 +1163,7 @@ function createReflectionSnapshot(): void {
       type="button"
       onClick={requestTip}
       disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+      className="rounded-full border border-slate-200 bg-white/80 px-4 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
     >
       💡 Tipp
     </button>
@@ -1173,7 +1171,7 @@ function createReflectionSnapshot(): void {
       type="button"
       onClick={requestExplain}
       disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+      className="rounded-full border border-slate-200 bg-white/80 px-4 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
     >
       📘 Erklären
     </button>
@@ -1181,11 +1179,11 @@ function createReflectionSnapshot(): void {
       type="button"
       onClick={requestSolution}
       disabled={loading || !hasStarted || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+      className="rounded-full border border-slate-200 bg-white/80 px-4 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
     >
       📝 Lösung anzeigen
     </button>
-    <label className="flex items-center gap-1 text-xs text-gray-600">
+    <label className="flex items-center gap-1 text-xs font-medium text-slate-500">
       <input
         type="checkbox"
         checked={ttsEnabled}
@@ -1197,19 +1195,20 @@ function createReflectionSnapshot(): void {
       type="button"
       onClick={hasStarted ? nextStep : startExam}
       disabled={loading}
-      className="ml-auto rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+      className="ml-auto rounded-full bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 px-4 py-1.5 text-sm font-semibold text-white shadow-lg transition hover:from-sky-400 hover:via-indigo-500 hover:to-fuchsia-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
     >
       {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
     </button>
     <Link
       href={`/cases/${c.id}`}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+      className="rounded-full border border-slate-200 bg-white/80 px-4 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
     >
       Fallinfo
     </Link>
   </div>
 </form>
         </section>
+      </div>
       </div>
     </main>
   );
