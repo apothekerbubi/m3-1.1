@@ -26,49 +26,48 @@ const clampInt = (v: number, min = 0, max = 999) =>
 /* ---------- Skeleton ---------- */
 function SimulateSkeleton({ minRows = 6 }: { minRows?: number }) {
   return (
-    <main className="p-0 animate-pulse">
-      <div className="mb-4 flex items-center gap-2">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100" />
-        <div className="h-6 w-56 rounded bg-gray-200" />
+    <main className="min-h-screen animate-pulse bg-white pb-16 text-slate-900">
+      <div className="mx-auto max-w-5xl px-4 py-10">
+        <div className="mb-8 h-48 rounded-3xl bg-slate-100" />
+
+        <section className="mb-6 rounded-3xl border border-slate-200 bg-white/70 p-6 shadow-lg shadow-slate-200/60">
+          <div className="mb-4 h-5 w-40 rounded bg-slate-200" />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="h-4 w-28 rounded bg-slate-200" />
+                <div className="h-8 w-24 rounded-md border border-slate-200 bg-slate-100" />
+                <div className="h-4 w-20 rounded bg-slate-100" />
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <div className="h-10 w-44 rounded-md border border-slate-200 bg-slate-100" />
+            <div className="h-10 w-48 rounded-md bg-slate-200" />
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white/70 p-6 shadow-lg shadow-slate-200/60">
+          <div className="mb-4 h-5 w-48 rounded bg-slate-200" />
+          <ul className="space-y-3">
+            {Array.from({ length: minRows }).map((_, i) => (
+              <li
+                key={i}
+                className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/80 px-4 py-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="mb-2 h-4 w-64 rounded bg-slate-200" />
+                  <div className="h-3 w-40 rounded bg-slate-100" />
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <div className="hidden h-7 w-20 rounded-md border border-slate-200 bg-slate-50 sm:block" />
+                  <div className="h-8 w-24 rounded-md bg-slate-200" />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
       </div>
-
-      <section className="mb-4 rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
-        <div className="h-5 w-40 rounded bg-gray-200 mb-3" />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className="h-4 w-28 rounded bg-gray-200" />
-              <div className="h-8 w-24 rounded-md border bg-gray-100" />
-              <div className="h-4 w-20 rounded bg-gray-100" />
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 flex gap-2">
-          <div className="h-9 w-40 rounded-md border bg-gray-100" />
-          <div className="h-9 w-48 rounded-md bg-gray-200" />
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
-        <div className="h-5 w-40 rounded bg-gray-200 mb-3" />
-        <ul className="space-y-2">
-          {Array.from({ length: minRows }).map((_, i) => (
-            <li
-              key={i}
-              className="flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white px-3 py-2"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="h-4 w-64 rounded bg-gray-200 mb-2" />
-                <div className="h-3 w-40 rounded bg-gray-100" />
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <div className="hidden sm:block h-7 w-20 rounded-md border bg-gray-50" />
-                <div className="h-8 w-24 rounded-md bg-gray-200" />
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
     </main>
   );
 }
@@ -188,42 +187,57 @@ export default function SimulatePage() {
     : "";
 
   return (
-    <main className="p-0">
-      <div className="mb-4 flex items-center gap-2">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-black/[.05]">
-          <AcademicCapIcon className="h-5 w-5 text-gray-700" />
-        </span>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Examenssimulation
-        </h1>
-      </div>
+    <main className="min-h-screen bg-white pb-16 text-slate-900">
+      <div className="mx-auto max-w-5xl px-4 py-10">
+        <header className="relative mb-10 overflow-hidden rounded-3xl bg-gradient-to-br from-sky-500 via-indigo-500 to-fuchsia-500 p-[1px] shadow-2xl">
+          <div className="rounded-[calc(1.5rem-1px)] bg-white px-6 py-10 sm:px-12">
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <span className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white/80 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-500">
+                Coaching-Modus
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600">
+                <AcademicCapIcon className="h-5 w-5 text-indigo-500" />
+                Serie planen
+              </span>
+            </div>
+            <h1 className="mt-6 text-4xl font-semibold text-slate-900">Examenssimulation</h1>
+            <p className="mt-3 max-w-2xl text-sm text-slate-600">
+              Stelle dir deine persönliche Prüfungsserie zusammen und starte direkt mit Coaching-Feedback und strukturierten Lösungen.
+            </p>
+            {ids.length > 0 ? (
+              <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-500">
+                {ids.length} Fälle ausgewählt
+              </div>
+            ) : null}
+          </div>
+        </header>
 
-      {/* Konfiguration */}
-      <section className="mb-4 rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
-        <h2 className="mb-3 text-lg font-semibold">Zusammenstellung</h2>
+        {/* Konfiguration */}
+        <section className="mb-8 rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-lg shadow-slate-200/60">
+          <h2 className="mb-4 text-lg font-semibold text-slate-900">Zusammenstellung</h2>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <label className="flex items-center gap-2 text-sm">
-            <span className="min-w-[9rem] text-gray-700">Innere-Fälle</span>
-            <input
-              type="number"
-              min={0}
-              max={innerePool.length}
-              value={innerCount}
-              onChange={(e) =>
-                setInnerCount(
-                  clampInt(Number(e.target.value), 0, innerePool.length)
-                )
-              }
-              className="w-24 rounded-md border border-black/10 bg-white px-2 py-1"
-            />
-            <span className="text-xs text-gray-500">
-              max. {innerePool.length}
-            </span>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="flex items-center gap-3 text-sm text-slate-700">
+              <span className="min-w-[9rem] text-slate-700">Innere-Fälle</span>
+              <input
+                type="number"
+                min={0}
+                max={innerePool.length}
+                value={innerCount}
+                onChange={(e) =>
+                  setInnerCount(
+                    clampInt(Number(e.target.value), 0, innerePool.length)
+                  )
+                }
+                className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1"
+              />
+              <span className="text-xs text-slate-500">
+                max. {innerePool.length}
+              </span>
           </label>
 
-          <label className="flex items-center gap-2 text-sm">
-            <span className="min-w-[9rem] text-gray-700">Chirurgie-Fälle</span>
+          <label className="flex items-center gap-3 text-sm text-slate-700">
+            <span className="min-w-[9rem] text-slate-700">Chirurgie-Fälle</span>
             <input
               type="number"
               min={0}
@@ -234,17 +248,17 @@ export default function SimulatePage() {
                   clampInt(Number(e.target.value), 0, chirurgiePool.length)
                 )
               }
-              className="w-24 rounded-md border border-black/10 bg-white px-2 py-1"
+              className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1"
             />
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-slate-500">
               max. {chirurgiePool.length}
             </span>
           </label>
 
-          <div className="flex items-center gap-2 text-sm">
-            <span className="min-w-[9rem] text-gray-700">Dein Wahlfach</span>
+          <div className="flex items-center gap-3 text-sm text-slate-700">
+            <span className="min-w-[9rem] text-slate-700">Dein Wahlfach</span>
             <select
-              className="min-w-[10rem] rounded-md border border-black/10 bg-white px-2 py-1"
+              className="min-w-[10rem] rounded-md border border-slate-200 bg-white px-2 py-1"
               value={wahlfachSelected}
               onChange={(e) => setWahlfachSelected(e.target.value)}
             >
@@ -260,8 +274,8 @@ export default function SimulatePage() {
             </select>
           </div>
 
-          <label className="flex items-center gap-2 text-sm">
-            <span className="min-w-[9rem] text-gray-700">Wahlfach-Fälle</span>
+          <label className="flex items-center gap-3 text-sm text-slate-700">
+            <span className="min-w-[9rem] text-slate-700">Wahlfach-Fälle</span>
             <input
               type="number"
               min={0}
@@ -281,9 +295,9 @@ export default function SimulatePage() {
                 ).length;
                 setWahlCount(clampInt(Number(e.target.value), 0, maxAvail));
               }}
-              className="w-24 rounded-md border border-black/10 bg-white px-2 py-1"
+              className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1"
             />
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-slate-500">
               max.{" "}
               {
                 wahlfachCases.filter(
@@ -296,11 +310,11 @@ export default function SimulatePage() {
           </label>
         </div>
 
-        <div className="mt-3 flex gap-2">
+        <div className="mt-4 flex flex-wrap gap-3">
           <button
             type="button"
             onClick={() => setSeed((x) => x + 1)}
-            className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm hover:bg-black/[.04]"
+            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
           >
             Neu zusammenstellen
           </button>
@@ -308,46 +322,46 @@ export default function SimulatePage() {
           {selected[0] && (
             <Link
               href={`/exam/${selected[0].id}${seriesQuery}`}
-              className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700"
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:from-sky-400 hover:via-indigo-500 hover:to-fuchsia-600"
               title="Prüfung starten (erster Fall)"
             >
               Prüfung starten <ArrowRightIcon className="h-4 w-4" />
             </Link>
           )}
         </div>
-      </section>
+        </section>
 
       {/* Auswahl-Liste */}
-      <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
-        <h2 className="mb-3 text-lg font-semibold">Deine Auswahl</h2>
+      <section className="rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-lg shadow-slate-200/60">
+        <h2 className="mb-4 text-lg font-semibold text-slate-900">Deine Auswahl</h2>
         {selected.length === 0 ? (
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-slate-600">
             Keine passenden Fälle gefunden.
           </div>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-3">
             {selected.map((c) => (
               <li
                 key={c.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white/80 px-3 py-2"
+                className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/80 px-4 py-3"
               >
                 <div className="min-w-0">
-                  <div className="truncate font-medium">{c.title}</div>
-                  <div className="text-[11px] text-gray-600">
+                  <div className="truncate text-sm font-semibold text-slate-900">{c.title}</div>
+                  <div className="text-[11px] text-slate-600">
                     {(c.subject ?? c.specialty) || "Fach"} ·{" "}
                     {(c.category ?? c.subspecialty) || "Kategorie"}
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 items-center gap-3">
                   <Link
                     href={`/cases/${c.id}`}
-                    className="hidden sm:inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-black/[.04]"
+                    className="hidden sm:inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                   >
                     Details
                   </Link>
                   <Link
                     href={`/exam/${c.id}`}
-                    className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-sm text-white hover:bg-blue-700"
+                    className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 px-3.5 py-1.5 text-sm font-semibold text-white shadow-lg transition hover:from-sky-400 hover:via-indigo-500 hover:to-fuchsia-600"
                     title="Diesen Fall alleine starten"
                   >
                     Starten <ArrowRightIcon className="h-4 w-4" />
@@ -359,48 +373,48 @@ export default function SimulatePage() {
         )}
       </section>
 
-     {/* 🔽 NEU: Letzte Simulation */}
-{lastSeries && (
-  <section className="mt-4 rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
-    <h2 className="mb-2 text-lg font-semibold">Letzte Simulation</h2>
-    <div className="flex items-center justify-between">
-      {/* Links: Score + beendet am */}
-      <div className="flex flex-col text-sm text-gray-700">
-        <div>
-          Score: <b>{lastSeries.total_score}</b> / {lastSeries.total_max}{" "}
-          ({Math.round(
-            (lastSeries.total_score / Math.max(1, lastSeries.total_max)) * 100
-          )}%)
-        </div>
-        <div className="text-xs text-gray-500">
-          beendet am {new Date(lastSeries.ended_at).toLocaleString("de-DE")}
-        </div>
-      </div>
+      {/* 🔽 Letzte Simulation */}
+      {lastSeries && (
+        <section className="mt-8 rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-lg shadow-slate-200/60">
+          <h2 className="mb-4 text-lg font-semibold text-slate-900">Letzte Simulation</h2>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-slate-700">
+              <div className="text-base font-semibold text-slate-900">
+                Score: {lastSeries.total_score} / {lastSeries.total_max} Punkte{" "}
+                <span className="text-sm font-normal text-slate-500">
+                  ({Math.round(
+                    (lastSeries.total_score / Math.max(1, lastSeries.total_max)) * 100
+                  )}%)
+                </span>
+              </div>
+              <div className="text-xs text-slate-500">
+                beendet am {new Date(lastSeries.ended_at).toLocaleString("de-DE")}
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="w-40">
+                <ProgressBar
+                  value={Math.round(
+                    (lastSeries.total_score / Math.max(1, lastSeries.total_max)) * 100
+                  )}
+                />
+              </div>
+              <Link
+                href={`/exam/summary?sid=${encodeURIComponent(lastSeries.series_id)}`}
+                className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:from-sky-400 hover:via-indigo-500 hover:to-fuchsia-600"
+              >
+                Ergebnisse ansehen
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
 
-      {/* Rechts: ProgressBar + Button */}
-      <div className="flex items-center gap-3">
-        <div className="w-32">
-          <ProgressBar
-            value={Math.round(
-              (lastSeries.total_score / Math.max(1, lastSeries.total_max)) * 100
-            )}
-          />
-        </div>
-        <Link
-          href={`/exam/summary?sid=${encodeURIComponent(lastSeries.series_id)}`}
-          className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
-        >
-          Ergebnisse ansehen
-        </Link>
+      <p className="mt-6 text-xs text-slate-500">
+        Hinweis: „Prüfung starten“ öffnet den ersten Fall deiner Serie. Nach jedem Fall wird automatisch der nächste gestartet, bis
+        alle erledigt sind.
+      </p>
       </div>
-    </div>
-  </section>
-)}
-<p className="mt-3 text-xs text-gray-500">
-  Hinweis: „Prüfung starten“ öffnet den ersten Fall deiner Serie. Nach
-  jedem Fall wird automatisch der nächste gestartet, bis alle erledigt
-  sind.
-</p>
-</main>
-);
+    </main>
+  );
 }
