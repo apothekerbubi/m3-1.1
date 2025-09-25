@@ -4,7 +4,11 @@
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { publicImageUrl } from "@/lib/supabase/publicUrl";
+import {
+  publicImageUrl,
+  resolveStoragePath,
+} from "@/lib/supabase/publicUrl";
+import { createBrowserSupabase } from "@/lib/supabase/client";
 
 type Props = {
   path: string;
@@ -30,7 +34,21 @@ export default function CaseImagePublic({
   zoomable = false,
   thumbMaxHeight = 220,
 }: Props) {
-  const src = useMemo(() => publicImageUrl(path, bucket), [path, bucket]);
+  const resolvedPath = useMemo(
+    () => resolveStoragePath(path, bucket),
+    [path, bucket]
+  );
+
+  const publicSrc = useMemo(() => {
+    try {
+      return publicImageUrl(path, bucket);
+    } catch {
+      return path;
+    }
+  }, [path, bucket]);
+
+  const [signedSrc, setSignedSrc] = useState<string | null>(null);
+  const src = signedSrc ?? publicSrc;
   const [errored, setErrored] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -199,6 +217,64 @@ export default function CaseImagePublic({
     willChange: "transform",
     cursor: isDraggingRef.current ? "grabbing" : scale > 1 ? "grab" : "default",
   };
+
+  useEffect(() => {
+    setErrored(false);
+  }, [src]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (resolvedPath.kind !== "storage") {
+      setSignedSrc(null);
+      return;
+    }
+
+    const supabase = createBrowserSupabase();
+    if (!supabase) {
+      setSignedSrc(null);
+      return;
+    }
+
+    const { bucket: bucketName, objectPath } = resolvedPath;
+    if (!objectPath) {
+      setSignedSrc(null);
+      return;
+    }
+
+    async function fetchSignedUrl() {
+      try {
+        const { data, error } = await supabase.storage
+          .from(bucketName)
+          .createSignedUrl(objectPath, 60 * 60); // 1h gültig
+
+        if (cancelled) return;
+
+        if (error) {
+          console.error("[CaseImagePublic] Signed URL fehlgeschlagen:", error);
+          setSignedSrc(null);
+          return;
+        }
+
+        if (data?.signedUrl) {
+          setSignedSrc(data.signedUrl);
+        } else {
+          setSignedSrc(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error("[CaseImagePublic] Signed URL Exception:", err);
+          setSignedSrc(null);
+        }
+      }
+    }
+
+    fetchSignedUrl();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedPath]);
 
   const Thumb = (
     <Image

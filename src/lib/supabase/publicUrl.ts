@@ -1,25 +1,46 @@
+export type ResolvedStoragePath =
+  | { kind: "absolute"; src: string }
+  | { kind: "storage"; bucket: string; objectPath: string };
+
+export function resolveStoragePath(
+  path: string,
+  bucket = "cases"
+): ResolvedStoragePath {
+  if (/^https?:\/\//i.test(path)) {
+    return { kind: "absolute", src: path };
+  }
+
+  const cleaned = path.replace(/^\/+/, "");
+  const parts = cleaned.split("/");
+
+  if (parts.length > 1 && parts[0] !== bucket) {
+    return {
+      kind: "storage",
+      bucket: parts[0],
+      objectPath: parts.slice(1).join("/"),
+    };
+  }
+
+  return {
+    kind: "storage",
+    bucket,
+    objectPath: cleaned,
+  };
+}
+
 export function publicImageUrl(path: string, bucket = "cases") {
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL; // z.B. https://paipgrtwdfakzxhsuqog.supabase.co
   if (!base) throw new Error("NEXT_PUBLIC_SUPABASE_URL fehlt");
 
-  // 1) Bereits absolute URL? -> unverändert zurückgeben
-  if (/^https?:\/\//i.test(path)) return path;
-
-  // 2) Pfad säubern
-  const cleaned = path.replace(/^\/+/, "");
-
-  // 3) Wenn path wie "<bucket>/<objekt>" aussieht, nimm den ersten Teil als Bucket
-  const parts = cleaned.split("/");
-  let finalBucket = bucket;
-  let objectPath = cleaned;
-
-  if (parts.length > 1 && parts[0] !== bucket) {
-    finalBucket = parts[0];             // z.B. "Roentgen"
-    objectPath = parts.slice(1).join("/"); // z.B. "Spannungspneumothorax.png"
+  const resolved = resolveStoragePath(path, bucket);
+  if (resolved.kind === "absolute") {
+    return resolved.src;
   }
 
-  // 4) Sicher encodieren (Leerzeichen/Umlaute)
-  const encoded = objectPath.split("/").map(encodeURIComponent).join("/");
+  const encoded = resolved.objectPath
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/");
 
-  return `${base}/storage/v1/object/public/${finalBucket}/${encoded}`;
+  return `${base}/storage/v1/object/public/${resolved.bucket}/${encoded}`;
 }
