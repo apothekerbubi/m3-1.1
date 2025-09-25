@@ -161,7 +161,7 @@ function ProductCard({
           {badge}
         </span>
         <h2 className="mt-6 text-3xl font-semibold tracking-tight">{title}</h2>
-        <p className={`mt-3 text-sm leading-relaxed ${highlight ? "text-slate-200" : "text-slate-600"}`}>
+        <p className={`mt-3 text-sm leading-relaxed ${highlight ? "text-slate-100" : "text-slate-600"}`}>
           {subtitle}
         </p>
       </div>
@@ -193,7 +193,7 @@ function OptionButton({
       disabled={disabled}
       className={`group w-full rounded-2xl border px-5 py-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 ${
         inverted
-          ? "border-white/30 bg-white/5 text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:border-white/20 disabled:text-white/50 focus-visible:ring-offset-slate-900"
+          ? "border-white/40 bg-white/10 text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:border-white/20 disabled:text-white/50 focus-visible:ring-offset-slate-900"
           : "border-slate-200 bg-white text-slate-900 hover:border-slate-900/60 hover:shadow-md disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 focus-visible:ring-offset-white"
       } ${highlight ? "ring-1 ring-inset ring-sky-300/70" : ""}`}
     >
@@ -201,7 +201,7 @@ function OptionButton({
         <div>
           <div className="text-base font-semibold tracking-tight">{label}</div>
           {description && (
-            <p className={`mt-1 text-sm ${inverted ? "text-slate-200" : "text-slate-500"}`}>
+            <p className={`mt-1 text-sm ${inverted ? "text-slate-100" : "text-slate-500"}`}>
               {description}
             </p>
           )}
