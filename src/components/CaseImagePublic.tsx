@@ -230,8 +230,8 @@ export default function CaseImagePublic({
       return;
     }
 
-    const supabase = createBrowserSupabase();
-    if (!supabase) {
+    const supabaseClient = createBrowserSupabase();
+    if (!supabaseClient) {
       setSignedSrc(null);
       return;
     }
@@ -244,7 +244,7 @@ export default function CaseImagePublic({
 
     async function fetchSignedUrl() {
       try {
-        const { data, error } = await supabase.storage
+        const { data, error } = await supabaseClient.storage
           .from(bucketName)
           .createSignedUrl(objectPath, 60 * 60); // 1h gültig
 
