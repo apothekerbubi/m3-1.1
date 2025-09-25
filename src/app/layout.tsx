@@ -46,7 +46,8 @@ export default function RootLayout({ children }: RootLayoutProps) {
       <body
         className="bg-[var(--bg)] text-[var(--fg)]"
         suppressHydrationWarning
-      >
+      >e
+      
         {/* Google Tag Manager (noscript) */}
         <noscript>
           <iframe
