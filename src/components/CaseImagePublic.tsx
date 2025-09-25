@@ -230,11 +230,13 @@ export default function CaseImagePublic({
       return;
     }
 
-    const supabaseClient = createBrowserSupabase();
-    if (!supabaseClient) {
+    const maybeSupabaseClient = createBrowserSupabase();
+    if (!maybeSupabaseClient) {
       setSignedSrc(null);
       return;
     }
+
+    const supabaseClient = maybeSupabaseClient;
 
     const { bucket: bucketName, objectPath } = resolvedPath;
     if (!objectPath) {
