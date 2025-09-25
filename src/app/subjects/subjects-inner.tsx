@@ -43,13 +43,19 @@ function MiniBar({ pct }: { pct: number }) {
 function SubjectsSkeleton() {
   return (
     <main className="animate-pulse space-y-12">
-      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 px-8 py-16 text-white shadow-xl">
+      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 px-6 py-12 text-white shadow-xl sm:px-8">
         <div className="absolute inset-y-0 right-0 w-1/2 bg-white/10 blur-3xl" />
-        <div className="relative z-10 max-w-xl space-y-4">
-          <div className="h-5 w-32 rounded-full bg-white/30" />
-          <div className="h-8 w-64 rounded-full bg-white/40" />
-          <div className="h-4 w-72 rounded-full bg-white/20" />
-          <div className="h-4 w-56 rounded-full bg-white/20" />
+        <div className="relative z-10 flex flex-col gap-8 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-4">
+            <div className="h-5 w-32 rounded-full bg-white/30" />
+            <div className="h-8 w-64 rounded-full bg-white/40" />
+          </div>
+          <div className="grid w-full max-w-xs gap-3 text-right sm:justify-items-end">
+            <div className="h-4 w-full rounded-full bg-white/20" />
+            <div className="h-4 w-11/12 rounded-full bg-white/20" />
+            <div className="h-4 w-10/12 rounded-full bg-white/20" />
+            <div className="h-4 w-9/12 rounded-full bg-white/20" />
+          </div>
         </div>
       </section>
 
@@ -194,40 +200,39 @@ export default function SubjectsPageInner() {
   /* ---------- Render ---------- */
   return (
     <main className="space-y-12">
-      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 px-8 py-16 text-white shadow-xl">
+      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 px-6 py-12 text-white shadow-xl sm:px-8">
         <div className="absolute inset-y-0 right-0 w-1/2 bg-white/10 blur-3xl" />
-        <div className="relative z-10 max-w-2xl">
-          <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs uppercase tracking-[0.2em] text-slate-200">
-            Bibliothek
-          </span>
-          <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-5xl">Deine Fälle nach Fachgebiet geordnet.</h1>
-          <p className="mt-4 max-w-xl text-base text-slate-100/90 sm:text-lg">
-            Stöbere durch alle Fälle nach Fachrichtung, Wahlfach oder Kategorie und behalte deinen Lernfortschritt jederzeit im Blick.
-          </p>
-          <ul className="mt-6 grid gap-3 text-sm text-slate-100/90 sm:grid-cols-2">
-            <li className="flex items-center gap-3">
+        <div className="relative z-10 flex flex-col gap-8 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs uppercase tracking-[0.2em] text-slate-200">
+              Bibliothek
+            </span>
+            <h1 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">Deine Fälle nach Fachgebiet geordnet.</h1>
+          </div>
+          <ul className="grid gap-3 text-sm text-slate-100/90 sm:text-right sm:justify-items-end">
+            <li className="flex items-center gap-3 sm:justify-end">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
               </span>
-              Fortschrittstracking für jeden Fall
+              <span className="sm:text-right">Fortschrittstracking für jeden Fall</span>
             </li>
-            <li className="flex items-center gap-3">
+            <li className="flex items-center gap-3 sm:justify-end">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
                 <span className="h-2.5 w-2.5 rounded-full bg-sky-300" />
               </span>
-              Übersichtliche Struktur nach Themen
+              <span className="sm:text-right">Übersichtliche Struktur nach Themen</span>
             </li>
-            <li className="flex items-center gap-3">
+            <li className="flex items-center gap-3 sm:justify-end">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
                 <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
               </span>
-              Direkter Start in Simulationen
+              <span className="sm:text-right">Direkter Start in Simulationen</span>
             </li>
-            <li className="flex items-center gap-3">
+            <li className="flex items-center gap-3 sm:justify-end">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
                 <span className="h-2.5 w-2.5 rounded-full bg-fuchsia-300" />
               </span>
-              Funktioniert auf allen Geräten
+              <span className="sm:text-right">Funktioniert auf allen Geräten</span>
             </li>
           </ul>
         </div>
