@@ -52,6 +52,44 @@ type SupabaseAssetDefinition = {
 };
 
 
+const loggedSupabaseDebugUrls = new Set<string>();
+
+async function debugSupabaseAsset(url: string, originalPath: string, bucket: string) {
+  if (typeof window === "undefined") return;
+  if (loggedSupabaseDebugUrls.has(url)) return;
+  loggedSupabaseDebugUrls.add(url);
+
+  try {
+    const headResponse = await fetch(url, { method: "HEAD" });
+    if (headResponse.ok) return;
+
+    let detail: string | undefined;
+    try {
+      const detailResponse = await fetch(url, { headers: { Range: "bytes=0-0" } });
+      const contentType = detailResponse.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        detail = JSON.stringify(await detailResponse.json());
+      } else {
+        detail = await detailResponse.text();
+      }
+    } catch (detailError) {
+      const message = detailError instanceof Error ? detailError.message : String(detailError);
+      detail = `Konnte Fehlertext nicht lesen: ${message}`;
+    }
+
+    console.error(
+      `[SupabaseImageDebug] ${headResponse.status} ${headResponse.statusText} für ${url} (Pfad "${originalPath}" im Bucket "${bucket}")${
+        detail ? ` – Antwort: ${detail}` : ""
+      }`
+    );
+  } catch (error) {
+    console.error(
+      `[SupabaseImageDebug] Netzwerkfehler bei ${url} (Pfad "${originalPath}" im Bucket "${bucket}")`,
+      error
+    );
+  }
+}
+
 const SUPABASE_LOGO_BUCKET = "Unilogos"; // Falls du einen anderen Bucket nutzt, hier anpassen.
 const SUPABASE_MEDIA_BUCKET = "landing"; // Bucket für Landingpage-Grafiken.
 
@@ -190,7 +228,11 @@ function resolveSupabaseAsset(
   bucket = SUPABASE_MEDIA_BUCKET
 ) {
   try {
-    return publicImageUrl(path, bucket);
+    const url = publicImageUrl(path, bucket);
+    if (process.env.NODE_ENV !== "production") {
+      void debugSupabaseAsset(url, path, bucket);
+    }
+    return url;
   } catch (error) {
     if (process.env.NODE_ENV !== "production") {
       console.warn(`[resolveSupabaseAsset] Konnte ${path} nicht laden, fallback auf ${fallbackSrc}.`, error);
