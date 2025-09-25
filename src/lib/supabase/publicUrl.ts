@@ -13,9 +13,13 @@ export function publicImageUrl(path: string, bucket = "cases") {
   let finalBucket = bucket;
   let objectPath = cleaned;
 
-  if (parts.length > 1 && parts[0] !== bucket) {
-    finalBucket = parts[0];             // z.B. "Roentgen"
-    objectPath = parts.slice(1).join("/"); // z.B. "Spannungspneumothorax.png"
+   if (parts.length > 1) {
+    if (parts[0] === finalBucket) {
+      objectPath = parts.slice(1).join("/");
+    } else {
+      finalBucket = parts[0];
+      objectPath = parts.slice(1).join("/");
+    }
   }
 
   // 4) Sicher encodieren (Leerzeichen/Umlaute)
