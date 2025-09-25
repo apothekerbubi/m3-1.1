@@ -8,18 +8,15 @@ export function publicImageUrl(path: string, bucket = "cases") {
   // 2) Pfad säubern
   const cleaned = path.replace(/^\/+/, "");
 
-  // 3) Wenn path wie "<bucket>/<objekt>" aussieht, nimm den ersten Teil als Bucket
-  const parts = cleaned.split("/");
-  let finalBucket = bucket;
   let objectPath = cleaned;
 
-  if (parts.length > 1 && parts[0] !== bucket) {
-    finalBucket = parts[0];             // z.B. "Roentgen"
-    objectPath = parts.slice(1).join("/"); // z.B. "Spannungspneumothorax.png"
+  // 3) Falls der Pfad bereits mit dem Bucket beginnt, Prefix entfernen
+  if (objectPath.startsWith(`${bucket}/`)) {
+    objectPath = objectPath.slice(bucket.length + 1);
   }
 
   // 4) Sicher encodieren (Leerzeichen/Umlaute)
   const encoded = objectPath.split("/").map(encodeURIComponent).join("/");
 
-  return `${base}/storage/v1/object/public/${finalBucket}/${encoded}`;
+  return `${base}/storage/v1/object/public/${bucket}/${encoded}`;
 }
