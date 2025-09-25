@@ -4,7 +4,12 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { FolderIcon, ArrowRightIcon, ChevronRightIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
+import {
+  FolderIcon,
+  ChevronRightIcon,
+  CheckCircleIcon,
+  ClipboardDocumentCheckIcon,
+} from "@heroicons/react/24/outline";
 import type { Case } from "@/lib/types";
 import { CASES } from "@/data/cases";
 
@@ -286,11 +291,12 @@ export default function SubjectsPageInner() {
                         Details
                       </Link>
                       <Link
-                        href={`/exam/${c.id}`}
-                        className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-sm text-white hover:bg-blue-700"
+                        href={`/exam/${c.id}`} 
+                        className="inline-flex items-center justify-center rounded-md bg-blue-600 p-2 text-sm text-white hover:bg-blue-700"
+                        aria-label="Prüfungsmodus starten"
                         title="Prüfungsmodus"
                       >
-                        Prüfen <ArrowRightIcon className="h-4 w-4" />
+                        <ClipboardDocumentCheckIcon className="h-5 w-5" aria-hidden />
                       </Link>
                     </div>
                   </li>

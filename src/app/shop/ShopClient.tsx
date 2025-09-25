@@ -118,7 +118,7 @@ export default function ShopClient() {
           title="ExaSim Unlimited"
           subtitle="Unbegrenzter Zugriff auf alle Fälle, Simulationen und neue Inhalte."
           badge="Abo"
-          highlight
+        
           options={subscriptions}
           onSelect={onUpgrade}
         />
@@ -160,7 +160,7 @@ function ProductCard({
           {badge}
         </span>
         <h2 className="mt-6 text-3xl font-semibold tracking-tight">{title}</h2>
-        <p className={`mt-3 text-sm leading-relaxed ${highlight ? "text-slate-100" : "text-slate-600"}`}>
+          <p className={`mt-3 text-sm leading-relaxed ${highlight ? "text-slate-100" : "text-slate-900"}`}>
           {subtitle}
         </p>
       </div>
@@ -199,7 +199,7 @@ function OptionButton({
         <div>
           <div className="text-base font-semibold tracking-tight">{label}</div>
           {description && (
-            <p className={`mt-1 text-sm ${inverted ? "text-slate-100" : "text-slate-500"}`}>
+            <p className={`mt-1 text-sm ${inverted ? "text-slate-100" : "text-slate-900"}`}>
               {description}
             </p>
           )}
