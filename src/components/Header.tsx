@@ -10,12 +10,18 @@ import {
   UserCircleIcon,
   Bars3Icon,
   XMarkIcon,
+  ChevronLeftIcon,
 } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import LogoutButton from "@/components/LogoutButton";
 
-export default function Header() {
+type HeaderProps = {
+  navCollapsed: boolean;
+  onToggleNav: () => void;
+};
+
+export default function Header({ navCollapsed, onToggleNav }: HeaderProps) {
   const router = useRouter();
   const supabaseRef = useRef<ReturnType<typeof createBrowserSupabase> | null>(
     null
@@ -64,21 +70,38 @@ export default function Header() {
     >
       <div className="mx-auto max-w-screen-2xl px-6">
         <div className="flex h-14 items-center justify-between gap-3">
-          {/* Logo → Übersicht */}
-          <Link
-            href="/overview"
-            className="flex items-center gap-2"
-            aria-label="ExaSim – zur Übersicht"
-            title="ExaSim"
-          >
-            <Image
-              src={ExaSim}
-              alt="ExaSim"
-              priority
-              className="h-12 w-auto sm:h-12 lg:h-14"
-            />
-            <span className="sr-only font-semibold tracking-tight">ExaSim</span>
-          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onToggleNav}
+              aria-controls="app-sidenav"
+              aria-expanded={!navCollapsed}
+              className="hidden md:inline-flex items-center justify-center rounded-md border border-black/10 bg-white/80 p-2 text-gray-700 shadow-sm transition hover:bg-black/[.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+            >
+              {navCollapsed ? (
+                <Bars3Icon className="h-5 w-5" aria-hidden />
+              ) : (
+                <ChevronLeftIcon className="h-5 w-5" aria-hidden />
+              )}
+              <span className="sr-only">Navigation umschalten</span>
+            </button>
+
+            {/* Logo → Übersicht */}
+            <Link
+              href="/overview"
+              className="flex items-center gap-2"
+              aria-label="ExaSim – zur Übersicht"
+              title="ExaSim"
+            >
+              <Image
+                src={ExaSim}
+                alt="ExaSim"
+                priority
+                className="h-12 w-auto sm:h-12 lg:h-14"
+              />
+              <span className="sr-only font-semibold tracking-tight">ExaSim</span>
+            </Link>
+          </div>
 
           {/* Suche + Account */}
           <div className="flex items-center gap-3">

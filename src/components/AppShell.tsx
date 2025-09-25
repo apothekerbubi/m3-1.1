@@ -10,7 +10,6 @@ import {
   useState,
 } from "react";
 import { usePathname } from "next/navigation";
-import { Bars3Icon, ChevronLeftIcon } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 
 import Header from "@/components/Header";
@@ -65,25 +64,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div id="app-shell" className="flex min-h-screen flex-col">
-      <Header />
+      <Header
+        navCollapsed={navCollapsed}
+        onToggleNav={() => setNavCollapsed((value) => !value)}
+      />
 
       <div className="mx-auto w-full max-w-screen-2xl px-6 py-6 flex-1">
-        <div className="mb-4 flex justify-end md:justify-start">
-          <button
-            type="button"
-            onClick={() => setNavCollapsed((value) => !value)}
-            aria-controls="app-sidenav"
-            aria-expanded={!navCollapsed}
-            className="inline-flex items-center gap-2 rounded-md border border-black/10 bg-white/80 px-3 py-2 text-sm text-gray-700 shadow-sm transition hover:bg-black/[.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
-          >
-            {navCollapsed ? (
-              <Bars3Icon className="h-5 w-5" aria-hidden />
-            ) : (
-              <ChevronLeftIcon className="h-5 w-5" aria-hidden />
-            )}
-            <span>{navCollapsed ? "" : ""}</span>
-          </button>
-        </div>
 
         <div
           id="app-layout"
