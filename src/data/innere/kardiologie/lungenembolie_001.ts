@@ -53,7 +53,7 @@ export const lungenembolie_001: Case = {
       prompt:
         "Sie schreiben folgendes ein EKG. Beschreiben Sie die typischen Veränderungen und deren Bedeutung.",
       image: {
-        path: "EKG/Lungenembolie_SIQIII.png",
+        path: "EKG/Lungenembolie.png",
         alt: "EKG mit SIQIII-Typ",
         caption: "Typisches EKG bei akuter Rechtsherzbelastung.",
       },
@@ -86,7 +86,7 @@ export const lungenembolie_001: Case = {
       prompt:
         "Sie veranlassen eine CT-Pulmonalisangiographie. Beschreiben Sie die gezeigten Auffälligkeiten und ordnen Sie diese in den klinischen Kontext ein. Geben Sie eine erste Einschätzung zur vermuteten Diagnose.",
       image: {
-        path: "CT/Lungenembolie_CTPA.png",
+        path: "CT/Lungenembolie.png",
         alt: "CT-Pulmonalisangiographie mit Sattelembolus",
         caption:
           "CT-Pulmonalisangiographie: Sattelembolus in der Bifurkation der Pulmonalarterien mit ausgeprägter Thrombuslast in den Lappenästen beider Hauptlungenarterien.",

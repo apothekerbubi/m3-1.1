@@ -28,7 +28,7 @@ type RootLayoutProps = {
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="de" className={jakarta.variable}>
+    <html lang="de" className={jakarta.variable} suppressHydrationWarning>
       <head>
         {/* Google Tag Manager */}
         <Script id="google-tag-manager" strategy="beforeInteractive">
@@ -39,16 +39,14 @@ export default function RootLayout({ children }: RootLayoutProps) {
             })(window,document,'script','dataLayer','GTM-5GB3NKJV');`}
         </Script>
         <Script
-          type="text/javascript"
-          src="https://cdn.consentmanager.net/delivery/autoblocking/82049fe772b7e.js"
-          data-cmp-ab="1"
-          data-cmp-host="b.delivery.consentmanager.net"
-          data-cmp-cdn="cdn.consentmanager.net"
-          data-cmp-codesrc="0"
+          type="text/javascript" data-cmp-ab="1" src="https://cdn.consentmanager.net/delivery/autoblocking/45d02fe7d27a0.js" data-cmp-host="a.delivery.consentmanager.net" data-cmp-cdn="cdn.consentmanager.net" data-cmp-codesrc="0"
           strategy="beforeInteractive"
         />
       </head>
-      <body className="bg-[var(--bg)] text-[var(--fg)]">
+      <body
+        className="bg-[var(--bg)] text-[var(--fg)]"
+        suppressHydrationWarning
+      >
         {/* Google Tag Manager (noscript) */}
         <noscript>
           <iframe
