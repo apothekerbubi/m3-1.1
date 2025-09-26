@@ -189,8 +189,9 @@ export default function AccountClient() {
           { text: "Prüfungstermin für Countdown und Planung", colorClass: "bg-amber-300" },
           { text: "Direkter Zugang zum Kundenportal", colorClass: "bg-sky-300" },
         ]}
-      /> <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      />
+      <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-8 lg:grid-cols-[1.3fr_1fr]">
+        <section className="h-full rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-xl font-semibold tracking-tight text-slate-900">Dein Profil</h2>
@@ -255,7 +256,7 @@ export default function AccountClient() {
           </button>
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="h-full rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold tracking-tight text-slate-900">Abo-Status</h2>
           {aboActive ? (
             <div className="mt-4 space-y-3 text-sm text-slate-600">
