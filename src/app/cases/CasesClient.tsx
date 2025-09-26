@@ -11,6 +11,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { CASES } from "@/data/cases";
 import type { Case } from "@/lib/types";
+import PageHero from "@/components/PageHero";
 
 /* ---------- Utils ---------- */
 function neutralLabel(idx: number) {
@@ -40,30 +41,34 @@ function MiniBar({ pct }: { pct: number }) {
 /* Großflächiges Skeleton */
 function SymptomsSkeleton() {
   return (
-    <main className="p-0 animate-pulse">
-      <div className="h-8 w-48 rounded bg-gray-200 mb-4" />
-      {/* ⬇️ Immer 2 Spalten: links Symptome, rechts Fälle */}
-      <div className="grid gap-6 grid-cols-[minmax(320px,420px)_1fr] items-start">
-        {/* linke Liste */}
-        <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
-          <div className="h-6 w-40 rounded bg-gray-200 mb-3" />
-          <ul className="space-y-2">
+    <main className="space-y-12 animate-pulse">
+      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 px-6 py-12 text-white shadow-xl sm:px-8">
+        <div className="absolute inset-y-0 right-0 w-1/2 bg-white/10 blur-3xl" />
+        <div className="relative z-10 flex flex-col gap-6">
+          <div className="h-5 w-36 rounded-full bg-white/30" />
+          <div className="h-10 w-80 rounded-full bg-white/40" />
+          <div className="h-4 w-72 rounded-full bg-white/20" />
+        </div>
+      </section>
+      <div className="grid gap-8 lg:grid-cols-[minmax(320px,400px)_1fr] items-start">
+        <section className="rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm">
+          <div className="h-6 w-44 rounded bg-slate-200/80" />
+          <ul className="mt-6 space-y-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <li key={i} className="rounded-xl border border-black/10 bg-white px-3 py-3">
-                <div className="h-4 w-48 rounded bg-gray-200" />
+              <li key={i} className="rounded-2xl border border-slate-200 bg-white/70 px-4 py-4">
+                <div className="h-4 w-48 rounded bg-slate-200/80" />
               </li>
             ))}
           </ul>
         </section>
-        {/* rechte Karten */}
-        <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
-          <div className="h-6 w-56 rounded bg-gray-200 mb-3" />
-          <ul className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(420px,1fr))]">
+        <section className="rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm">
+          <div className="h-6 w-56 rounded bg-slate-200/80" />
+          <ul className="mt-6 grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(360px,1fr))]">
             {Array.from({ length: 6 }).map((_, i) => (
-              <li key={i} className="rounded-xl border border-black/10 bg-white px-4 py-4 shadow-sm">
-                <div className="h-5 w-44 rounded bg-gray-200 mb-3" />
-                <div className="h-2 w-40 rounded bg-gray-100" />
-                <div className="mt-3 h-8 w-24 rounded-md border border-gray-200 bg-gray-50" />
+              <li key={i} className="space-y-4 rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm">
+                <div className="h-5 w-44 rounded bg-slate-200/80" />
+                <div className="h-3 w-40 rounded bg-slate-100" />
+                <div className="h-9 w-28 rounded-xl border border-slate-200 bg-slate-50" />
               </li>
             ))}
           </ul>
@@ -173,111 +178,133 @@ export default function SymptomsPage() {
 
   /* 6) Render */
   return (
-    <main className="p-0">
-      <h1 className="mb-4 text-3xl font-semibold tracking-tight">Leitsymptome</h1>
+    <main className="space-y-12">
+      <PageHero
+        badge="Leitsymptome"
+        title="Finde die passenden Fälle zu jedem Beschwerdebild."
+        description="Wähle ein Leitsymptom und starte direkt in die zugehörigen Simulationen – inklusive Fortschrittsübersicht."
+        bullets={[
+          { text: "Strukturierte Übersicht aller Leitsymptome", colorClass: "bg-sky-300" },
+          { text: "Fortschrittsanzeige für jeden Fall", colorClass: "bg-emerald-300" },
+          { text: "Schneller Wechsel zwischen Symptomen", colorClass: "bg-amber-300" },
+        ]}
+      />
 
-      {/* ⬇️ Immer zwei Spalten – Fälle stehen RECHTS neben der Liste */}
-      <div className="grid gap-6 grid-cols-[minmax(320px,420px)_1fr] items-start">
-        {/* Spalte 1: Symptome */}
-        <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
-          <h2 className="mb-3 text-xl font-semibold">Symptome</h2>
-          {symptoms.length === 0 ? (
-            <div className="text-sm text-gray-600">Noch keine Leitsymptome hinterlegt.</div>
-          ) : (
-            <ul className="divide-y divide-black/5">
-              {symptoms.map((s) => {
-                const count = casesBySymptom.get(s)?.length ?? 0;
-                const active = s === activeSymptom;
-                return (
-                  <li key={s}>
-                    <button
-                      type="button"
-                      onClick={() => setSymptom(s)}
-                      className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 text-left hover:bg-black/[.03] ${
-                        active ? "bg-black/[.03]" : ""
-                      }`}
-                    >
-                      <span className="flex items-center gap-2">
-                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-black/[.05]">
-                          <FolderIcon className="h-5 w-5 text-gray-700" />
+      <div className="grid gap-8 lg:grid-cols-[minmax(320px,400px)_1fr] items-start">
+        <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="absolute -top-16 -left-20 h-36 w-36 rounded-full bg-slate-100 blur-3xl" />
+          <div className="relative z-10">
+            <h2 className="mb-4 text-xl font-semibold tracking-tight text-slate-900">Symptome</h2>
+            {symptoms.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200/80 bg-slate-50/40 px-4 py-6 text-sm text-slate-500">
+                Noch keine Leitsymptome hinterlegt.
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {symptoms.map((s) => {
+                  const count = casesBySymptom.get(s)?.length ?? 0;
+                  const active = s === activeSymptom;
+                  return (
+                    <li key={s}>
+                      <button
+                        type="button"
+                        onClick={() => setSymptom(s)}
+                        className={`flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left transition ${
+                          active
+                            ? "border border-slate-900/20 bg-slate-900/5"
+                            : "border border-transparent hover:border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        <span className="flex items-center gap-3">
+                          <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-900/5">
+                            <FolderIcon className="h-5 w-5 text-slate-700" />
+                          </span>
+                          <span className="font-medium text-slate-900">{s}</span>
                         </span>
-                        <span className="font-medium">{s}</span>
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-xs text-gray-600">
-                        {count}
-                        <ChevronRightIcon className="h-4 w-4" />
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500">
+                          {count}
+                          <ChevronRightIcon className="h-4 w-4" />
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         </section>
 
-        {/* Spalte 2: Fälle (rechts) */}
-        <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
-          <h2 className="mb-3 text-xl font-semibold">
-            {activeSymptom ? `Fälle: ${activeSymptom}` : "Fälle"}
-          </h2>
+        <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="absolute -bottom-16 -right-20 h-40 w-40 rounded-full bg-slate-100 blur-3xl" />
+          <div className="relative z-10">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-xl font-semibold tracking-tight text-slate-900">
+                {activeSymptom ? `Fälle: ${activeSymptom}` : "Fälle"}
+              </h2>
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Fortschritt</p>
+            </div>
 
-          {!activeSymptom ? (
-            <div className="text-sm text-gray-600">Wähle links ein Leitsymptom.</div>
-          ) : activeCases.length === 0 ? (
-            <div className="text-sm text-gray-600">Keine Fälle zu diesem Symptom.</div>
-          ) : (
-            <ul className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(420px,1fr))]">
-              {activeCases.map((c, i) => {
-                const label = c.pseudonym?.replace(/[_-]/g, " ") || neutralLabel(i);
-                const p = progByCase[c.id];
-                const done = p?.done ?? false;
-                const pct = p?.pct ?? 0;
+            {!activeSymptom ? (
+              <div className="mt-6 rounded-2xl border border-dashed border-slate-200/80 bg-slate-50/40 px-4 py-6 text-sm text-slate-500">
+                Wähle links ein Leitsymptom.
+              </div>
+            ) : activeCases.length === 0 ? (
+              <div className="mt-6 rounded-2xl border border-dashed border-slate-200/80 bg-slate-50/40 px-4 py-6 text-sm text-slate-500">
+                Keine Fälle zu diesem Symptom.
+              </div>
+            ) : (
+              <ul className="mt-6 grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(360px,1fr))]">
+                {activeCases.map((c, i) => {
+                  const label = c.pseudonym?.replace(/[_-]/g, " ") || neutralLabel(i);
+                  const p = progByCase[c.id];
+                  const done = p?.done ?? false;
+                  const pct = p?.pct ?? 0;
 
-                return (
-                  <li
-                    key={c.id}
-                    className="group flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white/80 px-4 py-3 shadow-sm hover:shadow-md"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <div className="truncate font-medium text-[15px] sm:text-base capitalize">{label}</div>
-                        {/* Häkchen-Kästchen */}
-                        <div
-                          className={`inline-flex items-center justify-center rounded-md border px-1.5 py-0.5 text-[11px] ${
-                            done
-                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                              : "border-gray-200 bg-gray-50 text-gray-600"
-                          }`}
-                          title={done ? "Abgeschlossen" : "Noch offen"}
-                        >
-                          {done ? (
-                            <span className="inline-flex items-center gap-1">
-                              <CheckCircleIcon className="h-3.5 w-3.5" />
-                              fertig
-                            </span>
-                          ) : (
-                            <span className="inline-block w-3 h-3 rounded-sm border border-gray-300 bg-white" />
-                          )}
+                  return (
+                    <li
+                      key={c.id}
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/80 px-5 py-4 shadow-sm transition hover:border-slate-300 hover:shadow-md"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className="truncate font-medium text-slate-900 capitalize">{label}</div>
+                          <div
+                            className={`inline-flex items-center justify-center rounded-md border px-1.5 py-0.5 text-[11px] ${
+                              done
+                                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                : "border-slate-200 bg-slate-50 text-slate-500"
+                            }`}
+                            title={done ? "Abgeschlossen" : "Noch offen"}
+                          >
+                            {done ? (
+                              <span className="inline-flex items-center gap-1">
+                                <CheckCircleIcon className="h-3.5 w-3.5" />
+                                fertig
+                              </span>
+                            ) : (
+                              <span className="inline-block h-3 w-3 rounded-sm border border-slate-300 bg-white" />
+                            )}
+                          </div>
                         </div>
+
+                        <MiniBar pct={pct} />
                       </div>
 
-                      <MiniBar pct={pct} />
-                    </div>
-
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Link
-                        href={`/exam/${c.id}`}
-                        className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700"
-                        title="Fall im Prüfungsmodus starten"
-                      >
-                        Starten <ArrowRightIcon className="h-4 w-4" />
-                      </Link>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Link
+                          href={`/exam/${c.id}`}
+                          className="inline-flex items-center gap-1 rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+                          title="Fall im Prüfungsmodus starten"
+                        >
+                          Starten <ArrowRightIcon className="h-4 w-4" />
+                        </Link>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         </section>
       </div>
     </main>
