@@ -707,47 +707,67 @@ const totalScorePct = useMemo<number>(() => {
                 Senden
               </button>
             </div>
-            <div className="flex flex-wrap gap-2 sm:flex-1 sm:justify-end">
+            <div className="flex flex-wrap items-center justify-center gap-2 md:flex-1 md:justify-end">
               <button
                 type="button"
                 onClick={requestTip}
                 disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-                className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-black/10 bg-white text-xl text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 md:h-auto md:w-auto md:gap-2 md:px-3 md:py-2 md:text-sm"
                 title="Kleinen Hinweis erhalten"
+                aria-label="Tipp anfordern"
               >
-                💡 Tipp
+                <span aria-hidden className="text-xl">
+                  💡
+                </span>
+                <span className="hidden md:inline">Tipp</span>
               </button>
               <button
                 type="button"
                 onClick={requestExplain}
                 disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-                className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-black/10 bg-white text-xl text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 md:h-auto md:w-auto md:gap-2 md:px-3 md:py-2 md:text-sm"
                 title="Kurze Erklärung zur aktuellen Frage/Antwort"
+                aria-label="Erklärung anfordern"
               >
-                📘 Erklären
+                <span aria-hidden className="text-xl">
+                  📘
+                </span>
+                <span className="hidden md:inline">Erklären</span>
               </button>
               <button
                 type="button"
                 onClick={requestSolution}
                 disabled={loading || !hasStarted || viewIndex !== activeIndex}
-                className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-black/10 bg-white text-xl text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 md:h-auto md:w-auto md:gap-2 md:px-3 md:py-2 md:text-sm"
                 title="Musterlösung anzeigen"
+                aria-label="Musterlösung anzeigen"
               >
-                📝 Lösung anzeigen
+                <span aria-hidden className="text-xl">
+                  📝
+                </span>
+                <span className="hidden md:inline">Lösung anzeigen</span>
               </button>
+              <label className="flex items-center gap-1 text-xs text-gray-600 md:ml-1">
+                <input type="checkbox" checked={ttsEnabled} onChange={(e) => setTtsEnabled(e.target.checked)} />
+                Antworten vorlesen
+              </label>
               <button
                 type="button"
                 onClick={hasStarted ? nextStep : startExam}
                 disabled={loading}
-                className="rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 sm:ml-auto"
+                className="rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 md:ml-auto"
               >
                 {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
               </button>
               <Link
                 href={`/cases/${c.id}`}
-                className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-black/10 bg-white text-xl text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 md:h-auto md:w-auto md:gap-2 md:px-3 md:py-2 md:text-sm"
+                aria-label="Fallinformationen anzeigen"
               >
-                Fallinfo
+                <span aria-hidden className="text-xl">
+                  ℹ️
+                </span>
+                <span className="hidden md:inline">Fallinfo</span>
               </Link>
             </div>
           </form>

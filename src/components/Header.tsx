@@ -180,6 +180,9 @@ export default function Header({ navCollapsed, onToggleNav }: HeaderProps) {
             <Link href="/subjects" onClick={() => setMenuOpen(false)}>
               Bibliothek
             </Link>
+            <Link href="/cases" onClick={() => setMenuOpen(false)}>
+              Leitsymptome
+            </Link>
             <Link href="/simulate" onClick={() => setMenuOpen(false)}>
               Simulation
             </Link>
