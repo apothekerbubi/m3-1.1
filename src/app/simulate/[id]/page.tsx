@@ -85,6 +85,7 @@ export default function ExamPage() {
 
   const [attemptCount, setAttemptCount] = useState<number>(0);
   const [input, setInput] = useState("");
+  const [ttsEnabled, setTtsEnabled] = useState<boolean>(false);
 
   useEffect(() => {
     const el = inputRef.current;
