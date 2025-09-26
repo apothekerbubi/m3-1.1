@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import LogoutButton from "@/components/LogoutButton";
 import type { PostgrestError } from "@supabase/supabase-js";
+import PageHero from "@/components/PageHero";
 
 type Profile = {
   first_name?: string | null;
@@ -30,7 +31,6 @@ export default function AccountClient() {
 
   // Abo-Status
   const [aboActive, setAboActive] = useState(false);
-  const [aboStart, setAboStart] = useState<Date | null>(null);
   const [aboEnd, setAboEnd] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -87,7 +87,7 @@ export default function AccountClient() {
         const end = new Date(start);
         end.setMonth(end.getMonth() + 1);
 
-        setAboStart(start);
+        
         setAboEnd(end);
         setAboActive(new Date() < end);
       }
@@ -155,96 +155,135 @@ export default function AccountClient() {
 
   if (loading) {
     return (
-      <main className="mx-auto max-w-2xl p-6 text-sm text-gray-600">
-        Lade Account…
+       <main className="space-y-12">
+        <PageHero
+          badge="Account"
+          title="Verwalte deine persönlichen Daten."
+          description="Hier kannst du deine Angaben aktualisieren und den Status deines Abos prüfen."
+          bullets={[
+            { text: "Profildaten jederzeit anpassbar", colorClass: "bg-sky-300" },
+            { text: "Prüfungstermin im Blick", colorClass: "bg-amber-300" },
+            { text: "Direkter Zugriff auf das Abo-Portal", colorClass: "bg-emerald-300" },
+          ]}
+        />
+        <section className="mx-auto max-w-3xl rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="h-5 w-40 rounded bg-slate-200/80" />
+          <div className="mt-4 space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-11 rounded-xl border border-slate-200/60 bg-slate-50" />
+            ))}
+          </div>
+        </section>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-2xl p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Dein Account</h1>
-        <LogoutButton />
-      </div>
+    <main className="space-y-12">
+      <PageHero
+        badge="Account"
+        title="Verwalte deine Daten und behalte dein Abo im Blick."
+        description="Aktualisiere persönliche Informationen, passe deinen Prüfungstermin an und steuere dein ExaSim-Abo."
+        bullets={[
+          { text: "Profilangaben und Lernstatus synchronisiert", colorClass: "bg-emerald-300" },
+          { text: "Prüfungstermin für Countdown und Planung", colorClass: "bg-amber-300" },
+          { text: "Direkter Zugang zum Kundenportal", colorClass: "bg-sky-300" },
+        ]}
+      /> <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight text-slate-900">Dein Profil</h2>
+              <p className="text-sm text-slate-600">Passe deine Angaben jederzeit an.</p>
+            </div>
+            <LogoutButton />
+          </div>
 
-      <div className="rounded-xl border border-black/10 bg-white p-4 space-y-4">
-        <div>
-          <label className="text-xs text-gray-500">E-Mail</label>
-          <div className="text-sm font-medium">{email}</div>
-        </div>
+          <div className="mt-6 grid gap-4">
+            <div>
+              <label className="text-xs uppercase tracking-[0.2em] text-slate-400">E-Mail</label>
+              <div className="mt-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-800">
+                {email}
+              </div>
+            </div>
 
-        <Field
-          label="Vorname"
-          value={profile.first_name}
-          onChange={(v) => setProfile({ ...profile, first_name: v })}
-        />
-        <Field
-          label="Nachname"
-          value={profile.last_name}
-          onChange={(v) => setProfile({ ...profile, last_name: v })}
-        />
-        <Field
-          label="Semester"
-          value={profile.semester}
-          onChange={(v) => setProfile({ ...profile, semester: v })}
-        />
-        <Field
-          label="Heimatuni"
-          value={profile.home_uni}
-          onChange={(v) => setProfile({ ...profile, home_uni: v })}
-        />
-        <Field
-          label="PJ-Wahlfach"
-          value={profile.pj_wahlfach}
-          onChange={(v) => setProfile({ ...profile, pj_wahlfach: v })}
-        />
-        <Field
-          label="Prüfungsdatum"
-          type="date"
-          value={profile.exam_date || ""}
-          onChange={(v) => setProfile({ ...profile, exam_date: v })}
-        />
+            <Field
+              label="Vorname"
+              value={profile.first_name}
+              onChange={(v) => setProfile({ ...profile, first_name: v })}
+            />
+            <Field
+              label="Nachname"
+              value={profile.last_name}
+              onChange={(v) => setProfile({ ...profile, last_name: v })}
+            />
+            <Field
+              label="Semester"
+              value={profile.semester}
+              onChange={(v) => setProfile({ ...profile, semester: v })}
+            />
+            <Field
+              label="Heimatuni"
+              value={profile.home_uni}
+              onChange={(v) => setProfile({ ...profile, home_uni: v })}
+            />
+            <Field
+              label="PJ-Wahlfach"
+              value={profile.pj_wahlfach}
+              onChange={(v) => setProfile({ ...profile, pj_wahlfach: v })}
+            />
+            <Field
+              label="Prüfungsdatum"
+              type="date"
+              value={profile.exam_date || ""}
+              onChange={(v) => setProfile({ ...profile, exam_date: v })}
+            />
+          </div>
 
-        {message && <div className="text-sm text-gray-700">{message}</div>}
+          {message && (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              {message}
+            </div>
+          )}
 
-        <button
-          onClick={saveProfile}
-          disabled={saving}
-          className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {saving ? "Speichere..." : "Speichern"}
-        </button>
-      </div>
+          <button
+            onClick={saveProfile}
+            disabled={saving}
+            className="mt-6 w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+          >
+            {saving ? "Speichere..." : "Speichern"}
+          </button>
+        </section>
 
-      <div className="mt-6 rounded-xl border border-black/10 bg-white p-4">
-        <h2 className="text-lg font-semibold mb-2">Abo</h2>
-        {aboActive ? (
-          <>
-            <p className="text-sm text-green-600">
-              ✅ Aktiv bis {aboEnd?.toLocaleDateString()}
-            </p>
-            <p className="text-sm text-gray-600">
-              Abo: {profile.abo_name ?? "Unbekannt"}
-            </p>
-            <button
-              onClick={goToStripePortal}
-              className="mt-2 rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200"
-            >
-              Abo verwalten
-            </button>
-          </>
-        ) : (
-          <>
-            <p className="text-sm text-red-600">❌ Kein aktives Abo</p>
-            <a
-              href="/shop"
-              className="mt-2 inline-block rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              Zum Shop
-            </a>
-          </>
-        )}
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold tracking-tight text-slate-900">Abo-Status</h2>
+          {aboActive ? (
+            <div className="mt-4 space-y-3 text-sm text-slate-600">
+              <p className="flex items-center gap-2 text-emerald-600">
+                <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500" /> Aktiv bis {aboEnd?.toLocaleDateString()}
+              </p>
+              <p>Abo: {profile.abo_name ?? "Unbekannt"}</p>
+              <button
+                onClick={goToStripePortal}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                Abo verwalten
+              </button>
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3 text-sm text-slate-600">
+              <p className="flex items-center gap-2 text-rose-600">
+                <span className="inline-flex h-2 w-2 rounded-full bg-rose-500" /> Kein aktives Abo
+              </p>
+              <a
+                href="/shop"
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+              >
+                Zum Shop
+              </a>
+            </div>
+          )}
+        </section>
       </div>
     </main>
   );
@@ -263,10 +302,10 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-xs text-gray-600 mb-1">{label}</label>
+      <label className="block text-xs uppercase tracking-[0.2em] text-slate-400">{label}</label>
       <input
         type={type}
-        className="w-full rounded-md border border-black/10 px-3 py-2 text-sm"
+         className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
         value={value || ""}
         onChange={(e) => onChange(e.currentTarget.value)}
       />

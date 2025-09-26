@@ -1,5 +1,7 @@
 "use client";
 
+import PageHero from "@/components/PageHero";
+
 type Option = {
   label: string;
   price: string;
@@ -65,46 +67,21 @@ export default function ShopClient() {
 
   return (
      <div className="space-y-16">
-      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-sky-800 px-8 py-16 text-white shadow-xl">
-        <div className="absolute inset-y-0 right-0 w-1/2 opacity-20 blur-3xl bg-gradient-to-b from-sky-400 via-cyan-500 to-emerald-400" />
-        <div className="relative z-10 max-w-2xl">
-          <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs uppercase tracking-[0.2em] text-sky-200">
-            ExaSim Shop
-          </span>
-          <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-5xl">
-            Finde das Modell, das zu deiner Prüfungsvorbereitung passt.
-          </h1>
-          <p className="mt-4 text-base text-slate-200 sm:text-lg">
-            Kombiniere flexibel Fallpakete mit unserem Unlimited-Abo. So kannst du genau dort trainieren, wo du gerade die größte Hebelwirkung brauchst.
-          </p>
-          <ul className="mt-8 grid gap-3 text-sm text-slate-200 sm:grid-cols-2">
-            <li className="flex items-center gap-3">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
-              </span>
-              Premium-Fälle &amp; Simulationen aus allen Fächern
-            </li>
-            <li className="flex items-center gap-3">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
-                <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
-              </span>
-              Sofortige Aktivierung nach dem Checkout
-            </li>
-            <li className="flex items-center gap-3">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
-                <span className="h-2.5 w-2.5 rounded-full bg-sky-300" />
-              </span>
-              Analyse-Dashboards &amp; Feedback inklusive
-            </li>
-            <li className="flex items-center gap-3">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
-                <span className="h-2.5 w-2.5 rounded-full bg-fuchsia-300" />
-              </span>
-              Kündbar und kombinierbar – ganz ohne Risiko
-            </li>
-          </ul>
-        </div>
-          </section>
+      <PageHero
+        badge="ExaSim Shop"
+        title="Finde das Modell, das zu deiner Prüfungsvorbereitung passt."
+        description="Kombiniere flexibel Fallpakete mit unserem Unlimited-Abo. So kannst du genau dort trainieren, wo du gerade die größte Hebelwirkung brauchst."
+        bullets={[
+          { text: "Premium-Fälle & Simulationen aus allen Fächern", colorClass: "bg-emerald-300" },
+          { text: "Sofortige Aktivierung nach dem Checkout", colorClass: "bg-amber-300" },
+          { text: "Analyse-Dashboards & Feedback inklusive", colorClass: "bg-sky-300" },
+          { text: "Kündbar und kombinierbar – ganz ohne Risiko", colorClass: "bg-fuchsia-300" },
+        ]}
+        gradientClassName="from-slate-900 via-slate-800 to-sky-800"
+        overlayClassName="bg-gradient-to-b from-sky-400/40 via-cyan-400/30 to-emerald-400/40"
+        badgeClassName="border-white/20 bg-white/10 text-sky-200"
+        className="px-5 py-6 sm:px-6"
+      />
 
        <section className="grid gap-10 lg:grid-cols-[1.1fr_1fr]">
         <ProductCard
@@ -118,7 +95,6 @@ export default function ShopClient() {
           title="ExaSim Unlimited"
           subtitle="Unbegrenzter Zugriff auf alle Fälle, Simulationen und neue Inhalte."
           badge="Abo"
-        
           options={subscriptions}
           onSelect={onUpgrade}
         />

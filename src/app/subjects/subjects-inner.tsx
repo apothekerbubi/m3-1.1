@@ -12,6 +12,7 @@ import {
 } from "@heroicons/react/24/outline";
 import type { Case } from "@/lib/types";
 import { CASES } from "@/data/cases";
+import PageHero from "@/components/PageHero";
 
 /* ---------- Utils ---------- */
 function shortName(c: Case) {
@@ -42,23 +43,50 @@ function MiniBar({ pct }: { pct: number }) {
 /* Großflächiges Skeleton für diese Seite */
 function SubjectsSkeleton() {
   return (
-    <main className="p-0 animate-pulse">
-      <div className="h-8 w-48 rounded bg-gray-200 mb-4" />
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3 items-start">
+     <main className="animate-pulse space-y-12">
+      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 px-5 py-6 text-white shadow-xl sm:px-6">
+        <div className="absolute inset-y-0 right-0 w-1/2 bg-white/10 blur-3xl" />
+        <div className="relative z-10 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-3">
+            <div className="h-4 w-28 rounded-full bg-white/30" />
+            <div className="h-7 w-56 rounded-full bg-white/40" />
+          </div>
+          <div className="flex w-full max-w-xs flex-col gap-2 text-left">
+            <div className="flex items-center gap-3">
+              <span className="h-7 w-7 rounded-full bg-white/20" />
+              <span className="h-3 w-full rounded-full bg-white/20" />
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="h-7 w-7 rounded-full bg-white/20" />
+              <span className="h-3 w-11/12 rounded-full bg-white/20" />
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="h-7 w-7 rounded-full bg-white/20" />
+              <span className="h-3 w-10/12 rounded-full bg-white/20" />
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="h-7 w-7 rounded-full bg-white/20" />
+              <span className="h-3 w-9/12 rounded-full bg-white/20" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-8 lg:grid-cols-[1fr_1fr] xl:grid-cols-[1.15fr_1fr_1fr]">
         {[0, 1, 2].map((col) => (
-          <section key={col} className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
-            <div className="h-6 w-40 rounded bg-gray-200 mb-3" />
-            <ul className="space-y-2">
+          <article key={col} className="rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm">
+            <div className="h-6 w-40 rounded bg-slate-200/70" />
+            <ul className="mt-6 space-y-3">
               {[0, 1, 2, 3].map((i) => (
-                <li key={i} className="rounded-xl border border-black/10 bg-white/90 px-3 py-3">
-                  <div className="h-4 w-3/4 rounded bg-gray-200 mb-2" />
-                  <div className="h-3 w-1/3 rounded bg-gray-200" />
+                <li key={i} className="rounded-2xl border border-slate-200 bg-white/70 px-4 py-4">
+                  <div className="h-4 w-3/4 rounded bg-slate-200 mb-2" />
+                  <div className="h-3 w-1/3 rounded bg-slate-200/80" />
                 </li>
               ))}
             </ul>
-          </section>
+          </article>
         ))}
-      </div>
+       </section>
     </main>
   );
 }
@@ -184,14 +212,25 @@ export default function SubjectsPageInner() {
 
   /* ---------- Render ---------- */
   return (
-    <main className="p-0">
-      <h1 className="mb-4 text-3xl font-semibold tracking-tight">Bibliothek</h1>
+    <main className="space-y-12">
+      <PageHero
+        badge="Bibliothek"
+        title="Deine Fälle nach Fachgebiet geordnet."
+        bullets={[
+          { text: "Fortschrittstracking für jeden Fall", colorClass: "bg-emerald-300" },
+          { text: "Übersichtliche Struktur nach Themen", colorClass: "bg-sky-300" },
+          { text: "Direkter Start in Simulationen", colorClass: "bg-amber-300" },
+          { text: "Funktioniert auf allen Geräten", colorClass: "bg-fuchsia-300" },
+        ]}
+      />
 
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3 items-start">
+      <section className="grid gap-8 lg:grid-cols-[1fr_1fr] xl:grid-cols-[1.15fr_1fr_1fr] items-start">
         {/* Spalte 1: Fächer */}
-        <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
-          <h2 className="mb-3 text-xl font-semibold">Fächer</h2>
-          <ul className="divide-y divide-black/5">
+        <article className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+          <div className="absolute -top-20 -right-20 h-40 w-40 rounded-full bg-slate-100 blur-3xl" />
+          <div className="relative z-10">
+            <h2 className="mb-4 text-xl font-semibold tracking-tight text-slate-900">Fächer</h2>
+            <ul className="divide-y divide-slate-200/70">
             {subjects.map((s) => {
               const count =
                 catsBySubject[s]?.reduce((acc, cat) => acc + (casesByKey.get(`${s}::${cat}`)?.length || 0), 0) ?? 0;
@@ -200,17 +239,19 @@ export default function SubjectsPageInner() {
                 <li key={s}>
                   <button
                     onClick={() => setSubject(s)}
-                    className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 text-left hover:bg-black/[.03] ${
-                      active ? "bg-black/[.03]" : ""
+                     className={`flex w-full items-center justify-between gap-3 px-3 py-3 text-left transition ${
+                      active
+                        ? "rounded-2xl border border-slate-900/20 bg-slate-900/5"
+                        : "rounded-2xl hover:bg-slate-50"
                     }`}
                   >
                     <span className="flex items-center gap-2">
-                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-black/[.05]">
-                        <FolderIcon className="h-5 w-5 text-gray-700" />
+                     <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-900/5">
+                        <FolderIcon className="h-5 w-5 text-slate-700" />
                       </span>
-                      <span className="font-medium">{s}</span>
+                      <span className="font-medium text-slate-900">{s}</span>
                     </span>
-                    <span className="inline-flex items-center gap-1 text-xs text-gray-600">
+                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500">
                       {count}
                       <ChevronRightIcon className="h-4 w-4" />
                     </span>
@@ -219,13 +260,16 @@ export default function SubjectsPageInner() {
               );
             })}
           </ul>
-        </section>
+          </div>
+        </article>
 
         {/* Spalte 2: Kategorien */}
-        <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
-          <h2 className="mb-3 text-xl font-semibold">{sParam || "Subfächer"}</h2>
+        <article className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+          <div className="absolute -top-20 -left-16 h-36 w-36 rounded-full bg-slate-100 blur-3xl" />
+          <div className="relative z-10">
+            <h2 className="mb-4 text-xl font-semibold tracking-tight text-slate-900">{sParam || "Subfächer"}</h2>
           {sParam && catsBySubject[sParam]?.length ? (
-            <ul className="divide-y divide-black/5">
+             <ul className="divide-y divide-slate-200/70">
               {catsBySubject[sParam].map((cat) => {
                 const count = casesByKey.get(`${sParam}::${cat}`)?.length || 0;
                 const active = cat === subParam;
@@ -233,17 +277,19 @@ export default function SubjectsPageInner() {
                   <li key={cat}>
                     <button
                       onClick={() => setSub(cat)}
-                      className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 text-left hover:bg-black/[.03] ${
-                        active ? "bg-black/[.03]" : ""
+                      className={`flex w-full items-center justify-between gap-3 px-3 py-3 text-left transition ${
+                        active
+                          ? "rounded-2xl border border-slate-900/20 bg-slate-900/5"
+                          : "rounded-2xl hover:bg-slate-50"
                       }`}
                     >
                       <span className="flex items-center gap-2">
-                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-black/[.05]">
-                          <FolderIcon className="h-5 w-5 text-gray-700" />
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-900/5">
+                          <FolderIcon className="h-5 w-5 text-slate-700" />
                         </span>
-                        <span className="font-medium">{cat}</span>
+                         <span className="font-medium text-slate-900">{cat}</span>
                       </span>
-                      <span className="inline-flex items-center gap-1 text-xs text-gray-600">
+                       <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500">
                         {count}
                         {count > 0 && <ChevronRightIcon className="h-4 w-4" />}
                       </span>
@@ -253,19 +299,28 @@ export default function SubjectsPageInner() {
               })}
             </ul>
           ) : (
-            <div className="text-sm text-gray-600">Keine Subfächer gefunden.</div>
+            <div className="rounded-2xl border border-dashed border-slate-200/80 bg-slate-50/40 px-4 py-6 text-sm text-slate-500">
+              Keine Subfächer gefunden.
+            </div>
           )}
-        </section>
+        </div>
+        </article>
 
         {/* Spalte 3: Fälle mit Progress */}
-        <section className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
-          <h2 className="mb-3 text-xl font-semibold">{subParam || "Fälle"}</h2>
+         <article className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+          <div className="absolute -bottom-16 -right-16 h-36 w-36 rounded-full bg-slate-100 blur-3xl" />
+          <div className="relative z-10">
+            <h2 className="mb-4 text-xl font-semibold tracking-tight text-slate-900">{subParam || "Fälle"}</h2>
           {!subParam ? (
-            <div className="text-sm text-gray-600">Wähle links ein Subfach.</div>
+            <div className="rounded-2xl border border-dashed border-slate-200/80 bg-slate-50/40 px-4 py-6 text-sm text-slate-500">
+              Wähle links ein Subfach.
+            </div>
           ) : activeCases.length === 0 ? (
-            <div className="text-sm text-gray-600">Keine Fälle in diesem Subfach.</div>
+             <div className="rounded-2xl border border-dashed border-slate-200/80 bg-slate-50/40 px-4 py-6 text-sm text-slate-500">
+              Keine Fälle in diesem Subfach.
+            </div>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {activeCases.map((c) => {
                 const p = progByCase[c.id];
                 const done = p?.done ?? false;
@@ -273,11 +328,11 @@ export default function SubjectsPageInner() {
                 return (
                   <li
                     key={c.id}
-                    className="group flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white/80 px-3 py-2 shadow-sm hover:shadow-md"
+                     className="group flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 shadow-sm transition hover:border-slate-300 hover:shadow-md"
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <div className="truncate font-medium">{shortName(c)}</div>
+                        <div className="truncate font-medium text-slate-900">{shortName(c)}</div>
                         {done && <CheckCircleIcon className="h-4 w-4 text-emerald-600" aria-hidden />}
                       </div>
                       
@@ -286,13 +341,13 @@ export default function SubjectsPageInner() {
                     <div className="flex shrink-0 items-center gap-2">
                       <Link
                         href={`/cases/${c.id}`}
-                        className="hidden sm:inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-black/[.04]"
+                        className="hidden sm:inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
                       >
                         Details
                       </Link>
                       <Link
-                        href={`/exam/${c.id}`} 
-                        className="inline-flex items-center justify-center rounded-md bg-blue-600 p-2 text-sm text-white hover:bg-blue-700"
+                         href={`/exam/${c.id}`}
+                        className="inline-flex items-center justify-center rounded-xl bg-slate-900 p-2 text-sm text-white transition hover:bg-slate-700"
                         aria-label="Prüfungsmodus starten"
                         title="Prüfungsmodus"
                       >
@@ -304,8 +359,9 @@ export default function SubjectsPageInner() {
               })}
             </ul>
           )}
-        </section>
-      </div>
+        </div>
+        </article>
+      </section>
     </main>
   );
 }

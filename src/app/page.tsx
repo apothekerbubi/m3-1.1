@@ -91,7 +91,7 @@ const OFFER_CARD_DEFINITIONS: ReadonlyArray<OfferCardDefinition> = [
     text:
       "Krankheitstypische und hochdynamische Cases mit Vitalwerten und Echtzeit‑Entscheidungen – ideal für mündliche Prüfungen.",
     image: {
-      supabasePath: "fallbeispiele.jpg",
+      supabasePath: "Fallbeispiele.png",
       fallbackSrc: "/file.svg",
       alt: "Studierende übt klinische Falldiskussion mit Tablet",
     },

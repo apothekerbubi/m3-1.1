@@ -60,11 +60,11 @@ export default function SideNav() {
   return (
 
     <nav
-     id="app-sidenav"
-      className="w-[var(--nav-w)] rounded-xl bg-white/80 border border-black/10 shadow-sm p-2"
+      id="app-sidenav"
+      className="w-[var(--nav-w)] rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm"
       aria-label="Hauptnavigation"
     >
-      <ul className="flex flex-col gap-1">
+      <ul className="flex flex-col gap-2">
         {NAV.map(({ href, label, icon: Icon, children }) => {
           const childActive = children?.some((c) => pathname?.startsWith(c.href)) ?? false;
           const active = pathname?.startsWith(href) || childActive;
@@ -75,20 +75,21 @@ export default function SideNav() {
               <Link
                 href={href}
                 className={clsx(
-                  "group relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm",
-                  "hover:bg-black/[.03] focus:outline-none",
-                  active ? "bg-black/[.04] text-gray-900" : "text-gray-700"
+                  "group relative flex items-center gap-3 rounded-2xl border px-3 py-2 text-sm font-medium transition",
+                  active
+                    ? "border-slate-900/20 bg-slate-900/5 text-slate-900"
+                    : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50"
                 )}
               >
                 <span
                   aria-hidden
                   className={clsx(
-                    "absolute left-0 top-1 bottom-1 w-1 rounded-r-md",
-                    active ? "bg-blue-600" : "bg-transparent group-hover:bg-gray-300"
+                    "absolute left-1 top-1 bottom-1 w-[3px] rounded-full",
+                    active ? "bg-slate-900" : "bg-transparent group-hover:bg-slate-200"
                   )}
                 />
                 {Icon && (
-                  <Icon className={clsx("h-5 w-5", active ? "text-brand-700" : "text-gray-500")} />
+                  <Icon className={clsx("h-5 w-5", active ? "text-slate-900" : "text-slate-400")} />
                 )}
                 <span className="truncate">{label}</span>
 
@@ -111,7 +112,7 @@ export default function SideNav() {
                         setInfoOpen((o) => !o);
                       }
                     }}
-                    className="ml-auto inline-flex h-6 w-6 items-center justify-center text-gray-500 hover:text-gray-700 focus:outline-none cursor-pointer"
+                     className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus:outline-none cursor-pointer"
                   >
                     <ChevronDownIcon
                       className={clsx(
@@ -124,7 +125,7 @@ export default function SideNav() {
               </Link>
 
               {children && isInfo && infoOpen && (
-                <ul id="info-subnav" className="mt-1 ml-4 flex flex-col gap-1">
+                <ul id="info-subnav" className="mt-2 ml-6 flex flex-col gap-2">
                   {children.map((child) => {
                     const childIsActive = pathname?.startsWith(child.href);
                     return (
@@ -132,21 +133,22 @@ export default function SideNav() {
                         <Link
                           href={child.href}
                           className={clsx(
-                            "group relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm",
-                            "hover:bg-black/[.03] focus:outline-none",
-                            childIsActive ? "bg-black/[.04] text-gray-900" : "text-gray-700"
+                             "group relative flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm transition",
+                            childIsActive
+                              ? "border-slate-900/20 bg-slate-900/5 text-slate-900"
+                              : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50"
                           )}
                         >
                           <span
                             aria-hidden
                             className={clsx(
-                              "absolute left-0 top-1 bottom-1 w-1 rounded-r-md",
+                              "absolute left-1 top-1 bottom-1 w-[3px] rounded-full",
                               childIsActive
-                                ? "bg-blue-600"
-                                : "bg-transparent group-hover:bg-gray-300"
+                                ? "bg-slate-900"
+                                : "bg-transparent group-hover:bg-slate-200"
                             )}
                           />
-                          <span className="pl-5 truncate">{child.label}</span>
+                          <span className="pl-4 truncate">{child.label}</span>
                         </Link>
                       </li>
                     );
