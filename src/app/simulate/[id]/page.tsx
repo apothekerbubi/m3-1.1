@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { CASES } from "@/data/cases";
@@ -76,6 +77,7 @@ export default function ExamPage() {
 
   const [chats, setChats] = useState<Turn[][]>([]);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const [perStepScores, setPerStepScores] = useState<number[]>([]);
   const [lastCorrectness, setLastCorrectness] =
@@ -83,6 +85,27 @@ export default function ExamPage() {
 
   const [attemptCount, setAttemptCount] = useState<number>(0);
   const [input, setInput] = useState("");
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [input]);
+
+  const handleInputKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || event.shiftKey) return;
+    event.preventDefault();
+
+    if (!hasStarted) {
+      startExam();
+      return;
+    }
+
+    if (!ended && viewIndex === activeIndex && input.trim()) {
+      onSend();
+    }
+  };
 
   // *** Abgeleitete Daten ***
   const stepsOrdered = useMemo<CaseStepExtra[]>(
@@ -655,73 +678,78 @@ const totalScorePct = useMemo<number>(() => {
               if (!hasStarted) return startExam();
               if (!ended) onSend();
             }}
-            className="relative z-10 flex flex-wrap gap-2"
+            className="relative z-10 flex flex-col gap-2 sm:flex-row sm:flex-wrap"
           >
-            <input
-              className="min-w-0 flex-1 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-              placeholder={
-                ended
-                  ? "Fall beendet"
-                  : !hasStarted
-                  ? "Zum Start bitte „Prüfung starten“ wählen"
-                  : (viewIndex !== activeIndex)
-                  ? "Nur Ansicht – zurück zur aktuellen Frage wechseln"
-                  : "Deine Antwort…"
-              }
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              disabled={!hasStarted || ended || viewIndex !== activeIndex}
-            />
-            <button
-              type="submit"
-              disabled={loading || !hasStarted || ended || viewIndex !== activeIndex || !input.trim()}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-            >
-              Senden
-            </button>
-            <button
-              type="button"
-              onClick={requestTip}
-              disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-              title="Kleinen Hinweis erhalten"
-            >
-              💡 Tipp
-            </button>
-            <button
-              type="button"
-              onClick={requestExplain}
-              disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-              title="Kurze Erklärung zur aktuellen Frage/Antwort"
-            >
-              📘 Erklären
-            </button>
-               <button
-              type="button"
-              onClick={requestSolution}
-              disabled={loading || !hasStarted || viewIndex !== activeIndex}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-              title="Musterlösung anzeigen"
-            >
-              📝 Lösung anzeigen
-            </button>
-
-            <button
-              type="button"
-              onClick={hasStarted ? nextStep : startExam}
-              disabled={loading}
-              className="ml-auto rounded-md px-3 py-2 text-sm text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 bg-blue-600 hover:bg-blue-700"
-            >
-              {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
-            </button>
-
-            <Link
-              href={`/cases/${c.id}`}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-            >
-              Fallinfo
-            </Link>
+            <div className="flex flex-col gap-2 sm:flex-1 sm:flex-row sm:items-end">
+              <textarea
+                ref={inputRef}
+                rows={1}
+                className="min-h-[44px] w-full flex-1 resize-none rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                placeholder={
+                  ended
+                    ? "Fall beendet"
+                    : !hasStarted
+                    ? "Zum Start bitte „Prüfung starten“ wählen"
+                    : viewIndex !== activeIndex
+                    ? "Nur Ansicht – zurück zur aktuellen Frage wechseln"
+                    : "Deine Antwort…"
+                }
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleInputKeyDown}
+                disabled={!hasStarted || ended || viewIndex !== activeIndex}
+              />
+              <button
+                type="submit"
+                disabled={loading || !hasStarted || ended || viewIndex !== activeIndex || !input.trim()}
+                className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 sm:self-stretch"
+              >
+                Senden
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2 sm:flex-1 sm:justify-end">
+              <button
+                type="button"
+                onClick={requestTip}
+                disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
+                className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                title="Kleinen Hinweis erhalten"
+              >
+                💡 Tipp
+              </button>
+              <button
+                type="button"
+                onClick={requestExplain}
+                disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
+                className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                title="Kurze Erklärung zur aktuellen Frage/Antwort"
+              >
+                📘 Erklären
+              </button>
+              <button
+                type="button"
+                onClick={requestSolution}
+                disabled={loading || !hasStarted || viewIndex !== activeIndex}
+                className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                title="Musterlösung anzeigen"
+              >
+                📝 Lösung anzeigen
+              </button>
+              <button
+                type="button"
+                onClick={hasStarted ? nextStep : startExam}
+                disabled={loading}
+                className="rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 sm:ml-auto"
+              >
+                {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
+              </button>
+              <Link
+                href={`/cases/${c.id}`}
+                className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              >
+                Fallinfo
+              </Link>
+            </div>
           </form>
         </section>
       </div>
