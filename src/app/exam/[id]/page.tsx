@@ -968,8 +968,7 @@ function createReflectionSnapshot(): void {
         {/* Linke Spalte */}
         <aside
           ref={sidebarRef}
-          className="rounded-xl border border-black/10 bg-white/70 p-3 md:sticky md:top-20
-                     overflow-y-auto max-h-[calc(100vh-120px)]"
+          className="hidden max-h-[calc(100vh-120px)] overflow-y-auto rounded-xl border border-black/10 bg-white/70 p-3 md:sticky md:top-20 md:block"
         >
           <div className="mb-2 text-xs font-medium text-gray-700">Fragenfolge</div>
           <ul className="space-y-2">
@@ -1133,7 +1132,7 @@ function createReflectionSnapshot(): void {
         ended
           ? "Fall beendet"
           : !hasStarted
-          ? "Zum Start bitte links klicken"
+          ? "Zum Start bitte „Prüfung starten“ wählen"
           : viewIndex !== activeIndex
           ? "Nur Ansicht – zurück zur aktuellen Frage wechseln"
           : "Deine Antwort…"

@@ -558,7 +558,7 @@ const totalScorePct = useMemo<number>(() => {
       {/* Zwei Spalten */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[var(--steps-w,260px)_1fr]">
         {/* Linke Spalte */}
-        <aside className="h-fit rounded-xl border border-black/10 bg-white/70 p-3 md:sticky md:top-20">
+        <aside className="hidden h-fit rounded-xl border border-black/10 bg-white/70 p-3 md:sticky md:top-20 md:block">
           <div className="mb-2 text-xs font-medium text-gray-700">Fragenfolge</div>
           <ul className="space-y-2">
             {asked.map((a) => {
@@ -663,7 +663,7 @@ const totalScorePct = useMemo<number>(() => {
                 ended
                   ? "Fall beendet"
                   : !hasStarted
-                  ? "Zum Start bitte links klicken"
+                  ? "Zum Start bitte „Prüfung starten“ wählen"
                   : (viewIndex !== activeIndex)
                   ? "Nur Ansicht – zurück zur aktuellen Frage wechseln"
                   : "Deine Antwort…"
