@@ -707,33 +707,45 @@ const totalScorePct = useMemo<number>(() => {
                 Senden
               </button>
             </div>
-            <div className="flex flex-wrap gap-2 sm:flex-1 sm:justify-end">
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:flex-1 sm:justify-end">
               <button
                 type="button"
                 onClick={requestTip}
                 disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-                className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-black/10 bg-white text-xl text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
                 title="Kleinen Hinweis erhalten"
+                aria-label="Tipp anfordern"
               >
-                💡 Tipp
+                <span aria-hidden className="text-xl">
+                  💡
+                </span>
+                <span className="hidden sm:inline">Tipp</span>
               </button>
               <button
                 type="button"
                 onClick={requestExplain}
                 disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-                className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-black/10 bg-white text-xl text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
                 title="Kurze Erklärung zur aktuellen Frage/Antwort"
+                aria-label="Erklärung anfordern"
               >
-                📘 Erklären
+                <span aria-hidden className="text-xl">
+                  📘
+                </span>
+                <span className="hidden sm:inline">Erklären</span>
               </button>
               <button
                 type="button"
                 onClick={requestSolution}
                 disabled={loading || !hasStarted || viewIndex !== activeIndex}
-                className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-black/10 bg-white text-xl text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
                 title="Musterlösung anzeigen"
+                aria-label="Musterlösung anzeigen"
               >
-                📝 Lösung anzeigen
+                <span aria-hidden className="text-xl">
+                  📝
+                </span>
+                <span className="hidden sm:inline">Lösung anzeigen</span>
               </button>
               <button
                 type="button"
@@ -745,9 +757,13 @@ const totalScorePct = useMemo<number>(() => {
               </button>
               <Link
                 href={`/cases/${c.id}`}
-                className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-black/10 bg-white text-xl text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
+                aria-label="Fallinformationen anzeigen"
               >
-                Fallinfo
+                <span aria-hidden className="text-xl">
+                  ℹ️
+                </span>
+                <span className="hidden sm:inline">Fallinfo</span>
               </Link>
             </div>
           </form>
