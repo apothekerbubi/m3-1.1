@@ -221,7 +221,7 @@ export default function ExamPage() {
 
   // *** State ***
   const [asked, setAsked] = useState<Asked[]>([]);
-  const [style, setStyle] = useState<"strict" | "coaching">("coaching");
+  const style = "coaching" as const;
   const [ended, setEnded] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -925,52 +925,43 @@ function createReflectionSnapshot(): void {
   const stepImg = stepsOrdered[viewIndex]?.image;
 
   return (
-    <main className="p-0">
-      {/* Kopfzeile */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h2 className="flex-1 text-2xl font-semibold tracking-tight">
-          Prüfung: {anonymousTitle(c)}
-        </h2>
+    <main className="min-h-screen bg-white py-10 text-slate-900">
+      <div className="mx-auto flex max-w-6xl flex-col gap-8 px-6">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-4 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">
+                Fall
+              </span>
+              <span className="text-[12px] font-semibold tracking-[0.15em] text-slate-600">
+                {anonymousTitle(c)}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              {seriesTotal > 0 && (
+                <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">
+                  <span>
+                    Serie {seriesIdx + 1}/{seriesTotal}
+                  </span>
+                  <ProgressBar value={ended ? Math.round(((seriesIdx + 1) / seriesTotal) * 100) : seriesPct} />
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">
+                <span>Fortschritt</span>
+                <ProgressBar value={ended ? 100 : progressPct} />
+              </div>
+            </div>
+          </div>
+        </div>
 
-        {/* Serien-Progressbar (falls Serie vorhanden) */}
-        {seriesTotal > 0 && (
-  <div className="w-48">
-    <div className="mb-1 text-[11px] text-gray-600">
-      Serie {seriesIdx + 1}/{seriesTotal}
-    </div>
-    <ProgressBar
-      value={ended ? Math.round(((seriesIdx + 1) / seriesTotal) * 100) : seriesPct}
-    />
-  </div>
-)}
-
-        
-
-        {/* Schritt-Progressbar */}
-<div className="hidden w-56 sm:block">
-  <div className="mb-1 text-[11px] text-gray-600">Fortschritt</div>
-  <ProgressBar value={ended ? 100 : progressPct} />
-</div>
-
-        <label className="text-xs text-gray-600">Stil</label>
-        <select
-          className="rounded-md border px-2 py-1 text-sm"
-          value={style}
-          onChange={(e) => setStyle(e.target.value as "strict" | "coaching")}
-        >
-          <option value="coaching">Coaching</option>
-          <option value="strict">Streng</option>
-        </select>
-      </div>
-
-      {/* Zwei Spalten */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-[var(--steps-w,260px)_1fr]">
-        {/* Linke Spalte */}
-        <aside
-          ref={sidebarRef}
-          className="rounded-xl border border-black/10 bg-white/70 p-3 md:sticky md:top-20
-                     overflow-y-auto max-h-[calc(100vh-120px)]"
-        >
+        {/* Zwei Spalten */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-[var(--steps-w,260px)_1fr]">
+          {/* Linke Spalte */}
+          <aside
+            ref={sidebarRef}
+            className="rounded-xl border border-black/10 bg-white/70 p-3 md:sticky md:top-20
+                       overflow-y-auto max-h-[calc(100vh-120px)]"
+          >
           <div className="mb-2 text-xs font-medium text-gray-700">Fragenfolge</div>
           <ul className="space-y-2">
             {asked.map((a, i) => {
@@ -1211,6 +1202,7 @@ function createReflectionSnapshot(): void {
 </form>
         </section>
       </div>
+    </div>
     </main>
   );
 }
