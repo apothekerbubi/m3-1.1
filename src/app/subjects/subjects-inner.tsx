@@ -44,18 +44,30 @@ function MiniBar({ pct }: { pct: number }) {
 function SubjectsSkeleton() {
   return (
     <main className="animate-pulse space-y-12">
-      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 px-6 py-12 text-white shadow-xl sm:px-8">
+      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 px-5 py-6 text-white shadow-xl sm:px-6">
         <div className="absolute inset-y-0 right-0 w-1/2 bg-white/10 blur-3xl" />
-        <div className="relative z-10 flex flex-col gap-8 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-4">
-            <div className="h-5 w-32 rounded-full bg-white/30" />
-            <div className="h-8 w-64 rounded-full bg-white/40" />
+        <div className="relative z-10 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-3">
+            <div className="h-4 w-28 rounded-full bg-white/30" />
+            <div className="h-7 w-56 rounded-full bg-white/40" />
           </div>
-          <div className="grid w-full max-w-xs gap-3 text-right sm:justify-items-end">
-            <div className="h-4 w-full rounded-full bg-white/20" />
-            <div className="h-4 w-11/12 rounded-full bg-white/20" />
-            <div className="h-4 w-10/12 rounded-full bg-white/20" />
-            <div className="h-4 w-9/12 rounded-full bg-white/20" />
+          <div className="flex w-full max-w-xs flex-col gap-2 text-left">
+            <div className="flex items-center gap-3">
+              <span className="h-7 w-7 rounded-full bg-white/20" />
+              <span className="h-3 w-full rounded-full bg-white/20" />
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="h-7 w-7 rounded-full bg-white/20" />
+              <span className="h-3 w-11/12 rounded-full bg-white/20" />
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="h-7 w-7 rounded-full bg-white/20" />
+              <span className="h-3 w-10/12 rounded-full bg-white/20" />
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="h-7 w-7 rounded-full bg-white/20" />
+              <span className="h-3 w-9/12 rounded-full bg-white/20" />
+            </div>
           </div>
         </div>
       </section>
