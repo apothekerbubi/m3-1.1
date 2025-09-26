@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { CASES } from "@/data/cases";
@@ -232,6 +233,7 @@ export default function ExamPage() {
   // Chats pro Schritt
   const [chats, setChats] = useState<Turn[][]>([]);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   // 🔽 Sidebar: Container + letztes Item für Auto-Scroll
   const sidebarRef = useRef<HTMLDivElement | null>(null);
@@ -245,6 +247,27 @@ export default function ExamPage() {
   const [attemptCount, setAttemptCount] = useState<number>(0);
 
   const [input, setInput] = useState("");
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [input]);
+
+  const handleInputKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || event.shiftKey) return;
+    event.preventDefault();
+
+    if (!hasStarted) {
+      startExam();
+      return;
+    }
+
+    if (!ended && viewIndex === activeIndex && input.trim()) {
+      onSend();
+    }
+  };
 
   const [recording, setRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -968,8 +991,7 @@ function createReflectionSnapshot(): void {
         {/* Linke Spalte */}
         <aside
           ref={sidebarRef}
-          className="rounded-xl border border-black/10 bg-white/70 p-3 md:sticky md:top-20
-                     overflow-y-auto max-h-[calc(100vh-120px)]"
+          className="hidden max-h-[calc(100vh-120px)] overflow-y-auto rounded-xl border border-black/10 bg-white/70 p-3 md:sticky md:top-20 md:block"
         >
           <div className="mb-2 text-xs font-medium text-gray-700">Fragenfolge</div>
           <ul className="space-y-2">
@@ -1117,98 +1139,103 @@ function createReflectionSnapshot(): void {
           </div>
 
           {/* Eingabezeile */}
-<form
-  onSubmit={(e) => {
-    e.preventDefault();
-    if (!hasStarted) return startExam();
-    if (!ended) onSend();
-  }}
-  className="sticky bottom-0 left-0 right-0 z-20 flex flex-col gap-2 border-t bg-white p-2"
->
-  {/* Reihe 1: Eingabe + Senden */}
-  <div className="flex gap-2">
-    <input
-      className="min-w-0 flex-1 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-      placeholder={
-        ended
-          ? "Fall beendet"
-          : !hasStarted
-          ? "Zum Start bitte links klicken"
-          : viewIndex !== activeIndex
-          ? "Nur Ansicht – zurück zur aktuellen Frage wechseln"
-          : "Deine Antwort…"
-      }
-      value={input}
-      onChange={(e) => setInput(e.target.value)}
-      disabled={!hasStarted || ended || viewIndex !== activeIndex}
-    />
-      <button
-      type="button"
-      onClick={recording ? stopRecording : startRecording}
-      disabled={!hasStarted || ended || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      {recording ? "⏹️" : "🎙️"}
-    </button>
-    <button
-      type="submit"
-      disabled={loading || !hasStarted || ended || viewIndex !== activeIndex || !input.trim()}
-      className="rounded-md border border-black/10 bg-blue-600 text-white px-4 py-2 text-sm hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      Senden
-    </button>
-  </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!hasStarted) return startExam();
+              if (!ended) onSend();
+            }}
+            className="sticky bottom-0 left-0 right-0 z-20 flex flex-col gap-2 border-t bg-white p-2"
+          >
+            {/* Reihe 1: Eingabe + Senden */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <textarea
+                ref={inputRef}
+                rows={1}
+                className="min-h-[44px] w-full flex-1 resize-none rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                placeholder={
+                  ended
+                    ? "Fall beendet"
+                    : !hasStarted
+                    ? "Zum Start bitte „Prüfung starten“ wählen"
+                    : viewIndex !== activeIndex
+                    ? "Nur Ansicht – zurück zur aktuellen Frage wechseln"
+                    : "Deine Antwort…"
+                }
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleInputKeyDown}
+                disabled={!hasStarted || ended || viewIndex !== activeIndex}
+              />
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  onClick={recording ? stopRecording : startRecording}
+                  disabled={!hasStarted || ended || viewIndex !== activeIndex}
+                  className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                >
+                  {recording ? "⏹️" : "🎙️"}
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || !hasStarted || ended || viewIndex !== activeIndex || !input.trim()}
+                  className="rounded-md border border-black/10 bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                >
+                  Senden
+                </button>
+              </div>
+            </div>
 
-  {/* Reihe 2: Zusatz-Buttons */}
-  <div className="flex flex-wrap gap-2">
-    <button
-      type="button"
-      onClick={requestTip}
-      disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      💡 Tipp
-    </button>
-    <button
-      type="button"
-      onClick={requestExplain}
-      disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      📘 Erklären
-    </button>
-     <button
-      type="button"
-      onClick={requestSolution}
-      disabled={loading || !hasStarted || viewIndex !== activeIndex}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      📝 Lösung anzeigen
-    </button>
-    <label className="flex items-center gap-1 text-xs text-gray-600">
-      <input
-        type="checkbox"
-        checked={ttsEnabled}
-        onChange={(e) => setTtsEnabled(e.target.checked)}
-      />
-      Antworten vorlesen
-    </label>
-    <button
-      type="button"
-      onClick={hasStarted ? nextStep : startExam}
-      disabled={loading}
-      className="ml-auto rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
-    </button>
-    <Link
-      href={`/cases/${c.id}`}
-      className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-    >
-      Fallinfo
-    </Link>
-  </div>
-</form>
+            {/* Reihe 2: Zusatz-Buttons */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={requestTip}
+                disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
+                className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              >
+                💡 Tipp
+              </button>
+              <button
+                type="button"
+                onClick={requestExplain}
+                disabled={loading || !hasStarted || ended || viewIndex !== activeIndex}
+                className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              >
+                📘 Erklären
+              </button>
+              <button
+                type="button"
+                onClick={requestSolution}
+                disabled={loading || !hasStarted || viewIndex !== activeIndex}
+                className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              >
+                📝 Lösung anzeigen
+              </button>
+              <label className="flex items-center gap-1 text-xs text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={ttsEnabled}
+                  onChange={(e) => setTtsEnabled(e.target.checked)}
+                />
+                Antworten vorlesen
+              </label>
+              <button
+                type="button"
+                onClick={hasStarted ? nextStep : startExam}
+                disabled={loading}
+                className="ml-auto rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              >
+                {hasStarted ? (isLastStep ? "Abschließen" : "Nächste Frage") : "Prüfung starten"}
+              </button>
+              <Link
+                href={`/cases/${c.id}`}
+                className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-sm text-gray-900 hover:bg-black/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              >
+                Fallinfo
+              </Link>
+            </div>
+          </form>
         </section>
       </div>
     </main>

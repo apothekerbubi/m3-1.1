@@ -203,7 +203,7 @@ export default function OverviewClient() {
         description="Behalte Fortschritt, Prüfungstermin und deine zuletzt bearbeiteten Fälle im Blick."
         bullets={[
           { text: "Bearbeitete Fälle und Erfolgsquote", colorClass: "bg-emerald-300" },
-          { text: "Countdown bis zum Examens­termin", colorClass: "bg-amber-300" },
+          { text: "Countdown bis zum Prüfungs­termin", colorClass: "bg-amber-300" },
           { text: "Direkte Links zu Account und Fällen", colorClass: "bg-sky-300" },
         ]}
       />
@@ -218,7 +218,7 @@ export default function OverviewClient() {
             </p>
             <MiniBar pct={overallPct} />
              <p className="text-sm text-slate-600">
-              Durchschnittliche Punktzahl: <b>{avgPct}%</b>
+              Durchschnittlicher Score: <b>{avgPct}%</b>
             </p>
             </div>
            </article>
@@ -226,7 +226,7 @@ export default function OverviewClient() {
          <article className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="absolute -bottom-16 -left-12 h-36 w-36 rounded-full bg-slate-100 blur-3xl" />
           <div className="relative z-10 space-y-3">
-            <h2 className="text-xl font-semibold tracking-tight text-slate-900">Examens­termin</h2>
+            <h2 className="text-xl font-semibold tracking-tight text-slate-900">Prüfungs­termin</h2>
             <p className="text-sm text-slate-600">
               Datum: <b>{examDateStr}</b>
             </p>
